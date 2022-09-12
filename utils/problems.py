@@ -3,6 +3,8 @@ from typing import Optional, Union
 import dataclasses
 
 import numpy as np
+X, Y = 0, 1
+
 
 @dataclasses.dataclass
 class Problem:
@@ -55,7 +57,6 @@ class Problem:
 
 def mbb_beam(width=60, height=20, density=0.5):
     """Textbook beam example."""
-    X, Y = 0, 1
 
     width=60 
     height=20
