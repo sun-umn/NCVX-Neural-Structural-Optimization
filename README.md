@@ -14,3 +14,6 @@ pip install -r requirements.txt -f https://download.pytorch.org/whl/cu111/torch_
 
 pip install -q tf-nightly git+https://github.com/google-research/neural-structural-optimization.git
 
+# TODO
+
+need to translate numpy/tf obj into torch
