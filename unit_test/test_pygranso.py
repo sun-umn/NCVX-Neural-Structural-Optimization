@@ -7,11 +7,12 @@ sys.path.append('/home/buyun/Documents/GitHub/NCVX-Experiments-PAMI')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 
-from neural_structural_optimization import pipeline_utils
+# from neural_structural_optimization import pipeline_utils
 from neural_structural_optimization import problems
-from neural_structural_optimization import models
+# from neural_structural_optimization import models
+from utils import models
 from neural_structural_optimization import topo_api
-from neural_structural_optimization import train
+# from neural_structural_optimization import train
 
 
 
@@ -20,7 +21,7 @@ from neural_structural_optimization import train
 def train_cnn_model(problem, max_iterations, cnn_kwargs=None):
     args = topo_api.specified_task(problem)
     model = models.CNNModel(args=args, **cnn_kwargs)
-    ds_cnn = train.train_lbfgs(model, max_iterations)
+    # ds_cnn = train.train_lbfgs(model, max_iterations)
     pass
 
 problem = problems.mbb_beam(height=20, width=60)

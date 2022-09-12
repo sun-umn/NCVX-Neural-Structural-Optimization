@@ -1,6 +1,44 @@
-import tensorflow as tf
-import topo_api
+# lint as python3
+# Copyright 2019 Google LLC.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# pylint: disable=missing-docstring
+# pylint: disable=invalid-name
+
+import autograd
+import autograd.core
 import autograd.numpy as np
+from neural_structural_optimization import topo_api
+import tensorflow as tf
+
+# requires tensorflow 2.0
+
+layers = tf.keras.layers
+
+
+def batched_topo_loss(params, envs):
+  losses = [env.objective(params[i], volume_contraint=True)
+            for i, env in enumerate(envs)]
+  return np.stack(losses)
+
+
+def convert_autograd_to_tensorflow(func):
+  @tf.custom_gradient
+  def wrapper(x):
+    vjp, ans = autograd.core.make_vjp(func, x.numpy())
+    return ans, vjp
+  return wrapper
 
 
 def set_random_seed(seed):
@@ -8,10 +46,6 @@ def set_random_seed(seed):
     np.random.seed(seed)
     tf.random.set_seed(seed)
 
-def batched_topo_loss(params, envs):
-  losses = [env.objective(params[i], volume_contraint=True)
-            for i, env in enumerate(envs)]
-  return np.stack(losses)
 
 class Model(tf.keras.Model):
 
@@ -29,6 +63,49 @@ class Model(tf.keras.Model):
     f = lambda x: batched_topo_loss(x, [self.env])
     losses = convert_autograd_to_tensorflow(f)(logits)
     return tf.reduce_mean(losses)
+
+
+class PixelModel(Model):
+
+  def __init__(self, seed=None, args=None):
+    super().__init__(seed, args)
+    shape = (1, self.env.args['nely'], self.env.args['nelx'])
+    z_init = np.broadcast_to(args['volfrac'] * args['mask'], shape)
+    self.z = tf.Variable(z_init, trainable=True)
+
+  def call(self, inputs=None):
+    return self.z
+
+
+def global_normalization(inputs, epsilon=1e-6):
+  mean, variance = tf.nn.moments(inputs, axes=list(range(len(inputs.shape))))
+  net = inputs
+  net -= mean
+  net *= tf.math.rsqrt(variance + epsilon)
+  return net
+
+
+def UpSampling2D(factor):
+  return layers.UpSampling2D((factor, factor), interpolation='bilinear')
+
+
+def Conv2D(filters, kernel_size, **kwargs):
+  return layers.Conv2D(filters, kernel_size, padding='same', **kwargs)
+
+
+class AddOffset(layers.Layer):
+
+  def __init__(self, scale=1):
+    super().__init__()
+    self.scale = scale
+
+  def build(self, input_shape):
+    self.bias = self.add_weight(
+        shape=input_shape, initializer='zeros', trainable=True, name='bias')
+
+  def call(self, inputs):
+    return inputs + self.scale * self.bias
+
 
 class CNNModel(Model):
 
