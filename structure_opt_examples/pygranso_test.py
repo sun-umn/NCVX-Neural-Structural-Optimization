@@ -6,8 +6,12 @@ sys.path.append('/home/buyun/Documents/GitHub/NCVX-Experiments-PAMI')
 # sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
-import numpy as np
-from utils import problems, models, topo_api
+
+from neural_structural_optimization import pipeline_utils
+from neural_structural_optimization import problems
+from neural_structural_optimization import models
+from neural_structural_optimization import topo_api
+from neural_structural_optimization import train
 
 
 
@@ -20,7 +24,8 @@ def train_cnn_model(problem, max_iterations, cnn_kwargs=None):
     pass
 
 problem = problems.mbb_beam(height=20, width=60)
-ds = train_cnn_model(problem, max_iterations=200, cnn_kwargs=dict(resizes=(1, 1, 2, 2, 1)))
+ds = train_cnn_model(problem, max_iterations=10, cnn_kwargs=dict(resizes=(1, 1, 2, 2, 1)))
+
 
 
 device = torch.device('cuda')
