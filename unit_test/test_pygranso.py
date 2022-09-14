@@ -5,7 +5,6 @@ import sys
 # # from neural_structural_optimization.topo_physics import get_stiffness_matrix
 # ## Adding PyGRANSO directories. Should be modified by user
 sys.path.append('/home/buyun/Documents/GitHub/NCVX-Experiments-PAMI')
-sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
