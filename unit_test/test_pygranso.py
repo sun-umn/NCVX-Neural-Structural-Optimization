@@ -10,7 +10,7 @@ from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as Fun
 import torch
 import numpy as np
 
@@ -28,8 +28,8 @@ def normalization(inputs, epsilon=1e-6):
   x *= torch.rsqrt(variance + epsilon)
   return x
 
-def UpSampling(scale_factor):
-  return nn.Upsample(scale_factor = scale_factor, mode='bilinear') # AD problem with bilinear
+# def UpSampling(scale_factor):
+#   return Fun.upsample(scale_factor = scale_factor, mode='bilinear') # AD problem with bilinear
 
 class CNNModel_torch(nn.Module):
 
@@ -77,7 +77,7 @@ class CNNModel_torch(nn.Module):
     #     dense_init_scale * np.sqrt(max(filters / latent_size, 1)))
     # net = layers.Dense(filters, kernel_initializer=dense_initializer)(net)
     self.dense = nn.Linear(latent_size,filters)
-    self.activation = nn.Tanh()
+    # self.activation = nn.Tanh()
     self.conv = nn.ModuleList()
 
     for in_channels, out_channels in zip((dense_channels, 128, 64, 32, 16), conv_filters):
@@ -102,9 +102,9 @@ class CNNModel_torch(nn.Module):
     x = x.reshape((1,self.dense_channels,self.h, self.w))
 
     for resize, filters, i in zip(self.resizes, self.conv_filters,list(range(len(self.conv_filters)))):
-      x = self.activation(x)
+      x = Fun.tanh(x)
       # print(x.shape)
-      x = UpSampling(resize)(x)
+      x = Fun.upsample(x,scale_factor = resize, mode='bilinear')
       # print(x.shape)
       x = normalization(x)
       x = self.conv[i](x)
