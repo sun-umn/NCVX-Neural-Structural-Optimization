@@ -2,7 +2,7 @@
 
 conda create -n ncvx_exp_pami python=3.9
 
-## install pygranso
+## Install pygranso
 
     git clone https://github.com/sun-umn/PyGRANSO.git
 
@@ -12,7 +12,7 @@ conda create -n ncvx_exp_pami python=3.9
 
     pip install -r requirements.txt -f https://download.pytorch.org/whl/cu111/torch_stable.html
 
-## (Optional, not used in this src) install structural optimization
+## (Optional, not used in this src) Install neural-structral-optimization
 
 pip install -q tf-nightly git+https://github.com/google-research/neural-structural-optimization.git
 
