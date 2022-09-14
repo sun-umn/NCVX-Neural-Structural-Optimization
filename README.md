@@ -12,7 +12,7 @@ conda create -n ncvx_exp_pami python=3.9
 
     pip install -r requirements.txt -f https://download.pytorch.org/whl/cu111/torch_stable.html
 
-## (Optional) install structural optimization
+## (Optional, not used in this src) install structural optimization
 
 pip install -q tf-nightly git+https://github.com/google-research/neural-structural-optimization.git
 
@@ -26,6 +26,9 @@ The PyGRANSO implementation is based on the MBB beam example of *neural-structra
 
 # TODO List
 
-    1. Stiffness matrix *K* should be a function of grid density *x*. Current implementation uses a fixed constant matrix *K*.
+    1. Stiffness matrix *K* should be a function of grid density *x*. Current implementation uses a fixed constant matrix *K*. Please check the function *objective* in the file *topo_physics.py* in the *neural-structral-optimization* package for more details
 
-    2. 
+    2. Current implementation of PyTorch CNN is not a faithful translation of the original TensorFlow version CNN in MBB Beam examle. For example, weight intilizer for the convolution kernel, AddOffSet, latent initializers are not implemented. Please check the file *models.py* in the *neural-structral-optimization* package for more details.
+
+    3. Einstein Summation used in the equality constraints *KU = F*. Current implementation of physical law is not the same.
+
