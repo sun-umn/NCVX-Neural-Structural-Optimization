@@ -231,7 +231,7 @@ class CNNModel_torch(nn.Module):
     
     # not used in the CNN model. It's a dummy variable used in PyGRANSO that has to be defined there, 
     # as PyGRANSO will read all parameters from the nn.parameters() 
-    self.U =torch.nn.Parameter(torch.randn(50,50))
+    self.U =torch.nn.Parameter(torch.randn(60*20,1))
 
     # outputs = tf.squeeze(net, axis=[-1])
 

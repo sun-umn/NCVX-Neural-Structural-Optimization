@@ -20,8 +20,8 @@ import functools
 from absl import logging
 import autograd
 import autograd.numpy as np
-from neural_structural_optimization import models
-from neural_structural_optimization import topo_physics
+from utils import models
+from utils import topo_physics
 import scipy.optimize
 import tensorflow as tf
 import xarray

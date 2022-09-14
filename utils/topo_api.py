@@ -16,7 +16,7 @@
 # pylint: disable=missing-docstring
 
 import autograd.numpy as np
-from neural_structural_optimization import topo_physics
+from utils import topo_physics
 
 
 def specified_task(problem):

@@ -25,8 +25,8 @@ http://www.topopt.mek.dtu.dk/Apps-and-software/Efficient-topology-optimization-i
 
 import autograd
 import autograd.numpy as np
-from neural_structural_optimization import autograd_lib
-from neural_structural_optimization import caching
+from utils import autograd_lib
+from utils import caching
 
 # A note on conventions:
 # - forces and freedofs are stored flattened, but logically represent arrays of
