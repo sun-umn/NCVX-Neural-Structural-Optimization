@@ -19,7 +19,7 @@
 import autograd
 import autograd.core
 import autograd.numpy as np
-from neural_structural_optimization import topo_api
+from utils import topo_api
 import tensorflow as tf
 
 import torch.nn as nn
@@ -223,11 +223,15 @@ class CNNModel_torch(nn.Module):
     # net = layers.Dense(filters, kernel_initializer=dense_initializer)(net)
     self.dense = nn.Linear(latent_size,filters)
     self.activation = nn.Tanh()
-    self.conv = []
+    self.conv = nn.ModuleList()
 
     for in_channels, out_channels in zip((dense_channels, 128, 64, 32, 16), conv_filters):
       self.conv.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=self.kernel_size, padding='same'))
 
+    
+    # not used in the CNN model. It's a dummy variable used in PyGRANSO that has to be defined there, 
+    # as PyGRANSO will read all parameters from the nn.parameters() 
+    self.U =torch.nn.Parameter(torch.randn(50,50))
 
     # outputs = tf.squeeze(net, axis=[-1])
 
@@ -244,12 +248,12 @@ class CNNModel_torch(nn.Module):
 
     for resize, filters, i in zip(self.resizes, self.conv_filters,list(range(len(self.conv_filters)))):
       x = self.activation(x)
-      print(x.shape)
+      # print(x.shape)
       x = UpSampling(resize)(x)
-      print(x.shape)
+      # print(x.shape)
       x = normalization(x)
       x = self.conv[i](x)
-      print(x.shape)
+      # print(x.shape)
       
     return x
 
