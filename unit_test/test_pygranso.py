@@ -5,7 +5,7 @@ import sys
 # # from neural_structural_optimization.topo_physics import get_stiffness_matrix
 # ## Adding PyGRANSO directories. Should be modified by user
 sys.path.append('/home/buyun/Documents/GitHub/NCVX-Experiments-PAMI')
-# sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
+sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
@@ -20,13 +20,14 @@ import numpy as np
 # from utils import train
 
 device = torch.device('cuda')
+double_precision = torch.double
 
-def normalization(inputs, epsilon=1e-6):
-  variance, mean = torch.var_mean(inputs)
-  x = inputs
-  x -= mean
-  x *= torch.rsqrt(variance + epsilon)
-  return x
+# def normalization(inputs, epsilon=1e-6):
+#   variance, mean = torch.var_mean(inputs)
+#   x = inputs
+#   x -= mean
+#   x *= torch.rsqrt(variance + epsilon)
+#   return x
 
 # def UpSampling(scale_factor):
 #   return Fun.upsample(scale_factor = scale_factor, mode='bilinear') # AD problem with bilinear
@@ -79,9 +80,11 @@ class CNNModel_torch(nn.Module):
     self.dense = nn.Linear(latent_size,filters)
     # self.activation = nn.Tanh()
     self.conv = nn.ModuleList()
+    self.conv_bn = nn.ModuleList()
 
     for in_channels, out_channels in zip((dense_channels, 128, 64, 32, 16), conv_filters):
       self.conv.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=self.kernel_size, padding='same'))
+      self.conv_bn.append(nn.BatchNorm2d(num_features=in_channels))
 
     
     # not used in the CNN model. It's a dummy variable used in PyGRANSO that has to be defined there, 
@@ -106,7 +109,7 @@ class CNNModel_torch(nn.Module):
       # print(x.shape)
       x = Fun.upsample(x,scale_factor = resize, mode='bilinear')
       # print(x.shape)
-      x = normalization(x)
+      x = self.conv_bn[i](x)
       x = self.conv[i](x)
       # print(x.shape)
       
@@ -129,29 +132,30 @@ def user_fn(model,z, V0, K, F):
     f = U.T@K@U
 
     # inequality constraint, matrix form
-    ci = None
-
-    # equality constraint
-    ce = pygransoStruct()
-    ce.c1 = torch.mean(x) - V0
-
+    ci = pygransoStruct()
     box_constr = torch.hstack(
         (x.reshape(x.numel()) - 1,
         -x.reshape(x.numel()))
     )
     box_constr = torch.clamp(box_constr, min=0)
     folded_constr = torch.sum(box_constr**2)**0.5
-    ce.c2 = folded_constr
-    ce.c3 = K@U - F
+    ci.c1 = folded_constr
+    # ci = None
+
+    # equality constraint
+    ce = pygransoStruct()
+    ce.c1 = torch.mean(x) - V0
+
+    ce.c2 = torch.sum((K@U - F)**2)**0.5 
 
     return [f,ci,ce]
 
 V0 = 0.5 # volume fraction from args
-K = torch.randn((60*20,60*20)) # Stiffness matrix
-F = torch.randn((60*20,1)) # Force vector
-z = torch.randn(1,128) # initial fixed random input for DIP; similar to random seeds
+K = torch.randn((60*20,60*20)).to(device=device, dtype=double_precision) # Stiffness matrix
+F = torch.randn((60*20,1)).to(device=device, dtype=double_precision) # Force vector
+z = torch.randn(1,128).to(device=device, dtype=double_precision) # initial fixed random input for DIP; similar to random seeds
 
-model = CNNModel_torch()
+model = CNNModel_torch().to(device=device, dtype=double_precision)
 model.train()
 
 
@@ -176,6 +180,7 @@ opts.double_precision = True
 
 # opts.mu0 = 1
 
+torch.autograd.set_detect_anomaly(True)
 
 start = time.time()
 soln = pygranso(var_spec= model, combined_fn = comb_fn, user_opts = opts)
