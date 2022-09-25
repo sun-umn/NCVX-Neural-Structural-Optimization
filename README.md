@@ -51,4 +51,3 @@ The PyGRANSO implementation is based on the MBB beam example of *neural-structra
 3. Show also the `L-BFGS-B` implementation. To see if we can further debug any possible issues 🐞.
 
 4. Add the `tests` directory to show that all our calculations match expectations.
-
