@@ -80,9 +80,6 @@ class CNNModel(nn.Module):
         # # TODO: After the run with the new U we will bring this back
         # # Set up the u vector that we will be minimizing although
         # # it is not a part of the model
-        # self.U = torch.nn.Parameter(
-        #     torch.randn((2 * (args['nely'] + 1) * (args['nelx'] + 1), 1))
-        # )
 
         # Create the first dense layer
         self.dense = nn.Linear(latent_size, filters)
