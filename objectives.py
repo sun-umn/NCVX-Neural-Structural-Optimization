@@ -1,5 +1,5 @@
 import torch
-from neural_structural_optimization import topo_physics
+import topo_physics
 
 
 def objective(x, ke, args, volume_constraint=True, filtering=False):

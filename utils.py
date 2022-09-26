@@ -78,7 +78,7 @@ class FindRoot(Function):
         # Adding a small constant here because I could not get the
         # gradcheck to work without this. We will want to
         # investigate later
-        gradient_value = (-grad_f_x / grad_f_y) + 0.016
+        gradient_value = (-grad_f_x / grad_f_y)
         return gradient_value * grad_output, None, None, None
 
 
