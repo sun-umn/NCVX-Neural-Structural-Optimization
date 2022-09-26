@@ -46,8 +46,13 @@ The PyGRANSO implementation is based on the MBB beam example of *neural-structra
 
 1. Push up the experimental results with our original implementation.
 
-2. Show the `PyGranso` with all of the brand new updates. Need to clean up the notebook.
+2. Show the `PyGranso` with all of the brand new updates. Need to clean up the notebook. ✅
 
 3. Show also the `L-BFGS-B` implementation. To see if we can further debug any possible issues 🐞.
 
 4. Add the `tests` directory to show that all our calculations match expectations.
+
+5. I still like the idea of actually solving the constrained problem head on. The newest results are actually based on the full implementations with custom gradients and solvers. I want to be able to show generality for the problem.
+
+6. Add an implementation with `torch` based optimizers. ✅
+

@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from neural_structural_optimization import utils
+import utils
 
 
 # Calculate the young modulus
@@ -101,7 +101,7 @@ def get_stiffness_matrix(young: float, poisson: float) -> np.array:
         ]
     )
 
-    return e / (1 - nu**2) * shuffled_array
+    return e / (1 - nu ** 2) * shuffled_array
 
 
 # Compliance
@@ -191,7 +191,6 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
     """
     Function that displaces the load x using finite element techniques.
     """
-    # print(f'x_phys: {x_phys.sum()}')
     stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
 
     # Get the K values
@@ -210,7 +209,7 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
             indices, k_entries[keep], (len(freedofs_forces),) * 2
         ).to_dense()
     ).double()
-    # print(f'sum K {K.sum()}')
+    K = (K + K.transpose(1, 0)) / 2.0
 
     u_nonzero = torch.linalg.inv(K) @ freedofs_forces
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
