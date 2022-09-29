@@ -12,7 +12,7 @@ def young_modulus(x, e_0, e_min, p=3):
     e_min = torch.tensor(e_min)
     p = torch.tensor(p)
 
-    return e_min + x**p * (e_0 - e_min)
+    return e_min + x ** p * (e_0 - e_min)
 
 
 # Define the physical density with torch
@@ -211,7 +211,11 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
     ).double()
     K = (K + K.transpose(1, 0)) / 2.0
 
-    u_nonzero = torch.linalg.inv(K) @ freedofs_forces
+    # Compute the inverse of K
+    K_inverse = torch.inverse(K)
+
+    # Compute the non-zero u values
+    u_nonzero = K_inverse @ freedofs_forces
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
 
     return u_values[index_map]

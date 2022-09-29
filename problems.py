@@ -86,3 +86,45 @@ def mbb_beam(width=60, height=20, density=0.5):
     forces[0, 0, Y] = -1
 
     return Problem(normals, forces, density)
+
+
+
+def multistory_building(width=32, height=32, density=0.3, interval=16):
+  """A multi-story building, supported from the ground."""
+  normals = np.zeros((width + 1, height + 1, 2))
+  normals[:, -1, Y] = 1
+  normals[-1, :, X] = 1
+
+  forces = np.zeros((width + 1, height + 1, 2))
+  forces[:, ::interval, Y] = -1 / width
+  return Problem(normals, forces, density)
+
+
+# Problems Category
+PROBLEMS_BY_CATEGORY = {
+    # idealized beam and cantilevers
+    'mbb_beam': [
+        mbb_beam(96, 32, density=0.5),
+        mbb_beam(192, 64, density=0.4),
+        mbb_beam(384, 128, density=0.3),
+        mbb_beam(192, 32, density=0.5),
+        mbb_beam(384, 64, density=0.4),
+    ],
+    'multistory_building': [
+        multistory_building(32, 64, density=0.5),
+        multistory_building(64, 128, interval=32, density=0.4),
+        multistory_building(128, 256, interval=64, density=0.3),
+        multistory_building(128, 512, interval=64, density=0.25),
+        multistory_building(128, 512, interval=128, density=0.2),
+    ],
+}
+
+
+# Create the ability to do problems by name the same as the paper
+PROBLEMS_BY_NAME = {}
+for problem_class, problem_list in PROBLEMS_BY_CATEGORY.items():
+  for problem in problem_list:
+    name = f'{problem_class}_{problem.width}x{problem.height}_{problem.density}'
+    problem.name = name
+    assert name not in PROBLEMS_BY_NAME, f'redundant name {name}'
+    PROBLEMS_BY_NAME[name] = problem

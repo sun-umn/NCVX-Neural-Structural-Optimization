@@ -28,11 +28,8 @@ def objective(x, ke, args, volume_constraint=True, filtering=False):
         x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
     )
 
-    # print(f'U matrix {u_matrix.min()}')
-    # print(f'x_phys {x_phys.sum()}')
-
+    # Compute the compliance measure
     compliance_output = topo_physics.compliance(x_phys, u_matrix, ke, **kwargs)
-    # print(f'Compliance sum value {torch.sum(compliance_output)}')
 
     # TODO: add logging to this loss function
     return torch.sum(compliance_output)
