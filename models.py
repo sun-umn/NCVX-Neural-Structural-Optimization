@@ -133,7 +133,8 @@ class CNNModel(nn.Module):
 
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
-            output = torch.tanh(output)
+            output = nn.ReLU()(output)
+            # output = torch.tanh(output)
 
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
@@ -153,9 +154,5 @@ class CNNModel(nn.Module):
         # Squeeze the result in the last axis just like in the
         # tensorflow code
         output = torch.squeeze(output)
-
-        # I thought this was one of the outputs that we wanted to find
-        # the gradient for so we can try with and with out this
-        output.retain_grad()
 
         return output
