@@ -4,9 +4,6 @@ import torch.optim as optim
 import models
 import topo_api
 import topo_physics
-from pygranso.pygranso import pygranso
-from pygranso.pygransoStruct import pygransoStruct
-from pygranso.private.getNvar import getNvarTorch
 
 
 def train_adam(problem, cnn_kwargs, lr=4e-4, iterations=500):
