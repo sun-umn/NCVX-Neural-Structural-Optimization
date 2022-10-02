@@ -100,6 +100,26 @@ def multistory_building(width=32, height=32, density=0.3, interval=16):
   return Problem(normals, forces, density)
 
 
+def thin_support_bridge(
+    width=32, height=32, density=0.25, design_width=0.25
+):
+    """
+        A bridge supported from below with fixed width supports.
+    """
+    normals = np.zeros((width + 1, height + 1, 2))
+    normals[:, -1, Y] = 1
+    normals[0, :, X] = 1
+    normals[-1, :, X] = 1
+
+    forces = np.zeros((width + 1, height + 1, 2))
+    forces[:, 0, Y] = -1 / width
+
+    mask = np.ones((width, height))
+    mask[-round(width*(1-design_width)):, :round(height*(1-design_width))] = 0
+
+    return Problem(normals, forces, density, mask)
+
+
 # Problems Category
 PROBLEMS_BY_CATEGORY = {
     # idealized beam and cantilevers
@@ -116,6 +136,12 @@ PROBLEMS_BY_CATEGORY = {
         multistory_building(128, 256, interval=64, density=0.3),
         multistory_building(128, 512, interval=64, density=0.25),
         multistory_building(128, 512, interval=128, density=0.2),
+    ],
+    'thin_support_bridge': [
+        thin_support_bridge(64, 64, density=0.3),
+        thin_support_bridge(128, 128, density=0.2),
+        thin_support_bridge(256, 256, density=0.15),
+        thin_support_bridge(256, 256, density=0.1),
     ],
 }
 

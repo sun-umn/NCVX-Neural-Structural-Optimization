@@ -55,6 +55,7 @@ class CNNModel(nn.Module):
         kernel_size=(5, 5),
         latent_scale=1.0,
         dense_init_scale=1.0,
+        train_u_matrix=False,
     ):
         super().__init__()
 
@@ -77,9 +78,11 @@ class CNNModel(nn.Module):
         # Create the filters
         filters = dense_channels * self.h * self.w
 
-        # # TODO: After the run with the new U we will bring this back
-        # # Set up the u vector that we will be minimizing although
-        # # it is not a part of the model
+        # Create the u_matrix vector
+        if train_u_matrix:
+            self.u_matrix = nn.Parameter(
+                torch.randn(len(args['freedofs'])).double()
+            )
 
         # Create the first dense layer
         self.dense = nn.Linear(latent_size, filters)
@@ -87,12 +90,6 @@ class CNNModel(nn.Module):
         # Create the gain for the initializer
         gain = self.dense_init_scale * np.sqrt(max(filters / latent_size, 1))
         nn.init.orthogonal_(self.dense.weight, gain=gain)
-
-        # # Create a global normalization layer
-        # self.global_normalization = GlobalNormalization()
-
-        # # Offsetting layer as seen in their code
-        # self.add_offset = AddOffset(scale=self.offset_scale)
 
         # Create the convoluational layers that will be used
         self.conv = nn.ModuleList()

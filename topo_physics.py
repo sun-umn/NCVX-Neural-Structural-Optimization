@@ -21,13 +21,25 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
     Function that calculates the physical density
     """
     shape = (args["nely"], args["nelx"])
+    arg_mask = args['mask']
 
     # In the code they do a reshape but this would not be necessary
     # if this assertion is broken
     assert x.shape == shape or x.ndim == 1
 
     if volume_constraint:
-        x = utils.sigmoid_with_constrained_mean(x, args["volfrac"])
+        mask = torch.broadcast_to(arg_mask, shape) > 0
+        x_designed = (
+            utils
+            .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
+        )
+        flat_nonzero_mask = torch.nonzero(
+            mask.ravel(), as_tuple=True
+        )[0]
+        x_flat = utils.torch_scatter1d(
+            x_designed, flat_nonzero_mask, len(x)
+        )
+        x = x_flat.reshape(shape)
 
     else:
         x = x * args["mask"]
@@ -216,6 +228,32 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
 
     # Compute the non-zero u values
     u_nonzero = K_inverse @ freedofs_forces
+    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
+
+    return u_values[index_map], K
+
+
+def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1):
+    """
+    Function that displaces the load x using finite element techniques.
+    """
+    stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
+
+    # Get the K values
+    k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+
+    index_map, keep, indices = utils._get_dof_indices(
+        freedofs, fixdofs, k_ylist, k_xlist
+    )
+
+    # Reduced forces
+    freedofs_forces = forces[freedofs].double()
+
+    # Calculate u_nonzero
+    keep_k_entries = k_entries[keep]
+    u_nonzero = utils.solve_coo(
+        keep_k_entries, indices, freedofs_forces, sym_pos=False
+    )
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
 
     return u_values[index_map]
