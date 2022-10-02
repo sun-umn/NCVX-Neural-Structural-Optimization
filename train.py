@@ -6,7 +6,7 @@ import topo_api
 import topo_physics
 
 
-def train_adam(problem, cnn_kwargs, lr=4e-4, iterations=500):
+def train_adam(problem, cnn_kwargs, lr=4e-4, iterations=500, run_sparse=True):
     """
     Function that will train the structural optimization with
     the Adam optimizer
@@ -54,9 +54,15 @@ def train_adam(problem, cnn_kwargs, lr=4e-4, iterations=500):
         forces = topo_physics.calculate_forces(x_phys, args)
 
         # Calculate the u_matrix
-        u_matrix = topo_physics.sparse_displace(
-            x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
-        )
+        if run_sparse:
+            u_matrix = topo_physics.sparse_displace(
+                x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
+            )
+        else:
+            # Calculate the u_matrix
+            u_matrix, K = topo_physics.displace(
+                x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
+            )
 
         # Calculate the compliance output
         compliance_output = topo_physics.compliance(x_phys, u_matrix, ke, **kwargs)
