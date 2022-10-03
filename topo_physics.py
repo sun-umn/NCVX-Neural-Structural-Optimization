@@ -8,9 +8,9 @@ def young_modulus(x, e_0, e_min, p=3):
     """
     Function that calculates the young modulus
     """
-    e_0 = torch.tensor(e_0)
-    e_min = torch.tensor(e_min)
-    p = torch.tensor(p)
+    e_0 = e_0.clone().detach()
+    e_min = e_min.clone().detach()
+    p = p.clone().detach()
 
     return e_min + x ** p * (e_0 - e_min)
 

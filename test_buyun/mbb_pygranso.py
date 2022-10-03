@@ -42,8 +42,8 @@ def structural_optimization_function(model, ke, args, designs, debug=False):
     # kwargs for displacement
     kwargs = dict(
         penal=torch.tensor(args["penal"]),
-        e_min=torch.tensor(args["young_min"]),
-        e_0=torch.tensor(args["young"]),
+        e_min=args["young_min"].clone().detach(),
+        e_0=args["young"].clone().detach(),
     )
 
     # Calculate the physical density
@@ -94,6 +94,10 @@ cnn_model = models.CNNModel(
 
 # Put the model in training mode
 cnn_model.train()
+
+# # DEBUG part: print pygranso optimization variables
+for name, param in cnn_model.named_parameters():
+    print("{}: {}".format(name, param.data.shape))
 
 # Get the stiffness matrix
 ke = topo_physics.get_stiffness_matrix(
