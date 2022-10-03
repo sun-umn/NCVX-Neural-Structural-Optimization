@@ -29,7 +29,7 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
     assert x.shape == shape or x.ndim == 1
 
     if volume_constraint:
-        if arg_mask == 1:
+        if len(arg_mask.flatten()) == 1:
             x = utils.sigmoid_with_constrained_mean(x, args['volfrac'])
 
         else:
