@@ -5,14 +5,16 @@ from torch.autograd import Function
 import scipy.sparse
 import scipy.sparse.linalg
 import warnings
-try:
-    import sksparse.cholmod
-    HAS_CHOLMOD = True
-except ImportError:
-    warnings.warn(
-        'sksparse.cholmod not installed. Falling back to SciPy/SuperLU, but '
-        'simulations will be about twice as slow.')
-    HAS_CHOLMOD = False
+# try:
+#     import sksparse.cholmod
+#     HAS_CHOLMOD = True
+# except ImportError:
+#     warnings.warn(
+#         'sksparse.cholmod not installed. Falling back to SciPy/SuperLU, but '
+#         'simulations will be about twice as slow.')
+#     HAS_CHOLMOD = False
+
+HAS_CHOLMOD = False
 
 
 class SparseSolver(Function):
