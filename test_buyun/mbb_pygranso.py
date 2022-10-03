@@ -74,7 +74,7 @@ def structural_optimization_function(model, ke, args, designs, debug=False):
     return f, ci, ce
 
 # Variable definitions
-device = torch.device('cpu')
+device = torch.device('cuda')
 double_precision = torch.double
 
 # Identify the problem

@@ -56,3 +56,8 @@ The PyGRANSO implementation is based on the MBB beam example of *neural-structra
 
 6. Add an implementation with `torch` based optimizers. ✅
 
+# TODO (Buyun):
+
+1. Fixed input vector is not a trainable parameter
+
+2. Displacement vector u is a trainable parameter
