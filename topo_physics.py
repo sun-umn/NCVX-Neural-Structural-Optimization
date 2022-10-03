@@ -22,24 +22,29 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
     """
     shape = (args["nely"], args["nelx"])
     arg_mask = args['mask']
+    size_x = len(x.flatten())
 
     # In the code they do a reshape but this would not be necessary
     # if this assertion is broken
     assert x.shape == shape or x.ndim == 1
 
     if volume_constraint:
-        mask = torch.broadcast_to(arg_mask, shape) > 0
-        x_designed = (
-            utils
-            .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
-        )
-        flat_nonzero_mask = torch.nonzero(
-            mask.ravel(), as_tuple=True
-        )[0]
-        x_flat = utils.torch_scatter1d(
-            x_designed, flat_nonzero_mask, len(x)
-        )
-        x = x_flat.reshape(shape)
+        if arg_mask == 1:
+            x = utils.sigmoid_with_constrained_mean(x, args['volfrac'])
+
+        else:
+            mask = torch.broadcast_to(arg_mask, shape) > 0
+            x = (
+                utils
+                .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
+            )
+            flat_nonzero_mask = torch.nonzero(
+                mask.ravel(), as_tuple=True
+            )[0]
+            x = utils.torch_scatter1d(
+                x, flat_nonzero_mask, size_x
+            )
+            x = x.reshape(shape)
 
     else:
         x = x * args["mask"]

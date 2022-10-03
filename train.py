@@ -6,7 +6,7 @@ import topo_api
 import topo_physics
 
 
-def train_adam(problem, cnn_kwargs, lr=4e-4, iterations=500):
+def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     """
     Function that will train the structural optimization with
     the Adam optimizer
@@ -16,7 +16,10 @@ def train_adam(problem, cnn_kwargs, lr=4e-4, iterations=500):
 
     # Initiate the model to be trained
     # Current, assumption is a CNN model
-    model = models.CNNModel(args=args, **cnn_kwargs)
+    if cnn_kwargs is not None:
+        model = models.CNNModel(args=args, **cnn_kwargs)
+    else:
+        model = models.CNNModel(args=args)
 
     # Build the stiffness matrix
     ke = topo_physics.get_stiffness_matrix(young=args["young"], poisson=args["poisson"])
