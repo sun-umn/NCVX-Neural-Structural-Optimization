@@ -31,7 +31,7 @@ def specified_task(problem):
         "mask": torch.tensor(problem.mask),
         "freedofs": torch.tensor(freedofs),
         "fixdofs": torch.tensor(fixdofs),
-        "forces": torch.tensor(problem.forces.ravel()),
+        "forces": problem.forces.clone().detach().ravel(),
         "penal": 3.0,
         "filter_width": 2,
     }

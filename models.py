@@ -65,8 +65,8 @@ class CNNModel(nn.Module):
             raise ValueError("resizes and filters are not the same!")
 
         total_resize = int(np.prod(resizes))
-        self.h = args["nely"] // total_resize
-        self.w = args["nelx"] // total_resize
+        self.h = torch.div(args["nely"], total_resize, rounding_mode='floor')
+        self.w = torch.div(args["nelx"], total_resize, rounding_mode='floor')
         self.dense_channels = dense_channels
         self.resizes = resizes
         self.conv_filters = conv_filters
