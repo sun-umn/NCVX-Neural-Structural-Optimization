@@ -2,6 +2,91 @@ import autograd
 import autograd.numpy as anp
 import torch
 from torch.autograd import Function
+import scipy.sparse
+import scipy.sparse.linalg
+import warnings
+try:
+    import sksparse.cholmod
+    HAS_CHOLMOD = True
+except ImportError:
+    warnings.warn(
+        'sksparse.cholmod not installed. Falling back to SciPy/SuperLU, but '
+        'simulations will be about twice as slow.')
+    HAS_CHOLMOD = False
+
+
+class SparseSolver(Function):
+    """
+    The SparseSolver method is a sparse linear solver which also
+    creates the gradiends for the backward pass.
+    """
+
+    @staticmethod
+    def forward(ctx, a_entries, a_indices, b, sym_pos=False):  # noqa
+        # Set the inputs
+        ctx.a_entries = a_entries
+        ctx.a_indices = a_indices
+        ctx.sym_pos = sym_pos
+
+        # Gather the result
+        a = scipy.sparse.coo_matrix(
+            (a_entries.detach().numpy(), a_indices.numpy()), shape=(b.numpy().size,) * 2
+        ).tocsc()
+        a = (a + a.T) / 2.0
+
+        if sym_pos and HAS_CHOLMOD:
+            solver = sksparse.cholmod.cholesky(a).solve_A
+        else:
+            # could also use scikits.umfpack.splu
+            # should be about twice as slow as the cholesky
+            solver = scipy.sparse.linalg.splu(a).solve
+
+        result = torch.from_numpy(solver(b.numpy()))
+
+        # The output from the forward pass needs to have
+        # requires_grad = True
+        result = result.requires_grad_()
+        ctx.result = result
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):  # noqa
+        a_entries = ctx.a_entries
+        a_indices = ctx.a_indices
+        sym_pos = ctx.sym_pos
+        result = ctx.result
+
+        # Gather the result
+        a = scipy.sparse.coo_matrix(
+            (a_entries.detach().numpy(), a_indices.numpy()),
+            shape=(grad_output.numpy().size,) * 2
+        ).tocsc()
+        a = (a + a.T) / 2.0
+
+        # If the matrix is postive definte and symetric then
+        # we can use the cholesky factorization
+        # otherwise we will use the sparse lu decomposition
+        if sym_pos and HAS_CHOLMOD:
+            solver = sksparse.cholmod.cholesky(a).solve_A
+        else:
+            # could also use scikits.umfpack.splu
+            # should be about twice as slow as the cholesky
+            solver = scipy.sparse.linalg.splu(a).solve
+
+        # Calculate the gradient
+        lambda_ = torch.from_numpy(solver(grad_output.numpy()))
+        i, j = a_indices
+        i, j = i.long(), j.long()
+        output = -lambda_[i] * result[j]
+        return output, None, None, None
+
+
+def solve_coo(a_entries, a_indices, b, sym_pos):
+    """
+    Wrapper around the SparseSolver class for building
+    a large sparse matrix gradient
+    """
+    return SparseSolver.apply(a_entries, a_indices, b, sym_pos)
 
 
 # Implement a find root extension for pytorch
@@ -147,3 +232,29 @@ def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
     j = index_map[k_xlist][keep]
 
     return index_map, keep, torch.stack([i, j])
+
+
+def set_diff_1d(t1, t2, assume_unique=False):
+    """
+    Set difference of two 1D tensors.
+    Returns the unique values in t1 that are not in t2.
+
+    """
+    if not assume_unique:
+        t1 = torch.unique(t1)
+        t2 = torch.unique(t2)
+    return t1[(t1[:, None] != t2).all(dim=1)]
+
+
+def torch_scatter1d(nonzero_values, nonzero_indices, array_len):
+    """
+    Function that will take a mask and non zero values and determine
+    an output and ordering for the original array
+    """
+    all_indices = torch.arange(array_len)
+    zero_indices = set_diff_1d(
+        all_indices, nonzero_indices, assume_unique=True
+    )
+    index_map = torch.argsort(torch.cat((nonzero_indices, zero_indices)))
+    values = torch.cat((nonzero_values, torch.zeros(len(zero_indices))))
+    return values[index_map]
