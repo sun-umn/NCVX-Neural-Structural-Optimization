@@ -117,15 +117,19 @@ class CNNModel(nn.Module):
             offset_layer = AddOffset(self.offset_scale)
             self.add_offset.append(offset_layer)
 
-        # Set up x here otherwise it is not part of the leaf tensors
-        self.z = torch.nn.Parameter(
-            torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
-        )
+        # # Set up x here otherwise it is not part of the leaf tensors
+        # self.z = torch.nn.Parameter(
+        #     torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
+        # )
 
-    def forward(self, x=None):  # noqa
+        # U is not used in the CNN model. It's a dummy variable used in PyGRANSO that has to be defined there, 
+        # as PyGRANSO will read all parameters from the nn.parameters() 
+        self.U =torch.nn.Parameter(torch.randn(2562,1))
+
+    def forward(self, output):  # noqa
 
         # Create the model
-        output = self.dense(self.z)
+        output = self.dense(output)
         output = output.reshape((1, self.dense_channels, self.h, self.w))
 
         layer_loop = zip(self.resizes, self.conv_filters)

@@ -162,7 +162,7 @@ def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1,device=torch.device(
     ce = torch.einsum("ijk,ijk->jk", u_selected, ke_u)
     young_x_phys = young_modulus(x_phys, e_0, e_min, p=penal)
 
-    return young_x_phys * ce.T
+    return young_x_phys * ce.T, ke_u
 
 
 def get_k(stiffness, ke):

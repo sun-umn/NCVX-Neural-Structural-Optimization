@@ -22,12 +22,12 @@ import utils
 
 # first party
 # Import pygranso functionality
-sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
+# sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 
-def structural_optimization_function(model, ke, args, designs, kwargs, debug=False):
+def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, debug=False):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -38,34 +38,41 @@ def structural_optimization_function(model, ke, args, designs, kwargs, debug=Fal
     # In my version of the model it follows the similar behavior of the
     # tensorflow repository and only needs None to initialize and output
     # a first value of x
-    logits = model(None)
-
-
+    # logits = model(z)
 
     # Calculate the physical density
-    x_phys = topo_physics.physical_density(logits, args, volume_constraint=True)
+    # x_phys = topo_physics.physical_density(logits, args, volume_constraint=True)
+
+    x_phys = torch.squeeze(model(z),1) # DIP like strategy
     
-    # Calculate the forces
-    forces = topo_physics.calculate_forces(x_phys, args)
+    u = list(model.parameters())[0] # dummy variable, shape: [2562,1]
+    # # Calculate the u_matrix
+    # u_matrix = topo_physics.sparse_displace(
+    #     x_phys, ke, forces, args['freedofs'], args['fixdofs'], **kwargs
+    # )
     
-    # Calculate the u_matrix
-    u_matrix = topo_physics.sparse_displace(
-        x_phys, ke, forces, args['freedofs'], args['fixdofs'], **kwargs
-    )
-    
-    # Calculate the compliance output
-    compliance_output = topo_physics.compliance(x_phys, u_matrix, ke, **kwargs)
+    # Calculate the compliance output u^T K u and force Ku
+    compliance_output,ke_u = topo_physics.compliance(x_phys, u, ke, **kwargs)
     
     # The loss is the sum of the compliance
     f = torch.sum(compliance_output)
     
-    # Run this problem with no inequality constraints
-    ci = None
+    # inequality constraint, matrix form: x_phys\in[0,1]^d
+    ci = pygransoStruct()
+    box_constr = torch.hstack(
+        (x_phys.reshape(x_phys.numel()) - 1,
+        -x_phys.reshape(x_phys.numel()))
+    )
+    box_constr = torch.clamp(box_constr, min=0)
+    folded_constr = torch.sum(box_constr**2) 
+    ci.c1 = folded_constr # folded 2562 constraints
+
+    # equality constraint
+    ce = pygransoStruct()
+    ce.c1 = torch.mean(x_phys) - args["volfrac"]
+    # ce.c2 = torch.sum((ke_u - forces)**2) # folded 2562 constraints
     
-    # Run this problem with no equality constraints
-    ce = None
-    
-    designs.append(topo_physics.physical_density(logits, args, volume_constraint=True))
+    # designs.append(topo_physics.physical_density(logits, args, volume_constraint=True))
     
     return f, ci, ce
 
@@ -98,6 +105,11 @@ cnn_model = models.CNNModel(
 # Put the model in training mode
 cnn_model.train()
 
+fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128))).to(device=device, dtype=double_precision)
+
+# Calculate the forces (constant vector [2562,1])
+forces = topo_physics.calculate_forces(x_phys=None, args=args)
+
 # # DEBUG part: print pygranso optimization variables
 for name, param in cnn_model.named_parameters():
     print("{}: {}".format(name, param.data.shape))
@@ -120,7 +132,7 @@ kwargs = dict(
 # Structural optimization problem setup
 designs = []
 comb_fn = lambda model: structural_optimization_function(
-    model, ke, args, designs, kwargs, debug=False
+    model, fixed_random_input, forces, ke, args, designs, kwargs, debug=False
 )
 
 # PyGranso Options
@@ -140,15 +152,15 @@ opts.x0 = (
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1.0
+opts.mu0 = 1e-5
 opts.maxit = 150
 opts.print_frequency = 1
 opts.stat_l2_model = False
 
 # This was important to have the structural optimization solver converge
-opts.init_step_size = 5e-5
-opts.linesearch_maxit = 50
-opts.linesearch_reattempts = 15
+# opts.init_step_size = 5e-5
+# opts.linesearch_maxit = 50
+# opts.linesearch_reattempts = 15
 
 
 
