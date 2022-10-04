@@ -22,11 +22,12 @@ import utils
 
 # first party
 # Import pygranso functionality
+sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 
-def structural_optimization_function(model, ke, args, designs, debug=False):
+def structural_optimization_function(model, ke, args, designs, kwargs, debug=False):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -39,12 +40,7 @@ def structural_optimization_function(model, ke, args, designs, debug=False):
     # a first value of x
     logits = model(None)
 
-    # kwargs for displacement
-    kwargs = dict(
-        penal=torch.tensor(args["penal"]),
-        e_min=args["young_min"].clone().detach(),
-        e_0=args["young"].clone().detach(),
-    )
+
 
     # Calculate the physical density
     x_phys = topo_physics.physical_density(logits, args, volume_constraint=True)
@@ -73,15 +69,22 @@ def structural_optimization_function(model, ke, args, designs, debug=False):
     
     return f, ci, ce
 
-# Variable definitions
-device = torch.device('cuda')
+# Set devices and data type
+n_gpu = torch.cuda.device_count()
+if n_gpu > 0:
+    print("Use CUDA")
+    gpu_list = ["cuda:{}".format(i) for i in range(n_gpu)]
+    device = torch.device(gpu_list[0])
+else:
+    device = torch.device("cpu")
+
 double_precision = torch.double
 
 # Identify the problem
-problem = problems.mbb_beam(height=20, width=60)
+problem = problems.mbb_beam(height=20, width=60, device=device, dtype=double_precision)
 
 # Get the arguments for the problem
-args = topo_api.specified_task(problem)
+args = topo_api.specified_task(problem,device=device, dtype=double_precision)
 
 # Set up the cnn args for this problem
 cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
@@ -90,7 +93,7 @@ cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
 cnn_model = models.CNNModel(
     args=args,
     **cnn_kwargs
-)
+).to(device=device, dtype=double_precision)
 
 # Put the model in training mode
 cnn_model.train()
@@ -101,13 +104,23 @@ for name, param in cnn_model.named_parameters():
 
 # Get the stiffness matrix
 ke = topo_physics.get_stiffness_matrix(
-    young=args['young'], poisson=args['poisson'],
+    young=args['young'], poisson=args['poisson'],device=device, dtype=double_precision
+).to(device=device, dtype=double_precision)
+
+# kwargs for displacement
+kwargs = dict(
+    penal=args["penal"],
+    e_min=args["young_min"],
+    e_0=args["young"],
+    device=device,
+    dtype=double_precision
 )
+
 
 # Structural optimization problem setup
 designs = []
 comb_fn = lambda model: structural_optimization_function(
-    model, ke, args, designs, debug=False
+    model, ke, args, designs, kwargs, debug=False
 )
 
 # PyGranso Options
@@ -122,7 +135,7 @@ opts.x0 = (
     torch.nn.utils.parameters_to_vector(cnn_model.parameters())
     .detach()
     .reshape(nvar, 1)
-)
+).to(device=device, dtype=double_precision)
 
 # Additional PyGranso options
 opts.limited_mem_size = 20

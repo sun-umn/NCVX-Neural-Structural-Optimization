@@ -8,9 +8,9 @@ def young_modulus(x, e_0, e_min, p=3):
     """
     Function that calculates the young modulus
     """
-    e_0 = e_0.clone().detach()
-    e_min = e_min.clone().detach()
-    p = p.clone().detach()
+    # e_0 = e_0.clone().detach()
+    # e_min = e_min.clone().detach()
+    # p = p.clone().detach()
 
     return e_min + x ** p * (e_0 - e_min)
 
@@ -72,7 +72,7 @@ def calculate_forces(x_phys, args):
 
 
 # Build a stiffness matrix
-def get_stiffness_matrix(young: float, poisson: float) -> np.array:
+def get_stiffness_matrix(young: float, poisson: float, device=torch.device('cpu'), dtype=torch.double) -> torch.tensor:
     """
     Function to build the elements of the stiffness matrix
     """
@@ -116,13 +116,13 @@ def get_stiffness_matrix(young: float, poisson: float) -> np.array:
             k[sixth_row_shuffle],
             k[seventh_row_shuffle],
         ]
-    )
+    ).to(device=device, dtype=dtype)
 
     return e / (1 - nu ** 2) * shuffled_array
 
 
 # Compliance
-def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1):
+def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
     """
     Calculate the compliance objective.
 
@@ -241,7 +241,7 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
     return u_values[index_map], K
 
 
-def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1):
+def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -249,19 +249,22 @@ def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-
 
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+    k_ylist = k_ylist.to(device=device, dtype=dtype)
+    k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
     )
 
     # Reduced forces
-    freedofs_forces = forces[freedofs].double()
+    freedofs_forces = forces[freedofs.cpu().numpy()]
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
     u_nonzero = utils.solve_coo(
         keep_k_entries, indices, freedofs_forces, sym_pos=False
     )
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
+    u_nonzero = u_nonzero.to(device=device, dtype=dtype)
+    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))
 
-    return u_values[index_map]
+    return u_values[index_map.cpu().numpy()]
