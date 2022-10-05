@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import utils
+from str_opt_utils import utils
 
 
 # Calculate the young modulus
