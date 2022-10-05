@@ -12,15 +12,15 @@ import sys
 sys.path.append('/home/buyun/Documents/GitHub/NCVX-Neural-Structural-Optimization')
 
 # Topology Library
-import models
-import problems
-import topo_api
-import topo_physics
+# import models
+# import problems
+# import topo_api
+# import topo_physics
 
-# from utils import models
-# from utils import problems
-# from utils import topo_api
-# from utils import topo_physics
+from str_opt_utils import models
+from str_opt_utils import problems
+from str_opt_utils import topo_api
+from str_opt_utils import topo_physics
 
 
 
