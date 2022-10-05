@@ -178,7 +178,7 @@ def get_k(stiffness, ke):
     # Compute the torch based meshgrid
     # Buyun: indexing not allowed for torch 1.9.0
     # ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
-    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
+    elx,ely = torch.meshgrid(torch.arange(nelx),torch.arange(nely))
 
     ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
 

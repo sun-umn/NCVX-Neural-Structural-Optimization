@@ -1,5 +1,5 @@
 import torch
-import topo_physics
+from str_opt_utils import topo_physics
 
 
 def objective(x, ke, args, volume_constraint=True, filtering=False):
