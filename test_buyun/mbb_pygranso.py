@@ -16,7 +16,11 @@ import models
 import problems
 import topo_api
 import topo_physics
-import utils
+
+# from utils import models
+# from utils import problems
+# from utils import topo_api
+# from utils import topo_physics
 
 
 
@@ -46,10 +50,9 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
     x_phys = torch.squeeze(model(z),1) # DIP like strategy
     
     u = list(model.parameters())[0] # dummy variable, shape: [2562,1]
-    # # Calculate the u_matrix
-    # u_matrix = topo_physics.sparse_displace(
-    #     x_phys, ke, forces, args['freedofs'], args['fixdofs'], **kwargs
-    # )
+    dim_factor = u.shape[0]**0.5
+
+    K = topo_physics.get_K(x_phys,ke,args,kwargs)
     
     # Calculate the compliance output u^T K u and force Ku
     compliance_output,ke_u = topo_physics.compliance(x_phys, u, ke, **kwargs)
@@ -64,15 +67,17 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
         -x_phys.reshape(x_phys.numel()))
     )
     box_constr = torch.clamp(box_constr, min=0)
-    folded_constr = torch.sum(box_constr**2) 
+    folded_constr = torch.sum(box_constr**2)**0.5/dim_factor
     ci.c1 = folded_constr # folded 2562 constraints
 
     # equality constraint
     ce = pygransoStruct()
     ce.c1 = torch.mean(x_phys) - args["volfrac"]
-    # ce.c2 = torch.sum((ke_u - forces)**2) # folded 2562 constraints
+    ce.c2 = torch.sum((K@u - forces)**2)**0.5/dim_factor # folded 2562 constraints
+
+    # print("ci.c1 = {}, ce.c1 = {}, ce.c2 = {}".format(ci.c1,ce.c1,ce.c2))
     
-    # designs.append(topo_physics.physical_density(logits, args, volume_constraint=True))
+    designs.append(topo_physics.physical_density(x_phys, args, volume_constraint=True))
     
     return f, ci, ce
 
@@ -86,6 +91,11 @@ else:
     device = torch.device("cpu")
 
 double_precision = torch.double
+
+# fix random seed
+seed = 42
+torch.manual_seed(seed)
+np.random.seed(seed)
 
 # Identify the problem
 problem = problems.mbb_beam(height=20, width=60, device=device, dtype=double_precision)
@@ -152,8 +162,8 @@ opts.x0 = (
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1e-5
-opts.maxit = 150
+opts.mu0 = 1e-4
+opts.maxit = 3000
 opts.print_frequency = 1
 opts.stat_l2_model = False
 
@@ -169,3 +179,20 @@ start = time.time()
 soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
 end = time.time()
 print(f'Total wall time: {end - start}s')
+
+
+
+# Get the final frame
+final_frame = designs[-1].cpu().detach().numpy()
+
+# Create a figure and axis
+fig, ax = plt.subplots(1, 1)
+
+# Show the structure in grayscale
+im = ax.imshow(final_frame, cmap='Greys')
+ax.set_title('MBB Beam - Neural Structural Optimization - PyGranso')
+ax.set_ylabel('MBB Beam - Height')
+ax.set_xlabel('MBB Beam - Width')
+ax.grid()
+fig.colorbar(im, orientation="horizontal", pad=0.2)
+fig.savefig("pygranso_test.png")
