@@ -1,9 +1,9 @@
 import torch
 import torch.optim as optim
 
-import models
-import topo_api
-import topo_physics
+from str_opt_utils import models
+from str_opt_utils import topo_api
+from str_opt_utils import topo_physics
 
 
 def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
@@ -17,9 +17,9 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     # Initiate the model to be trained
     # Current, assumption is a CNN model
     if cnn_kwargs is not None:
-        model = models.CNNModel(args=args, **cnn_kwargs)
+        model = models.CNNModel_tf(args=args, **cnn_kwargs)
     else:
-        model = models.CNNModel(args=args)
+        model = models.CNNModel_tf(args=args)
 
     # Build the stiffness matrix
     ke = topo_physics.get_stiffness_matrix(young=args["young"], poisson=args["poisson"])
