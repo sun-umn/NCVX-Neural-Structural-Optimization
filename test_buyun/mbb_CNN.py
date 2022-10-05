@@ -19,7 +19,7 @@ problem = problems.mbb_beam(height=20, width=60)
 # Set up the cnn args for this problem
 cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
 
-rendered_frames, losses = train.train_adam(problem, cnn_kwargs, lr=4e-3, iterations=1000)
+rendered_frames, losses, x_phys, u_matrix = train.train_adam(problem, cnn_kwargs, lr=4e-3, iterations=500)
 
 
 # Get the final frame
@@ -36,3 +36,9 @@ ax.set_xlabel('MBB Beam - Width')
 fig.colorbar(im, orientation="horizontal", pad=0.2)
 
 fig.savefig("fig/cnn_test.png")
+
+with open('x_phys.npy','wb') as f:
+    np.save(f,x_phys.detach().cpu().numpy())
+
+with open('u_matrix.npy','wb') as f:
+    np.save(f,u_matrix.detach().cpu().numpy())

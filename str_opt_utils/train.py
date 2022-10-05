@@ -85,7 +85,7 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     render = [
         topo_physics.physical_density(x, args, volume_constraint=True) for x in frames
     ]
-    return render, losses
+    return render, losses, x_phys, u_matrix
 
 
 def structural_optimization_function(model, ke, args, designs, debug=False):
