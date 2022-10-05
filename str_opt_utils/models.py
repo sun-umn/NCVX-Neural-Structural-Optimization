@@ -185,8 +185,8 @@ class CNNModel_tf(nn.Module):
             raise ValueError("resizes and filters are not the same!")
 
         total_resize = int(np.prod(resizes))
-        self.h = args["nely"] // total_resize
-        self.w = args["nelx"] // total_resize
+        self.h = int(torch.div(args["nely"], total_resize, rounding_mode='floor').item())
+        self.w = int(torch.div(args["nelx"], total_resize, rounding_mode='floor').item())
         self.dense_channels = dense_channels
         self.resizes = resizes
         self.conv_filters = conv_filters
@@ -218,7 +218,7 @@ class CNNModel_tf(nn.Module):
         self.global_normalization = nn.ModuleList()
 
         # Trainable bias layer
-        self.add_offset = nn.ParameterList()
+        self.add_offset = nn.ModuleList()
 
         # Add the convolutional layers to the module list
         offset_filters = (dense_channels, 128, 64, 32, 16)

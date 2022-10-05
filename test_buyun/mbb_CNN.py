@@ -19,7 +19,7 @@ problem = problems.mbb_beam(height=20, width=60)
 # Set up the cnn args for this problem
 cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
 
-rendered_frames, losses = train.train_adam(problem, cnn_kwargs, lr=4e-3, iterations=500)
+rendered_frames, losses = train.train_adam(problem, cnn_kwargs, lr=4e-3, iterations=2000)
 
 
 # Get the final frame
@@ -34,3 +34,5 @@ ax.set_title('MBB Beam - Neural Structural Optimization - Adam')
 ax.set_ylabel('MBB Beam - Height')
 ax.set_xlabel('MBB Beam - Width')
 fig.colorbar(im, orientation="horizontal", pad=0.2)
+
+fig.savefig("fig/cnn_test.png")

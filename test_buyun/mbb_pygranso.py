@@ -55,7 +55,7 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
     K = topo_physics.get_K(x_phys,ke,args,kwargs)
     
     # Calculate the compliance output u^T K u and force Ku
-    compliance_output,ke_u = topo_physics.compliance(x_phys, u, ke, **kwargs)
+    compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
     
     # The loss is the sum of the compliance
     f = torch.sum(compliance_output)
