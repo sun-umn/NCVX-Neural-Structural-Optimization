@@ -38,19 +38,11 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
     of a neural network. V0 is the initial volume, K is the global stiffness
     matrix and F is the forces that are applied in the problem.
     """
-    # Initialize the model
-    # In my version of the model it follows the similar behavior of the
-    # tensorflow repository and only needs None to initialize and output
-    # a first value of x
-    # logits = model(z)
-
-    # Calculate the physical density
-    # x_phys = topo_physics.physical_density(logits, args, volume_constraint=True)
-
     x_phys = torch.squeeze(model(z),1) # DIP like strategy
-    
+
     u = list(model.parameters())[0] # dummy variable, shape: [2562,1]
-    dim_factor = u.shape[0]**0.5
+
+    dim_factor = u.shape[0]**0.5 # used for rescaling
 
     K = topo_physics.get_K(x_phys,ke,args,kwargs)
     
@@ -70,6 +62,7 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
     folded_constr = torch.sum(box_constr**2)**0.5/dim_factor
     ci.c1 = folded_constr # folded 2562 constraints
 
+
     # equality constraint
     ce = pygransoStruct()
     ce.c1 = torch.mean(x_phys) - args["volfrac"]
@@ -77,9 +70,9 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
 
     # print("ci.c1 = {}, ce.c1 = {}, ce.c2 = {}".format(ci.c1,ce.c1,ce.c2))
     
-    designs.append(topo_physics.physical_density(x_phys, args, volume_constraint=True))
+    designs.append(x_phys)
     
-    return f, ci, ce
+    return [f, ci, ce]
 
 # Set devices and data type
 n_gpu = torch.cuda.device_count()
@@ -162,8 +155,8 @@ opts.x0 = (
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1e-4
-opts.maxit = 3000
+opts.mu0 = 1e-5
+opts.maxit = 1000
 opts.print_frequency = 1
 opts.stat_l2_model = False
 
@@ -195,4 +188,4 @@ ax.set_ylabel('MBB Beam - Height')
 ax.set_xlabel('MBB Beam - Width')
 ax.grid()
 fig.colorbar(im, orientation="horizontal", pad=0.2)
-fig.savefig("pygranso_test.png")
+fig.savefig("fig/pygranso_test.png")
