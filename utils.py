@@ -4,18 +4,15 @@ import torch
 from torch.autograd import Function
 import scipy.sparse
 import scipy.sparse.linalg
-import numpy as np
 import warnings
-# try:
-#     import sksparse.cholmod
-#     HAS_CHOLMOD = True
-# except ImportError:
-#     warnings.warn(
-#         'sksparse.cholmod not installed. Falling back to SciPy/SuperLU, but '
-#         'simulations will be about twice as slow.')
-#     HAS_CHOLMOD = False
-
-HAS_CHOLMOD = False
+try:
+    import sksparse.cholmod
+    HAS_CHOLMOD = True
+except ImportError:
+    warnings.warn(
+        'sksparse.cholmod not installed. Falling back to SciPy/SuperLU, but '
+        'simulations will be about twice as slow.')
+    HAS_CHOLMOD = False
 
 
 class SparseSolver(Function):
@@ -33,7 +30,7 @@ class SparseSolver(Function):
 
         # Gather the result
         a = scipy.sparse.coo_matrix(
-            (a_entries.cpu().numpy(), a_indices.cpu().numpy()), shape=(b.cpu().numpy().size,) * 2
+            (a_entries.detach().numpy(), a_indices.numpy()), shape=(b.numpy().size,) * 2
         ).tocsc()
         a = (a + a.T) / 2.0
 
@@ -44,7 +41,7 @@ class SparseSolver(Function):
             # should be about twice as slow as the cholesky
             solver = scipy.sparse.linalg.splu(a).solve
 
-        result = torch.from_numpy(solver(b.cpu().numpy()))
+        result = torch.from_numpy(solver(b.numpy()))
 
         # The output from the forward pass needs to have
         # requires_grad = True
@@ -61,7 +58,7 @@ class SparseSolver(Function):
 
         # Gather the result
         a = scipy.sparse.coo_matrix(
-            (a_entries.cpu().numpy(), a_indices.cpu().numpy()),
+            (a_entries.detach().numpy(), a_indices.numpy()),
             shape=(grad_output.numpy().size,) * 2
         ).tocsc()
         a = (a + a.T) / 2.0
@@ -114,7 +111,7 @@ class FindRoot(Function):
         # Save the input data for the backward pass
         # For this particular case we will rely on autograd.numpy
         if torch.is_tensor(x):
-            x = x.detach().cpu().numpy().copy().astype(anp.float64)
+            x = x.detach().numpy().copy().astype(anp.float64)
 
         ctx.x_value = x
 
@@ -204,7 +201,7 @@ def sigmoid_with_constrained_mean(x, average):
     """
     # To avoid confusion about which variable needs to have
     # its gradient computed we will create a copy of x
-    x_copy = x.detach().cpu().numpy()
+    x_copy = x.detach().numpy()
 
     # If average is a torch tensor we need to convert it
     # to numpy
@@ -230,9 +227,7 @@ def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
 
     index_map = torch.argsort(torch.cat((freedofs, fixdofs)))
 
-    k_xlist = k_xlist.cpu().numpy()
-    k_ylist = k_ylist.cpu().numpy()
-    keep = np.isin(k_xlist, freedofs.cpu()) & np.isin(k_ylist, freedofs.cpu())
+    keep = torch.isin(k_xlist, freedofs) & torch.isin(k_ylist, freedofs)
     i = index_map[k_ylist][keep]
     j = index_map[k_xlist][keep]
 

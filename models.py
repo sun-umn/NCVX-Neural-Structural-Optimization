@@ -65,8 +65,8 @@ class CNNModel(nn.Module):
             raise ValueError("resizes and filters are not the same!")
 
         total_resize = int(np.prod(resizes))
-        self.h = int(torch.div(args["nely"], total_resize, rounding_mode='floor').item())
-        self.w = int(torch.div(args["nelx"], total_resize, rounding_mode='floor').item())
+        self.h = args["nely"] // total_resize
+        self.w = args["nelx"] // total_resize
         self.dense_channels = dense_channels
         self.resizes = resizes
         self.conv_filters = conv_filters
@@ -77,7 +77,7 @@ class CNNModel(nn.Module):
 
         # Create the filters
         filters = dense_channels * self.h * self.w
-        
+
         # Create the u_matrix vector
         if train_u_matrix:
             self.u_matrix = nn.Parameter(
@@ -98,7 +98,7 @@ class CNNModel(nn.Module):
         self.global_normalization = nn.ModuleList()
 
         # Trainable bias layer
-        self.add_offset = nn.ModuleList()
+        self.add_offset = nn.ParameterList()
 
         # Add the convolutional layers to the module list
         offset_filters = (dense_channels, 128, 64, 32, 16)
@@ -117,19 +117,15 @@ class CNNModel(nn.Module):
             offset_layer = AddOffset(self.offset_scale)
             self.add_offset.append(offset_layer)
 
-        # # Set up x here otherwise it is not part of the leaf tensors
-        # self.z = torch.nn.Parameter(
-        #     torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
-        # )
+        # Set up x here otherwise it is not part of the leaf tensors
+        self.z = torch.nn.Parameter(
+            torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
+        )
 
-        # U is not used in the CNN model. It's a dummy variable used in PyGRANSO that has to be defined there, 
-        # as PyGRANSO will read all parameters from the nn.parameters() 
-        self.U =torch.nn.Parameter(torch.randn(2562,1))
-
-    def forward(self, output):  # noqa
+    def forward(self, x=None):  # noqa
 
         # Create the model
-        output = self.dense(output)
+        output = self.dense(self.z)
         output = output.reshape((1, self.dense_channels, self.h, self.w))
 
         layer_loop = zip(self.resizes, self.conv_filters)

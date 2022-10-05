@@ -17,7 +17,7 @@
 import dataclasses
 from typing import Optional, Union
 
-# import numpy as np
+import numpy as np
 import torch
 
 X, Y = 0, 1
@@ -44,10 +44,10 @@ class Problem:
     mirror_right: should the design be mirrored to the right when displayed?
     """
 
-    normals: torch.Tensor
-    forces: torch.Tensor
+    normals: np.ndarray
+    forces: np.ndarray
     density: float
-    mask: Union[torch.Tensor, float] = 1
+    mask: Union[np.ndarray, float] = 1
     name: Optional[str] = None
     width: int = dataclasses.field(init=False)
     height: int = dataclasses.field(init=False)
@@ -62,7 +62,7 @@ class Problem:
             raise ValueError(f"normals has wrong shape: {self.normals.shape}")
         if self.forces.shape != (self.width + 1, self.height + 1, 2):
             raise ValueError(f"forces has wrong shape: {self.forces.shape}")
-        if isinstance(self.mask, torch.Tensor) and self.mask.shape != (
+        if isinstance(self.mask, np.ndarray) and self.mask.shape != (
             self.height,
             self.width,
         ):
@@ -76,47 +76,48 @@ class Problem:
         )
 
 
-def mbb_beam(width=60, height=20, density=0.5, device=torch.device('cpu'), dtype=torch.double):
+def mbb_beam(width=60, height=20, density=0.5):
     """Textbook beam example."""
-    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals = torch.zeros((width + 1, height + 1, 2))
     normals[-1, -1, Y] = 1
     normals[0, :, X] = 1
 
-    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces = torch.zeros((width + 1, height + 1, 2))
     forces[0, 0, Y] = -1
 
     return Problem(normals, forces, density)
 
 
-# def multistory_building(width=32, height=32, density=0.3, interval=16):
-#   """A multi-story building, supported from the ground."""
-#   normals = np.zeros((width + 1, height + 1, 2))
-#   normals[:, -1, Y] = 1
-#   normals[-1, :, X] = 1
 
-#   forces = np.zeros((width + 1, height + 1, 2))
-#   forces[:, ::interval, Y] = -1 / width
-#   return Problem(normals, forces, density)
+def multistory_building(width=32, height=32, density=0.3, interval=16):
+  """A multi-story building, supported from the ground."""
+  normals = np.zeros((width + 1, height + 1, 2))
+  normals[:, -1, Y] = 1
+  normals[-1, :, X] = 1
+
+  forces = np.zeros((width + 1, height + 1, 2))
+  forces[:, ::interval, Y] = -1 / width
+  return Problem(normals, forces, density)
 
 
-# def thin_support_bridge(
-#     width=32, height=32, density=0.25, design_width=0.25
-# ):
-#     """
-#         A bridge supported from below with fixed width supports.
-#     """
-#     normals = np.zeros((width + 1, height + 1, 2))
-#     normals[:, -1, Y] = 1
-#     normals[0, :, X] = 1
-#     normals[-1, :, X] = 1
+def thin_support_bridge(
+    width=32, height=32, density=0.25, design_width=0.25
+):
+    """
+        A bridge supported from below with fixed width supports.
+    """
+    normals = np.zeros((width + 1, height + 1, 2))
+    normals[:, -1, Y] = 1
+    normals[0, :, X] = 1
+    normals[-1, :, X] = 1
 
-#     forces = np.zeros((width + 1, height + 1, 2))
-#     forces[:, 0, Y] = -1 / width
+    forces = np.zeros((width + 1, height + 1, 2))
+    forces[:, 0, Y] = -1 / width
 
-#     mask = np.ones((width, height))
-#     mask[-round(width*(1-design_width)):, :round(height*(1-design_width))] = 0
+    mask = np.ones((width, height))
+    mask[-round(width*(1-design_width)):, :round(height*(1-design_width))] = 0
 
-#     return Problem(normals, forces, density, mask)
+    return Problem(normals, forces, density, mask)
 
 
 # Problems Category
@@ -129,19 +130,19 @@ PROBLEMS_BY_CATEGORY = {
         mbb_beam(192, 32, density=0.5),
         mbb_beam(384, 64, density=0.4),
     ],
-    # 'multistory_building': [
-    #     multistory_building(32, 64, density=0.5),
-    #     multistory_building(64, 128, interval=32, density=0.4),
-    #     multistory_building(128, 256, interval=64, density=0.3),
-    #     multistory_building(128, 512, interval=64, density=0.25),
-    #     multistory_building(128, 512, interval=128, density=0.2),
-    # ],
-    # 'thin_support_bridge': [
-    #     thin_support_bridge(64, 64, density=0.3),
-    #     thin_support_bridge(128, 128, density=0.2),
-    #     thin_support_bridge(256, 256, density=0.15),
-    #     thin_support_bridge(256, 256, density=0.1),
-    # ],
+    'multistory_building': [
+        multistory_building(32, 64, density=0.5),
+        multistory_building(64, 128, interval=32, density=0.4),
+        multistory_building(128, 256, interval=64, density=0.3),
+        multistory_building(128, 512, interval=64, density=0.25),
+        multistory_building(128, 512, interval=128, density=0.2),
+    ],
+    'thin_support_bridge': [
+        thin_support_bridge(64, 64, density=0.3),
+        thin_support_bridge(128, 128, density=0.2),
+        thin_support_bridge(256, 256, density=0.15),
+        thin_support_bridge(256, 256, density=0.1),
+    ],
 }
 
 
