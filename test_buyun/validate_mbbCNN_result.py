@@ -43,9 +43,11 @@ freedofs_forces, K, index_map = topo_physics.get_KU(
 
 u_original = torch.zeros_like(u)
 u_original[index_map] = u
-# u_freedof = torch.tensor(u_original[:len(args['freedofs'])]).to(device=kwargs['device'],dtype=kwargs['dtype'])
-u_freedof = u_original[:len(args['freedofs'])]
-freedofs_forces = freedofs_forces.numpy()
+u_freedof = torch.tensor(u_original[:len(args['freedofs'])]).to(device=kwargs['device'],dtype=kwargs['dtype'])
+# dense_K = utils.sparse_scipy2torch(K).to(device=kwargs['device'],dtype=kwargs['dtype'])
+
+# u_freedof = u_original[:len(args['freedofs'])]
+# freedofs_forces = freedofs_forces.numpy()
 
 
 # Calculate the compliance output u^T K u and force Ku
@@ -65,7 +67,7 @@ ce_c1 = torch.mean(x_phys) - 0.5
 
 # K = topo_physics.get_K(x_phys,ke,args,kwargs)
 
-ce_c2 = np.sum((K@u_freedof - freedofs_forces)**2)**0.5
+ce_c2 = torch.sum((K@u_freedof - freedofs_forces)**2)**0.5
 
 print("\n f = {}, folded constr x \in [0,1] = {}, mean(x_phys)-V0 = {}, F-KU = {} ".format(f.item(),ci_c1.item(),ce_c1.item(),ce_c2.item()))
 

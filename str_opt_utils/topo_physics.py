@@ -326,9 +326,10 @@ def get_KU(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,
     # u_nonzero = u_nonzero.to(device=device, dtype=dtype)
     # u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))
 
-    K = scipy.sparse.coo_matrix(
-        (keep_k_entries.cpu().numpy(), indices.cpu().numpy()), shape=(freedofs_forces.cpu().numpy().size,) * 2
-    ).tocsc()
-    K = (K + K.T) / 2.0
+    # K = scipy.sparse.coo_matrix(
+    #     (keep_k_entries.cpu().numpy(), indices.cpu().numpy()), shape=(freedofs_forces.cpu().numpy().size,) * 2
+    # ).tocsc()
+    K = torch.sparse_coo_tensor(indices, keep_k_entries, (freedofs_forces.cpu().numpy().size,) * 2)
+    K = (K + K.transpose(1, 0)) / 2.0
 
     return freedofs_forces, K, index_map.cpu().numpy()
