@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from str_opt_utils import utils
-
+import scipy.sparse
 
 # Calculate the young modulus
 def young_modulus(x, e_0, e_min, p=3):
@@ -298,3 +298,37 @@ def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))
 
     return u_values[index_map.cpu().numpy()]
+
+
+def get_KU(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
+    """
+    Function that displaces the load x using finite element techniques.
+    """
+    stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
+
+    # Get the K values
+    k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+    k_ylist = k_ylist.to(device=device, dtype=dtype)
+    k_xlist = k_xlist.to(device=device, dtype=dtype)
+
+    index_map, keep, indices = utils._get_dof_indices(
+        freedofs, fixdofs, k_ylist, k_xlist
+    )
+
+    # Reduced forces
+    freedofs_forces = forces[freedofs.cpu().numpy()]
+
+    # Calculate u_nonzero
+    keep_k_entries = k_entries[keep]
+    # u_nonzero = utils.solve_coo(
+    #     keep_k_entries, indices, freedofs_forces, sym_pos=False
+    # )
+    # u_nonzero = u_nonzero.to(device=device, dtype=dtype)
+    # u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))
+
+    K = scipy.sparse.coo_matrix(
+        (keep_k_entries.cpu().numpy(), indices.cpu().numpy()), shape=(freedofs_forces.cpu().numpy().size,) * 2
+    ).tocsc()
+    K = (K + K.T) / 2.0
+
+    return freedofs_forces, K, index_map.cpu().numpy()
