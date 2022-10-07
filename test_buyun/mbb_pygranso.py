@@ -31,7 +31,7 @@ from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 
-def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, debug=False):
+def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, kwargs, debug=False):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -51,13 +51,19 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
 
     dim_factor = u.shape[0]**0.5 # used for rescaling
     
-    freedofs_forces,K, index_map = topo_physics.get_KU(
-            x_phys, ke,forces, args['freedofs'], args['fixdofs'], **kwargs
+    K, index_map = topo_physics.get_KU(
+            x_phys, ke, args['freedofs'], args['fixdofs'], **kwargs
         )
 
+    # Create inverse index_map
+    new_index_map = np.zeros_like(index_map)
+    for i in range(len(index_map)):
+        new_index_map[index_map[i]] = i
+
+
     # TODO: u_freedof[index_map] = u
-    u_freedof = u[index_map][:len(args['freedofs'])]
-    u_fixdof = u[index_map][len(args['freedofs']):]
+    u_freedof = u[new_index_map][:len(args['freedofs'])]
+    u_fixdof = u[new_index_map][len(args['freedofs']):]
 
     # test = torch.sum(( u_freedof )**2)**0.5
 
@@ -83,10 +89,10 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
     ce.c1 = torch.mean(x_phys) - args["volfrac"]
     ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5 /dim_factor # folded 2562 constraints
     ce.c3 = torch.sum(u_fixdof**2)*0.5 /dim_factor
-    # ce.c1 = torch.sum(K.to_dense()**2)**0.5
 
+    # ce.c1 = torch.sum(( torch.sparse.mm(K,u_freedof) - freedofs_forces )**2)**0.5 /dim_factor
 
-    # print("ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(ci.c1,ce.c1,ce.c2, ce.c3))
+    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f, ci.c1,ce.c1,ce.c2, ce.c3))
     
     designs.append(x_phys)
     
@@ -154,7 +160,7 @@ kwargs = dict(
 # Structural optimization problem setup
 designs = []
 comb_fn = lambda model: structural_optimization_function(
-    model, fixed_random_input, forces, ke, args, designs, kwargs, debug=False
+    model, fixed_random_input, freedofs_forces, ke, args, designs, kwargs, debug=False
 )
 
 # PyGranso Options
@@ -174,7 +180,7 @@ opts.x0 = (
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1e-5
+opts.mu0 = 1
 opts.maxit = 1000
 opts.print_frequency = 1
 opts.stat_l2_model = False
