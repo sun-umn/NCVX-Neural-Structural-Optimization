@@ -300,7 +300,7 @@ def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-
     return u_values[index_map.cpu().numpy()]
 
 
-def get_KU(x_phys, ke, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
+def get_KU(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -316,7 +316,7 @@ def get_KU(x_phys, ke, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=t
     )
 
     # Reduced forces
-    # freedofs_forces = forces[freedofs.cpu().numpy()]
+    freedofs_forces = forces[freedofs.cpu().numpy()]
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
@@ -324,4 +324,4 @@ def get_KU(x_phys, ke, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=t
     K = torch.sparse_coo_tensor(indices, keep_k_entries, (torch.numel(freedofs),) * 2)
     K = (K + K.transpose(1, 0)) / 2.0
 
-    return K, index_map.cpu().numpy()    
+    return freedofs_forces,K, index_map.cpu().numpy()    
