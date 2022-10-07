@@ -7,7 +7,7 @@ from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 
-from utils import models
+from str_opt_utils import models_old as models
 
 device = torch.device('cuda')
 double_precision = torch.double
