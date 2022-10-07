@@ -42,13 +42,28 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
 
     u = list(model.parameters())[0] # dummy variable, shape: [2562,1]
 
-    dim_factor = u.shape[0]**0.5 # used for rescaling
+    # feasible initialization
+    with open('data_file/x_phys.npy', 'rb') as f:
+        x_phys = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
-    K = topo_physics.get_K(x_phys,ke,args,kwargs)
+    with open('data_file/u_matrix.npy', 'rb') as f:
+        u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+
+    dim_factor = u.shape[0]**0.5 # used for rescaling
     
+    freedofs_forces,K, index_map = topo_physics.get_KU(
+            x_phys, ke,forces, args['freedofs'], args['fixdofs'], **kwargs
+        )
+
+    # TODO: u_freedof[index_map] = u
+    u_freedof = u[index_map][:len(args['freedofs'])]
+    u_fixdof = u[index_map][len(args['freedofs']):]
+
+    # test = torch.sum(( u_freedof )**2)**0.5
+
     # Calculate the compliance output u^T K u and force Ku
     compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
-    
+
     # The loss is the sum of the compliance
     f = torch.sum(compliance_output)
     
@@ -59,16 +74,19 @@ def structural_optimization_function(model,z,forces, ke, args, designs, kwargs, 
         -x_phys.reshape(x_phys.numel()))
     )
     box_constr = torch.clamp(box_constr, min=0)
-    folded_constr = torch.sum(box_constr**2)**0.5/dim_factor
+    folded_constr = torch.sum(box_constr**2)**0.5 #/dim_factor
     ci.c1 = folded_constr # folded 2562 constraints
-
+    # ci = None
 
     # equality constraint
     ce = pygransoStruct()
     ce.c1 = torch.mean(x_phys) - args["volfrac"]
-    ce.c2 = torch.sum((K@u - forces)**2)**0.5/dim_factor # folded 2562 constraints
+    ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5 /dim_factor # folded 2562 constraints
+    ce.c3 = torch.sum(u_fixdof**2)*0.5 /dim_factor
+    # ce.c1 = torch.sum(K.to_dense()**2)**0.5
 
-    # print("ci.c1 = {}, ce.c1 = {}, ce.c2 = {}".format(ci.c1,ce.c1,ce.c2))
+
+    # print("ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(ci.c1,ce.c1,ce.c2, ce.c3))
     
     designs.append(x_phys)
     
@@ -112,6 +130,7 @@ fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1,
 
 # Calculate the forces (constant vector [2562,1])
 forces = topo_physics.calculate_forces(x_phys=None, args=args)
+freedofs_forces = forces[args['freedofs'].cpu().numpy()]
 
 # # DEBUG part: print pygranso optimization variables
 for name, param in cnn_model.named_parameters():
@@ -160,10 +179,7 @@ opts.maxit = 1000
 opts.print_frequency = 1
 opts.stat_l2_model = False
 
-# This was important to have the structural optimization solver converge
-# opts.init_step_size = 5e-5
-# opts.linesearch_maxit = 50
-# opts.linesearch_reattempts = 15
+
 
 
 
