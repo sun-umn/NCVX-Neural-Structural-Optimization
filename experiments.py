@@ -90,3 +90,21 @@ def save_loss_plots(name: str) -> None:
 
     # Save the figure
     plt.savefig(os.path.join(path, f"{name}_fig.png"))
+
+
+def build_and_save_pygranso_results(name: str, losses: list) -> None:
+	"""
+	Function that will build the results for pygranso and save
+	them to ./results
+	"""
+	path = './results'
+
+	# Create file name
+	filename = f'pygranso_{name}_results.csv'
+
+	# Create the step column
+	step = list(range(len(losses)))
+	results = pd.DataFrame({'cnn-pygranso': losses, 'step': step})
+
+	# Save the results
+	results.to_csv(os.path.join(path, filename))

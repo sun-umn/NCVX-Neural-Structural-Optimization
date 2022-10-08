@@ -198,7 +198,7 @@ def train_pygranso(
     opts = pygransoStruct()
 
     # Set the device
-    opts.torch_device = device
+    opts.torch_device = torch.device(device)
 
     # Setup the intitial inputs for the solver
     nvar = getNvarTorch(cnn_model.parameters())
