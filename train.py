@@ -1,5 +1,10 @@
+import time
+
 import torch
 import torch.optim as optim
+from pygranso.private.getNvar import getNvarTorch
+from pygranso.pygranso import pygranso
+from pygranso.pygransoStruct import pygransoStruct
 
 import models
 import topo_api
@@ -22,7 +27,9 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         model = models.CNNModel(args=args)
 
     # Build the stiffness matrix
-    ke = topo_physics.get_stiffness_matrix(young=args["young"], poisson=args["poisson"])
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"], poisson=args["poisson"]
+    )  # noqa
 
     # Set up the Adam optimizer
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -51,7 +58,9 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         logits = model(None)
 
         # Calculate the physical density
-        x_phys = topo_physics.physical_density(logits, args, volume_constraint=True)
+        x_phys = topo_physics.physical_density(
+            logits, args, volume_constraint=True
+        )  # noqa
 
         # Calculate the forces
         forces = topo_physics.calculate_forces(x_phys, args)
@@ -62,7 +71,9 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         )
 
         # Calculate the compliance output
-        compliance_output = topo_physics.compliance(x_phys, u_matrix, ke, **kwargs)
+        compliance_output = topo_physics.compliance(
+            x_phys, u_matrix, ke, **kwargs
+        )  # noqa
 
         # The loss is the sum of the compliance
         loss = torch.sum(compliance_output)
@@ -81,14 +92,16 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         # Step through the optimzer to update the data with the gradients
         optimizer.step()
 
-    # Render was also used in the original code to create images of the structures
+    # Render was also used in the original code to create
+    # images of the structures
     render = [
-        topo_physics.physical_density(x, args, volume_constraint=True) for x in frames
+        topo_physics.physical_density(x, args, volume_constraint=True)
+        for x in frames  # noqa
     ]
     return render, losses
 
 
-def structural_optimization_function(model, ke, args, designs, debug=False):
+def structural_optimization_function(model, ke, args, designs, losses):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -109,28 +122,112 @@ def structural_optimization_function(model, ke, args, designs, debug=False):
     )
 
     # Calculate the physical density
-    x_phys = topo_physics.physical_density(logits, args, volume_constraint=True)
-    
+    x_phys = topo_physics.physical_density(logits, args, volume_constraint=True)  # noqa
+
     # Calculate the forces
     forces = topo_physics.calculate_forces(x_phys, args)
-    
+
     # Calculate the u_matrix
     u_matrix = topo_physics.sparse_displace(
-        x_phys, ke, forces, args['freedofs'], args['fixdofs'], **kwargs
+        x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
     )
-    
+
     # Calculate the compliance output
     compliance_output = topo_physics.compliance(x_phys, u_matrix, ke, **kwargs)
-    
+
     # The loss is the sum of the compliance
     f = torch.sum(compliance_output)
-    
+
     # Run this problem with no inequality constraints
     ci = None
-    
+
     # Run this problem with no equality constraints
     ce = None
-    
-    designs.append(topo_physics.physical_density(logits, args, volume_constraint=True))
-    
+
+    # Append updated physical density designs
+    designs.append(
+        topo_physics.physical_density(logits, args, volume_constraint=True)
+    )  # noqa
+
     return f, ci, ce
+
+
+def train_pygranso(
+    problem,
+    cnn_kwargs=None,
+    *,
+    device="cpu",
+    mu=1.0,
+    maxit=150,
+    init_step_size=5e-6,
+    linesearch_maxit=50,
+    linesearch_reattempts=15,
+) -> None:
+    """
+    Function to train structural optimization pygranso
+    """
+    # Get the problem args
+    args = topo_api.specified_task(problem)
+
+    # Initialize the CNN Model
+    if cnn_kwargs is not None:
+        cnn_model = models.CNNModel(args, **cnn_kwargs)
+    else:
+        cnn_model = models.CNNModel(args)
+
+    # Put the cnn model in training mode
+    cnn_model.train()
+
+    # Create the stiffness matrix
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"],
+        poisson=args["poisson"],
+    )
+
+    # Create the combined function and structural optimization
+    # setup
+    # Save the physical density designs & the losses
+    designs = []
+    losses = []
+    # Combined function
+    comb_fn = lambda model: structural_optimization_function(  # noqa
+        model, ke, args, designs, losses
+    )
+
+    # Initalize the pygranso options
+    opts = pygransoStruct()
+
+    # Set the device
+    opts.torch_device = device
+
+    # Setup the intitial inputs for the solver
+    nvar = getNvarTorch(cnn_model.parameters())
+    opts.x0 = (
+        torch.nn.utils.parameters_to_vector(cnn_model.parameters())
+        .detach()
+        .reshape(nvar, 1)
+    )
+
+    # Additional pygranso options
+    opts.limited_mem_size = 20
+    opts.double_precision = True
+    opts.mu0 = mu
+    opts.maxit = maxit
+    opts.print_frequence = 10
+    opts.stat_l2_model = False
+
+    # Other parameters that helped the structural optimization
+    # problem
+    opts.init_step_size = init_step_size
+    opts.linesearch_maxit = linesearch_maxit
+    opts.linesearch_reattempts = linesearch_reattempts
+
+    # Train pygranso
+    start = time.time()
+    soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
+    end = time.time()
+
+    # Print time
+    print(f"Total wall time: {end - start} seconds")
+
+    return soln, designs, losses
