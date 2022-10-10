@@ -31,6 +31,8 @@ from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 
+
+
 def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, kwargs, debug=False):
     """
     Combined function for PyGranso for the structural optimization
@@ -38,16 +40,20 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     of a neural network. V0 is the initial volume, K is the global stiffness
     matrix and F is the forces that are applied in the problem.
     """
-    x_phys = torch.squeeze(model(z),1) # DIP like strategy
+    # x_phys = torch.squeeze(model(z),1) # DIP like strategy
+    # x_phys = torch.zeros_like(x_phys).to(device=kwargs['device'],dtype=kwargs['dtype'])
+    x_phys = list(model.parameters())[1] # debug, shape [20,60] 
 
     u = list(model.parameters())[0] # dummy variable, shape: [2562,1]
 
-    # feasible initialization
-    with open('data_file/x_phys.npy', 'rb') as f:
-        x_phys = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+    # # feasible initialization: put x_phys in opts.x0 will leads to infeasible ce.c2
+    # with open('data_file/x_phys.npy', 'rb') as f:
+    #     x_phys = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
-    with open('data_file/u_matrix.npy', 'rb') as f:
-        u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+    # with open('data_file/u_matrix.npy', 'rb') as f:
+    #     u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])#.reshape(-1,1) with this problematic
+
+    # print("|x_phys1-x_phys|={}; |u1-u|={}".format(torch.linalg.norm(x_phys1-x_phys,ord=2), torch.linalg.norm(u1-u,ord=2)) )
 
     dim_factor = u.shape[0]**0.5 # used for rescaling
     
@@ -71,7 +77,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
 
     # The loss is the sum of the compliance
-    f = torch.sum(compliance_output)
+    f = torch.sum(compliance_output)#*0 + 0.1
     
     # inequality constraint, matrix form: x_phys\in[0,1]^d
     ci = pygransoStruct()
@@ -83,6 +89,16 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     folded_constr = torch.sum(box_constr**2)**0.5 #/dim_factor
     ci.c1 = folded_constr # folded 2562 constraints
     # ci = None
+    
+    # phys_constr = torch.hstack(
+    #     (
+    #         torch.sparse.mm(K,u_freedof) - freedofs_forces,
+    #         freedofs_forces - torch.sparse.mm(K,u_freedof)
+    #     )
+    # )
+    # phys_constr = torch.clamp(phys_constr, min = 0)
+    # folded_phys_constr = torch.sum(phys_constr**2)**0.5/dim_factor
+    # ci.c1 = folded_phys_constr
 
     # equality constraint
     ce = pygransoStruct()
@@ -90,13 +106,48 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5 /dim_factor # folded 2562 constraints
     ce.c3 = torch.sum(u_fixdof**2)*0.5 /dim_factor
 
-    # ce.c1 = torch.sum(( torch.sparse.mm(K,u_freedof) - freedofs_forces )**2)**0.5 /dim_factor
+    # ce.c1 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5 #/dim_factor # folded 2562 constraints
+    # ce.c1 = torch.sum(( torch.sparse.mm(K,u_freedof) - freedofs_forces )**2) #/dim_factor
+
+    # ce = None
+
+    # ce.c1  = torch.sum(K.to_dense()**2) #**0.5
+
+    # ce.c1  = torch.sparse.sum(torch.mul(K,K))#**0.5 # bad AD support from torch (CUDA error: invalid configuration argument)
+    # ce.c1  = torch.sparse.sum(torch.square(K))#**0.5 # bad AD support from torch (CUDA error: invalid configuration argument)
+    # ce.c1 = torch.sparse.sum(K)
+
+    # ce.c1  = torch.sum(u_freedof**2)**0.5
+    # ce.c1  = torch.sum(u_fixdof**2)**0.5
+
 
     print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f, ci.c1,ce.c1,ce.c2, ce.c3))
     
+    # if len(designs) == 0:
+    #     designs.append(x_phys)
+    # else:
+    #     designs[0] = x_phys
+
     designs.append(x_phys)
-    
+
+    # # Get the final frame
+    # final_frame = designs[-1].cpu().detach().numpy()
+
+    # # Create a figure and axis
+    # fig, ax = plt.subplots(1, 1)
+
+    # # Show the structure in grayscale
+    # im = ax.imshow(final_frame, cmap='Greys')
+    # ax.set_title('MBB Beam - Neural Structural Optimization - PyGranso')
+    # ax.set_ylabel('MBB Beam - Height')
+    # ax.set_xlabel('MBB Beam - Width')
+    # ax.grid()
+    # fig.colorbar(im, orientation="horizontal", pad=0.2)
+    # fig.savefig("fig/pygranso_test.png")
+        
     return [f, ci, ce]
+
+
 
 # Set devices and data type
 n_gpu = torch.cuda.device_count()
@@ -132,7 +183,7 @@ cnn_model = models.CNNModel(
 # Put the model in training mode
 cnn_model.train()
 
-fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128))).to(device=device, dtype=double_precision)
+fixed_random_input = 10*torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128))).to(device=device, dtype=double_precision)
 
 # Calculate the forces (constant vector [2562,1])
 forces = topo_physics.calculate_forces(x_phys=None, args=args)
@@ -171,16 +222,28 @@ opts.torch_device = device
 
 # Set up the initial inputs to the solver
 nvar = getNvarTorch(cnn_model.parameters())
-opts.x0 = (
+x0 = (
     torch.nn.utils.parameters_to_vector(cnn_model.parameters())
     .detach()
     .reshape(nvar, 1)
 ).to(device=device, dtype=double_precision)
 
+# feasible initialization
+with open('data_file/x_phys.npy', 'rb') as f:
+    x_phys = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+
+with open('data_file/u_matrix.npy', 'rb') as f:
+    u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+
+# x0[:2562] = u.reshape(-1,1) 
+# x0[2562:2562+1200] = x_phys.reshape(-1,1) + 1e-3*torch.randn_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
+
+opts.x0 = x0
+
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1
+opts.mu0 = 1e-5
 opts.maxit = 1000
 opts.print_frequency = 1
 opts.stat_l2_model = False
