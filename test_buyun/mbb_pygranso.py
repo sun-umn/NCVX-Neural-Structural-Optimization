@@ -121,7 +121,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # ce.c1  = torch.sum(u_fixdof**2)**0.5
 
 
-    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f, ci.c1,ce.c1,ce.c2, ce.c3))
+    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ce.c1,ce.c2, ce.c3))
     # print("f = {}, ci.c1 = {}, ci.c2 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ci.c2,ce.c2, ce.c3))
 
     
@@ -247,7 +247,7 @@ opts.x0 = x0
 opts.limited_mem_size = 20
 opts.double_precision = True
 opts.mu0 = 1e-5
-opts.maxit = 500
+opts.maxit = 1000
 opts.print_frequency = 1
 opts.stat_l2_model = False
 opts.viol_ineq_tol = 1e-4
