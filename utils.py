@@ -1,17 +1,22 @@
+import warnings
+
 import autograd
 import autograd.numpy as anp
-import torch
-from torch.autograd import Function
 import scipy.sparse
 import scipy.sparse.linalg
-import warnings
+import torch
+from pygranso.pygransoStruct import pygransoStruct
+from torch.autograd import Function
+
 try:
     import sksparse.cholmod
+
     HAS_CHOLMOD = True
 except ImportError:
     warnings.warn(
-        'sksparse.cholmod not installed. Falling back to SciPy/SuperLU, but '
-        'simulations will be about twice as slow.')
+        "sksparse.cholmod not installed. Falling back to SciPy/SuperLU, but "
+        "simulations will be about twice as slow."
+    )
     HAS_CHOLMOD = False
 
 
@@ -59,7 +64,7 @@ class SparseSolver(Function):
         # Gather the result
         a = scipy.sparse.coo_matrix(
             (a_entries.detach().numpy(), a_indices.numpy()),
-            shape=(grad_output.numpy().size,) * 2
+            shape=(grad_output.numpy().size,) * 2,
         ).tocsc()
         a = (a + a.T) / 2.0
 
@@ -163,7 +168,7 @@ class FindRoot(Function):
         # Adding a small constant here because I could not get the
         # gradcheck to work without this. We will want to
         # investigate later
-        gradient_value = (-grad_f_x / grad_f_y)
+        gradient_value = -grad_f_x / grad_f_y
         return gradient_value * grad_output, None, None, None
 
 
@@ -252,9 +257,166 @@ def torch_scatter1d(nonzero_values, nonzero_indices, array_len):
     an output and ordering for the original array
     """
     all_indices = torch.arange(array_len)
-    zero_indices = set_diff_1d(
-        all_indices, nonzero_indices, assume_unique=True
-    )
+    zero_indices = set_diff_1d(all_indices, nonzero_indices, assume_unique=True)
     index_map = torch.argsort(torch.cat((nonzero_indices, zero_indices)))
     values = torch.cat((nonzero_values, torch.zeros(len(zero_indices))))
     return values[index_map]
+
+
+class HaltLog:
+    """
+    Save the iterations from pygranso
+    """
+
+    def haltLog(  # noqa
+        self,
+        iteration,
+        x,
+        penaltyfn_parts,
+        d,
+        get_BFGS_state_fn,
+        H_regularized,
+        ls_evals,
+        alpha,
+        n_gradients,
+        stat_vec,
+        stat_val,
+        fallback_level,
+    ):
+        """
+        Function that will create the logs from pygranso
+        """
+        # DON'T CHANGE THIS
+        # increment the index/count
+        self.index += 1
+
+        # EXAMPLE:
+        # store history of x iterates in a preallocated cell array
+        self.x_iterates.append(x)
+        self.f.append(penaltyfn_parts.f)
+        self.tv.append(penaltyfn_parts.tv)
+
+        # keep this false unless you want to implement a custom termination
+        # condition
+        halt = False
+        return halt
+
+    def getLog(self):  # noqa
+        """
+        Once PyGRANSO has run, you may call this function to get retreive all
+        the logging data stored in the shared variables, which is populated
+        by haltLog being called on every iteration of PyGRANSO.
+        """
+        # EXAMPLE
+        # return x_iterates, trimmed to correct size
+        log = pygransoStruct()
+        log.x = self.x_iterates[0:self.index]
+        log.f = self.f[0:self.index]
+        log.tv = self.tv[0:self.index]
+        return log
+
+    def makeHaltLogFunctions(self, maxit):  # noqa
+        """
+        Function to make the halt log functions
+        """
+        # don't change these lambda functions
+        def halt_log_fn(  # noqa
+            iteration,
+            x,
+            penaltyfn_parts,
+            d,
+            get_BFGS_state_fn,
+            H_regularized,
+            ls_evals,
+            alpha,
+            n_gradients,
+            stat_vec,
+            stat_val,
+            fallback_level,
+        ):
+            self.haltLog(
+                iteration,
+                x,
+                penaltyfn_parts,
+                d,
+                get_BFGS_state_fn,
+                H_regularized,
+                ls_evals,
+                alpha,
+                n_gradients,
+                stat_vec,
+                stat_val,
+                fallback_level,
+            )
+
+        get_log_fn = lambda: self.getLog()  # noqa
+
+        # Make your shared variables here to store PyGRANSO history data
+        # EXAMPLE - store history of iterates x_0,x_1,...,x_k
+        self.index = 0
+        self.x_iterates = []
+        self.f = []
+        self.tv = []
+
+        # Only modify the body of logIterate(), not its name or arguments.
+        # Store whatever data you wish from the current PyGRANSO iteration info,
+        # given by the input arguments, into shared variables of
+        # makeHaltLogFunctions, so that this data can be retrieved after PyGRANSO
+        # has been terminated.
+        #
+        # DESCRIPTION OF INPUT ARGUMENTS
+        #   iter                current iteration number
+        #   x                   current iterate x
+        #   penaltyfn_parts     struct containing the following
+        #       OBJECTIVE AND CONSTRAINTS VALUES
+        #       .f              objective value at x
+        #       .f_grad         objective gradient at x
+        #       .ci             inequality constraint at x
+        #       .ci_grad        inequality gradient at x
+        #       .ce             equality constraint at x
+        #       .ce_grad        equality gradient at x
+        #       TOTAL VIOLATION VALUES (inf norm, for determining feasibiliy)
+        #       .tvi            total violation of inequality constraints at x
+        #       .tve            total violation of equality constraints at x
+        #       .tv             total violation of all constraints at x
+        #       TOTAL VIOLATION VALUES (one norm, for L1 penalty function)
+        #       .tvi_l1         total violation of inequality constraints at x
+        #       .tvi_l1_grad    its gradient
+        #       .tve_l1         total violation of equality constraints at x
+        #       .tve_l1_grad    its gradient
+        #       .tv_l1          total violation of all constraints at x
+        #       .tv_l1_grad     its gradient
+        #       PENALTY FUNCTION VALUES
+        #       .p              penalty function value at x
+        #       .p_grad         penalty function gradient at x
+        #       .mu             current value of the penalty parameter
+        #       .feasible_to_tol logical indicating whether x is feasible
+        #   d                   search direction
+        #   get_BFGS_state_fn   function handle to get the (L)BFGS state data
+        #                       FULL MEMORY:
+        #                       - returns BFGS inverse Hessian approximation
+        #                       LIMITED MEMORY:
+        #                       - returns a struct with current L-BFGS state:
+        #                           .S          matrix of the BFGS s vectors
+        #                           .Y          matrix of the BFGS y vectors
+        #                           .rho        row vector of the 1/sty values
+        #                           .gamma      H0 scaling factor
+        #   H_regularized       regularized version of H
+        #                       [] if no regularization was applied to H
+        #   fn_evals            number of function evaluations incurred during
+        #                       this iteration
+        #   alpha               size of accepted size
+        #   n_gradients         number of previous gradients used for computing
+        #                       the termination QP
+        #   stat_vec            stationarity measure vector
+        #   stat_val            approximate value of stationarity:
+        #                           norm(stat_vec)
+        #                       gradients (result of termination QP)
+        #   fallback_level      number of strategy needed for a successful step
+        #                       to be taken.  See bfgssqpOptionsAdvanced.
+        #
+        # OUTPUT ARGUMENT
+        #   halt                set this to true if you wish optimization to
+        #                       be halted at the current iterate.  This can be
+        #                       used to create a custom termination condition,
+        return halt_log_fn, get_log_fn
