@@ -33,7 +33,7 @@ from pygranso.private.getNvar import getNvarTorch
 
 
 
-def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, kwargs, debug=False):
+def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, kwargs, new_index_map):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -57,15 +57,17 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
 
     dim_factor = u.shape[0]#**0.5 # used for rescaling
     
-    K, index_map = topo_physics.get_KU(
+    K, _ = topo_physics.get_KU(
             x_phys, ke, args['freedofs'], args['fixdofs'], **kwargs
         )
 
-    # Create inverse index_map
-    new_index_map = np.zeros_like(index_map)
-    for i in range(len(index_map)):
-        new_index_map[index_map[i]] = i
+    # # Create inverse index_map
+    # new_index_map = np.zeros_like(index_map)
+    # for i in range(len(index_map)):
+    #     new_index_map[index_map[i]] = i
 
+    # if (new_index_map == new_index_map_1).all():
+    #     print("new_index_map unchanged")
 
     # TODO: u_freedof[index_map] = u
     u_freedof = u[new_index_map][:len(args['freedofs'])]
@@ -121,7 +123,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # ce.c1  = torch.sum(u_fixdof**2)**0.5
 
 
-    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ce.c1,ce.c2, ce.c3))
+    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ce.c1,ce.c2/dim_factor, ce.c3))
     # print("f = {}, ci.c1 = {}, ci.c2 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ci.c2,ce.c2, ce.c3))
 
     
@@ -191,6 +193,10 @@ fixed_random_input = 10*torch.normal(mean=torch.zeros((1, 128)), std=torch.ones(
 forces = topo_physics.calculate_forces(x_phys=None, args=args)
 freedofs_forces = forces[args['freedofs'].cpu().numpy()]
 
+
+
+
+
 # # DEBUG part: print pygranso optimization variables
 for name, param in cnn_model.named_parameters():
     print("{}: {}".format(name, param.data.shape))
@@ -209,11 +215,20 @@ kwargs = dict(
     dtype=double_precision
 )
 
+_, index_map = topo_physics.get_KU(
+        torch.ones((20,60)).to(device=device, dtype=double_precision), ke, args['freedofs'], args['fixdofs'], **kwargs
+    )
+
+# Create inverse index_map
+new_index_map = np.zeros_like(index_map)
+for i in range(len(index_map)):
+    new_index_map[index_map[i]] = i
+
 
 # Structural optimization problem setup
 designs = []
 comb_fn = lambda model: structural_optimization_function(
-    model, fixed_random_input, freedofs_forces, ke, args, designs, kwargs, debug=False
+    model, fixed_random_input, freedofs_forces, ke, args, designs, kwargs, new_index_map
 )
 
 # PyGranso Options
@@ -239,6 +254,16 @@ with open('data_file/u_matrix.npy', 'rb') as f:
 
 x0[:2562] = u.reshape(-1,1) 
 # x0[2562:2562+1200] = x_phys.reshape(-1,1) + 1e-3*torch.randn_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
+
+# u = torch.ones_like(u).reshape(-1,1) .to(device=kwargs['device'],dtype=kwargs['dtype'])
+
+# x0[:2562] = -75 * torch.ones_like(u).reshape(-1,1) .to(device=kwargs['device'],dtype=kwargs['dtype'])
+# u[new_index_map] = torch.vstack(
+#                                 (-75 * torch.ones((len(args['freedofs']),1)),
+#                                 torch.zeros((len(args['fixdofs']),1)))
+#                                 ).to(device=kwargs['device'],dtype=kwargs['dtype'])
+# x0[:2562] = u
+
 x0[2562:2562+1200] = 0.9*torch.ones_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
 opts.x0 = x0
