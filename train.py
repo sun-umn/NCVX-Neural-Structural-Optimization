@@ -9,6 +9,7 @@ from pygranso.pygransoStruct import pygransoStruct
 import models
 import topo_api
 import topo_physics
+import utils
 
 
 def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
@@ -222,12 +223,22 @@ def train_pygranso(
     opts.linesearch_maxit = linesearch_maxit
     opts.linesearch_reattempts = linesearch_reattempts
 
+    # Save the end results using the halt function
+    halt_function_obj = utils.HaltLog()
+    halt_log_fn, get_log_fn = halt_function_obj.makeHaltLogFunctions(opts.maxit)
+
+    #  Set PyGRANSO's logging function in opts
+    opts.halt_log_fn = halt_log_fn
+
     # Train pygranso
     start = time.time()
     soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
     end = time.time()
 
+    # After pygranso runs we can gather the logs
+    log = get_log_fn()
+
     # Print time
     print(f"Total wall time: {end - start} seconds")
 
-    return soln, designs, losses
+    return soln, designs, log
