@@ -55,7 +55,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
 
     # print("|x_phys1-x_phys|={}; |u1-u|={}".format(torch.linalg.norm(x_phys1-x_phys,ord=2), torch.linalg.norm(u1-u,ord=2)) )
 
-    dim_factor = u.shape[0]**0.5 # used for rescaling
+    dim_factor = u.shape[0]#**0.5 # used for rescaling
     
     K, index_map = topo_physics.get_KU(
             x_phys, ke, args['freedofs'], args['fixdofs'], **kwargs
@@ -77,7 +77,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
 
     # The loss is the sum of the compliance
-    f = torch.sum(compliance_output)#*0 + 0.1
+    f = torch.sum(compliance_output)/dim_factor**2 #*1e-3#*0 + 0.1
     
     # inequality constraint, matrix form: x_phys\in[0,1]^d
     ci = pygransoStruct()
@@ -86,7 +86,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
         -x_phys.reshape(x_phys.numel()))
     )
     box_constr = torch.clamp(box_constr, min=0)
-    folded_constr = torch.sum(box_constr**2)**0.5 #/dim_factor
+    folded_constr = torch.sum(box_constr**2)**0.5 /dim_factor**0.5
     ci.c1 = folded_constr # folded 2562 constraints
     # ci = None
     
@@ -103,8 +103,8 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # equality constraint
     ce = pygransoStruct()
     ce.c1 = torch.mean(x_phys) - args["volfrac"]
-    ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5 /dim_factor # folded 2562 constraints
-    ce.c3 = torch.sum(u_fixdof**2)*0.5 /dim_factor
+    ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5*dim_factor #/dim_factor # folded 2562 constraints
+    ce.c3 = torch.sum(u_fixdof**2)*0.5 /dim_factor**0.5
 
     # ce.c1 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5 #/dim_factor # folded 2562 constraints
     # ce.c1 = torch.sum(( torch.sparse.mm(K,u_freedof) - freedofs_forces )**2) #/dim_factor
@@ -122,6 +122,8 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
 
 
     print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f, ci.c1,ce.c1,ce.c2, ce.c3))
+    # print("f = {}, ci.c1 = {}, ci.c2 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ci.c2,ce.c2, ce.c3))
+
     
     # if len(designs) == 0:
     #     designs.append(x_phys)
@@ -235,8 +237,9 @@ with open('data_file/x_phys.npy', 'rb') as f:
 with open('data_file/u_matrix.npy', 'rb') as f:
     u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
-# x0[:2562] = u.reshape(-1,1) 
+x0[:2562] = u.reshape(-1,1) 
 # x0[2562:2562+1200] = x_phys.reshape(-1,1) + 1e-3*torch.randn_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
+x0[2562:2562+1200] = 0.9*torch.ones_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
 opts.x0 = x0
 
@@ -244,11 +247,12 @@ opts.x0 = x0
 opts.limited_mem_size = 20
 opts.double_precision = True
 opts.mu0 = 1e-5
-opts.maxit = 1000
+opts.maxit = 500
 opts.print_frequency = 1
 opts.stat_l2_model = False
-
-
+opts.viol_ineq_tol = 1e-4
+opts.viol_eq_tol = 1e-4
+opts.opt_tol = 1e-4
 
 
 
