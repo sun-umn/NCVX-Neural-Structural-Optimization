@@ -58,8 +58,9 @@ def build_structure_comparison_data(name: str) -> pd.DataFrame:
     # Merge the data frames together
     # If one has less iterations just forward fill the results
     results = pd.merge(
-        pygranso_results, google_results, on="step", how="left"
+        pygranso_results, google_results, on="step", how="outer"
     ).ffill()  # noqa
+    results = results[['cnn-pygranso', 'cnn-lbfgs']]
 
     return results
 
@@ -76,7 +77,8 @@ def save_loss_plots(name: str) -> None:
     fig, ax = plt.subplots(1, 1)
 
     # plot the results
-    results.plot(lw=2, ax=ax)
+    results['cnn-pygranso'][::10].plot(lw=2, ax=ax, marker='*', label='cnn-pygranso')
+    results['cnn-lbfgs'][::10].plot(lw=2, ax=ax, marker='o', label='cnn-lbfgs')
 
     # Set attributes of the plot
     title = name.lower().split("_")
@@ -87,6 +89,7 @@ def save_loss_plots(name: str) -> None:
     ax.set_xlabel("step")
     ax.set_ylabel("Compliance (loss function)")
     ax.grid()
+    ax.legend()
 
     # Save the figure
     plt.savefig(os.path.join(path, f"{name}_fig.png"))
@@ -107,4 +110,4 @@ def build_and_save_pygranso_results(name: str, losses: list) -> None:
 	results = pd.DataFrame({'cnn-pygranso': losses, 'step': step})
 
 	# Save the results
-	results.to_csv(os.path.join(path, filename))
+	results.to_csv(os.path.join(path, filename), index=False)

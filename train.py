@@ -163,7 +163,7 @@ def train_pygranso(
     init_step_size=5e-6,
     linesearch_maxit=50,
     linesearch_reattempts=15,
-) -> None:
+) -> tuple:
     """
     Function to train structural optimization pygranso
     """
