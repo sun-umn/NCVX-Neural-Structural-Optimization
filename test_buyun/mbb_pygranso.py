@@ -26,25 +26,25 @@ from str_opt_utils import topo_physics
 
 # first party
 # Import pygranso functionality
-# sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
+sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 
 
 
-def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, kwargs, new_index_map):
+def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, kwargs, new_index_map): #,u,K):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
     of a neural network. V0 is the initial volume, K is the global stiffness
     matrix and F is the forces that are applied in the problem.
     """
-    # x_phys = torch.squeeze(model(z),1) # DIP like strategy
+    x_phys = torch.squeeze(model(z),1) # DIP like strategy
     # x_phys = torch.zeros_like(x_phys).to(device=kwargs['device'],dtype=kwargs['dtype'])
-    x_phys = list(model.parameters())[1] # debug, shape [20,60] 
+    # x_phys = list(model.parameters())[1] # debug, shape [20,60] 
 
-    u = list(model.parameters())[0] # dummy variable, shape: [2562,1]
+    u = list(model.parameters())[0] # dummy variable, shape: [2562]
 
     # # feasible initialization: put x_phys in opts.x0 will leads to infeasible ce.c2
     # with open('data_file/x_phys.npy', 'rb') as f:
@@ -79,7 +79,9 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
 
     # The loss is the sum of the compliance
-    f = torch.sum(compliance_output)/dim_factor**2 #*1e-3#*0 + 0.1
+    f_factor = 1e-5
+    f = torch.sum(compliance_output)*f_factor #/dim_factor**2*0 #*1e-3#*0 + 0.1
+    # f = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)
     
     # inequality constraint, matrix form: x_phys\in[0,1]^d
     ci = pygransoStruct()
@@ -88,7 +90,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
         -x_phys.reshape(x_phys.numel()))
     )
     box_constr = torch.clamp(box_constr, min=0)
-    folded_constr = torch.sum(box_constr**2)**0.5 /dim_factor**0.5
+    folded_constr = torch.sum(box_constr**2)#**0.5 /dim_factor**0.5
     ci.c1 = folded_constr # folded 2562 constraints
     # ci = None
     
@@ -104,10 +106,14 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
 
     # equality constraint
     ce = pygransoStruct()
-    ce.c1 = torch.mean(x_phys) - args["volfrac"]
-    ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5*dim_factor #/dim_factor # folded 2562 constraints
-    ce.c3 = torch.sum(u_fixdof**2)*0.5 /dim_factor**0.5
+    ce.c1 = (torch.mean(x_phys) - args["volfrac"])*dim_factor
+    ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2) #**0.5 #*dim_factor #/dim_factor # folded 2562 constraints
+    ce.c3 = torch.sum(u_fixdof**2) #*0.5 /dim_factor**0.5
 
+    # K = list(model.parameters())[2]
+    # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)
+    # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5/dim_factor**0.5 # F=KU, fixed K, OK
+    # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5/dim_factor**0.5 # F=KU, fixed U
     # ce.c1 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5 #/dim_factor # folded 2562 constraints
     # ce.c1 = torch.sum(( torch.sparse.mm(K,u_freedof) - freedofs_forces )**2) #/dim_factor
 
@@ -123,16 +129,16 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # ce.c1  = torch.sum(u_fixdof**2)**0.5
 
 
-    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ce.c1,ce.c2/dim_factor, ce.c3))
+    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f/f_factor, ci.c1,ce.c1,ce.c2, ce.c3))
     # print("f = {}, ci.c1 = {}, ci.c2 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ci.c2,ce.c2, ce.c3))
 
     
-    # if len(designs) == 0:
-    #     designs.append(x_phys)
-    # else:
-    #     designs[0] = x_phys
+    if len(designs) == 0:
+        designs.append(x_phys)
+    else:
+        designs[0] = x_phys
 
-    designs.append(x_phys)
+    # designs.append(x_phys)
 
     # # Get the final frame
     # final_frame = designs[-1].cpu().detach().numpy()
@@ -225,11 +231,7 @@ for i in range(len(index_map)):
     new_index_map[index_map[i]] = i
 
 
-# Structural optimization problem setup
-designs = []
-comb_fn = lambda model: structural_optimization_function(
-    model, fixed_random_input, freedofs_forces, ke, args, designs, kwargs, new_index_map
-)
+
 
 # PyGranso Options
 opts = pygransoStruct()
@@ -245,14 +247,14 @@ x0 = (
     .reshape(nvar, 1)
 ).to(device=device, dtype=double_precision)
 
-# feasible initialization
-with open('data_file/x_phys.npy', 'rb') as f:
-    x_phys = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+# # feasible initialization
+# with open('data_file/x_phys.npy', 'rb') as f:
+#     x_phys = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
-with open('data_file/u_matrix.npy', 'rb') as f:
-    u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+# with open('data_file/u_matrix.npy', 'rb') as f:
+#     u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
-x0[:2562] = u.reshape(-1,1) 
+# x0[:2562] = u.reshape(-1,1) 
 # x0[2562:2562+1200] = x_phys.reshape(-1,1) + 1e-3*torch.randn_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
 # u = torch.ones_like(u).reshape(-1,1) .to(device=kwargs['device'],dtype=kwargs['dtype'])
@@ -264,22 +266,30 @@ x0[:2562] = u.reshape(-1,1)
 #                                 ).to(device=kwargs['device'],dtype=kwargs['dtype'])
 # x0[:2562] = u
 
-x0[2562:2562+1200] = 0.9*torch.ones_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
+# x0[2562:2562+1200] = 0.9*torch.ones_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
 opts.x0 = x0
 
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1e-5
-opts.maxit = 1000
+opts.mu0 = 1
+opts.maxit = 2000
 opts.print_frequency = 1
 opts.stat_l2_model = False
 opts.viol_ineq_tol = 1e-4
 opts.viol_eq_tol = 1e-4
 opts.opt_tol = 1e-4
 
+# K, _ = topo_physics.get_KU(
+#         x_phys, ke, args['freedofs'], args['fixdofs'], **kwargs
+#     )
 
+# Structural optimization problem setup
+designs = []
+comb_fn = lambda model: structural_optimization_function(
+    model, fixed_random_input, freedofs_forces, ke, args, designs, kwargs, new_index_map #, u, K
+)
 
 # Run pygranso
 start = time.time()
@@ -289,8 +299,11 @@ print(f'Total wall time: {end - start}s')
 
 
 
-# Get the final frame
+# # Get the final frame
 final_frame = designs[-1].cpu().detach().numpy()
+
+# final_frame = soln.final.x[2562:2562+1200].reshape(20,60).cpu().detach().numpy() # x_phys debug
+# final_frame = torch.squeeze(model(fixed_random_input),1) # TODO: print final result for nn
 
 # Create a figure and axis
 fig, ax = plt.subplots(1, 1)
