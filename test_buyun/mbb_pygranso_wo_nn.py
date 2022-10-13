@@ -82,7 +82,7 @@ def structural_optimization_function(X_struct,z,freedofs_forces, ke, args, desig
     # Calculate the compliance output u^T K u and force Ku
     compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
 
-    f_factor = 1e-5
+    f_factor = 1
     # The loss is the sum of the compliance
     f = torch.sum(compliance_output)*f_factor #/dim_factor**2*0 #*1e-3#*0 + 0.1
     # f = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)
@@ -281,7 +281,7 @@ with open('data_file/u_matrix.npy', 'rb') as f:
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1 #e-5
+opts.mu0 = 1e-20 #e-5
 opts.maxit = 3000
 opts.print_frequency = 1
 opts.stat_l2_model = False

@@ -31,7 +31,7 @@ from str_opt_utils import topo_physics
 
 # first party
 # Import pygranso functionality
-# sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
+sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
@@ -59,20 +59,21 @@ np.random.seed(seed)
 
 
 F = torch.randn(n,1).to(device=device, dtype=double_precision)
-# K = torch.randn(n,n).to(device=device, dtype=double_precision)
-U = torch.randn(n,1).to(device=device, dtype=double_precision)
+K = torch.randn(n,n).to(device=device, dtype=double_precision)
+u = torch.randn(n,1).to(device=device, dtype=double_precision)
 
 # variables and corresponding dimensions.
-var_in = {"K": [n,n]}
+var_in = {"K": [n,n], "u":[n,1]}
 
 # # Put the model in training mode
 # factorization_model.train()
 
-def user_fn(X_struct,F,U):
-    K = X_struct.K
+def user_fn(X_struct,F,K,u):
+    # K = X_struct.K
+    u = X_struct.u
     # objective function
-    # f = 0
-    f = torch.sum(torch.square(K@U-F))/n
+    f = 0
+    f = torch.sum(torch.square(K@u-F))
 
 
 
@@ -83,13 +84,13 @@ def user_fn(X_struct,F,U):
 
     # equality constraint
     ce = pygransoStruct()
-    # ce.c1 = torch.sum(torch.square(K@U-F))/n#**0.5/n**0.5
+    # ce.c1 = torch.sum(torch.square(K@u-F))
     ce = None
     # print(ci.c1)
     # print(f)
     return [f,ci,ce]
 
-comb_fn = lambda X_struct : user_fn(X_struct,F,U)
+comb_fn = lambda X_struct : user_fn(X_struct,F,K,u)
 
 # PyGranso Options
 opts = pygransoStruct()
@@ -104,7 +105,7 @@ opts.limited_mem_size = 20
 opts.double_precision = True
 opts.mu0 = 1
 opts.maxit = 5000
-opts.print_frequency = 1
+opts.print_frequency = 20
 opts.stat_l2_model = False
 
 start = time.time()

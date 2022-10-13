@@ -15,6 +15,7 @@ print(torch.__version__)
 
 import sys
 sys.path.append('/home/buyun/Documents/GitHub/NCVX-Neural-Structural-Optimization')
+sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 
 # Topology Library
 # import models
@@ -36,15 +37,18 @@ from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from pygranso.private.getNvar import getNvarTorch
 
+n = 2562
+
 class nn_factorization(nn.Module):
   def __init__(self):
     super().__init__()
-    self.U =torch.nn.Parameter(torch.randn(2562,1))
-    self.K =torch.nn.Parameter(torch.randn(2562,2562))
+    self.U =torch.nn.Parameter(torch.randn(n,1))
+    self.K =torch.nn.Parameter(torch.randn(n,n))
 
   def forward(self):      
-    return torch.sum(torch.square(self.K@self.U))**0.5
-
+    # return torch.sum(torch.square(self.K@self.U))**0.5
+    # return torch.sum(torch.square(self.U))**0.5
+    return torch.sum(torch.square(self.K))**0.5
 
 # Set devices and data type
 n_gpu = torch.cuda.device_count()
@@ -65,7 +69,9 @@ np.random.seed(seed)
 # Initialize the model
 factorization_model = nn_factorization().to(device=device, dtype=double_precision)
 
-F = torch.randn(2562,1).to(device=device, dtype=double_precision)
+F = torch.randn(n,1).to(device=device, dtype=double_precision)
+# K = torch.randn(n,n).to(device=device, dtype=double_precision)
+U = torch.randn(n,1).to(device=device, dtype=double_precision)
 
 # # DEBUG part: print pygranso optimization variables
 for name, param in factorization_model.named_parameters():
@@ -74,23 +80,30 @@ for name, param in factorization_model.named_parameters():
 # # Put the model in training mode
 # factorization_model.train()
 
-def user_fn(model,F):
+def user_fn(model,F,U):
     # objective function
     f = model()*0
+    
 
-    U = list(model.parameters())[0]
+    # U = list(model.parameters())[0]
     K = list(model.parameters())[1]
+
+    # f = torch.sum(torch.square(K@U-F))/n
 
     # inequality constraint
     ci = None
+    # ci = pygransoStruct()
+    # ci.c1 = torch.sum(torch.square(K@U-F))/n
 
     # equality constraint
     ce = pygransoStruct()
-    ce.c1 = torch.sum(torch.square(K@U-F))**0.5
-
+    ce.c1 = torch.sum(torch.square(K@U-F))/n#**0.5/n**0.5
+    # ce = None
+    # print(ci.c1)
+    # print(f)
     return [f,ci,ce]
 
-comb_fn = lambda model : user_fn(model,F)
+comb_fn = lambda model : user_fn(model,F,U)
 
 # PyGranso Options
 opts = pygransoStruct()
@@ -100,7 +113,7 @@ opts.torch_device = device
 
 # Set up the initial inputs to the solver
 nvar = getNvarTorch(factorization_model.parameters())
-opts.x0 = (
+opts.x0 = 1e-2*(
     torch.nn.utils.parameters_to_vector(factorization_model.parameters())
     .detach()
     .reshape(nvar, 1)
@@ -111,7 +124,7 @@ opts.limited_mem_size = 20
 opts.double_precision = True
 opts.mu0 = 1
 opts.maxit = 5000
-opts.print_frequency = 30
+opts.print_frequency = 1
 opts.stat_l2_model = False
 
 start = time.time()
