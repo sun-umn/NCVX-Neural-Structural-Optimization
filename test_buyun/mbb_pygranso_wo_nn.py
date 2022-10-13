@@ -82,20 +82,21 @@ def structural_optimization_function(X_struct,z,freedofs_forces, ke, args, desig
     # Calculate the compliance output u^T K u and force Ku
     compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
 
+    f_factor = 1e-5
     # The loss is the sum of the compliance
-    f = torch.sum(compliance_output)/dim_factor**2*0 #*1e-3#*0 + 0.1
+    f = torch.sum(compliance_output)*f_factor #/dim_factor**2*0 #*1e-3#*0 + 0.1
     # f = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)
     
-    # # inequality constraint, matrix form: x_phys\in[0,1]^d
-    # ci = pygransoStruct()
-    # box_constr = torch.hstack(
-    #     (x_phys.reshape(x_phys.numel()) - 1,
-    #     -x_phys.reshape(x_phys.numel()))
-    # )
-    # box_constr = torch.clamp(box_constr, min=0)
-    # folded_constr = torch.sum(box_constr**2)**0.5 /dim_factor**0.5
-    # ci.c1 = folded_constr # folded 2562 constraints
-    ci = None
+    # inequality constraint, matrix form: x_phys\in[0,1]^d
+    ci = pygransoStruct()
+    box_constr = torch.hstack(
+        (x_phys.reshape(x_phys.numel()) - 1,
+        -x_phys.reshape(x_phys.numel()))
+    )
+    box_constr = torch.clamp(box_constr, min=0)
+    folded_constr = torch.sum(box_constr**2)#**0.5 /dim_factor**0.5
+    ci.c1 = folded_constr # folded 2562 constraints
+    # ci = None
     
     # phys_constr = torch.hstack(
     #     (
@@ -109,16 +110,16 @@ def structural_optimization_function(X_struct,z,freedofs_forces, ke, args, desig
 
     # equality constraint
     ce = pygransoStruct()
-    # ce.c1 = torch.mean(x_phys) - args["volfrac"]
-    # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5 #*dim_factor #/dim_factor # folded 2562 constraints
-    # ce.c3 = torch.sum(u_fixdof**2)*0.5 /dim_factor**0.5
+    ce.c1 = (torch.mean(x_phys) - args["volfrac"])*dim_factor
+    ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5 #*dim_factor #/dim_factor # folded 2562 constraints
+    ce.c3 = torch.sum(u_fixdof**2)#*0.5 #/dim_factor**0.5
 
     # K = list(model.parameters())[2]
     # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5
     # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)**0.5/dim_factor**0.5 # F=KU, fixed K, OK
     # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5#/dim_factor**0.5 # F=KU, fixed U
 
-    ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5#/dim_factor**0.5 # F=KU, fixed U
+    # ce.c2 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5#/dim_factor**0.5 # F=KU, fixed U
 
 
     # ce.c1 = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)#**0.5 #/dim_factor # folded 2562 constraints
@@ -136,7 +137,7 @@ def structural_optimization_function(X_struct,z,freedofs_forces, ke, args, desig
     # ce.c1  = torch.sum(u_fixdof**2)**0.5
 
 
-    # print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ce.c1,ce.c2/dim_factor, ce.c3))
+    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f/f_factor, ci.c1,ce.c1,ce.c2, ce.c3))
     # print("f = {}, ci.c1 = {}, ci.c2 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ci.c2,ce.c2, ce.c3))
 
     
@@ -280,9 +281,9 @@ with open('data_file/u_matrix.npy', 'rb') as f:
 # Additional PyGranso options
 opts.limited_mem_size = 20
 opts.double_precision = True
-opts.mu0 = 1e-5
-opts.maxit = 5000
-opts.print_frequency = 50
+opts.mu0 = 1 #e-5
+opts.maxit = 3000
+opts.print_frequency = 1
 opts.stat_l2_model = False
 opts.viol_ineq_tol = 1e-4
 opts.viol_eq_tol = 1e-4
@@ -313,15 +314,16 @@ print(f'Total wall time: {end - start}s')
 
 # # Get the final frame
 # final_frame = designs[-1].cpu().detach().numpy()
+final_frame = soln.final.x[:1200].reshape(20,60).cpu().detach().numpy()
 
-# # Create a figure and axis
-# fig, ax = plt.subplots(1, 1)
+# Create a figure and axis
+fig, ax = plt.subplots(1, 1)
 
-# # Show the structure in grayscale
-# im = ax.imshow(final_frame, cmap='Greys')
-# ax.set_title('MBB Beam - Neural Structural Optimization - PyGranso')
-# ax.set_ylabel('MBB Beam - Height')
-# ax.set_xlabel('MBB Beam - Width')
-# ax.grid()
-# fig.colorbar(im, orientation="horizontal", pad=0.2)
-# fig.savefig("fig/pygranso_test.png")
+# Show the structure in grayscale
+im = ax.imshow(final_frame, cmap='Greys')
+ax.set_title('MBB Beam - Neural Structural Optimization - PyGranso')
+ax.set_ylabel('MBB Beam - Height')
+ax.set_xlabel('MBB Beam - Width')
+ax.grid()
+fig.colorbar(im, orientation="horizontal", pad=0.2)
+fig.savefig("fig/pygranso_test.png")
