@@ -124,7 +124,8 @@ class CNNModel(nn.Module):
 
         # U is not used in the CNN model. It's a dummy variable used in PyGRANSO that has to be defined there, 
         # as PyGRANSO will read all parameters from the nn.parameters() 
-        self.U = torch.nn.Parameter(torch.randn(2562))
+        # self.U = torch.nn.Parameter(torch.randn(2562))
+        self.U = torch.nn.Parameter(torch.randn(2540)) # debug
         # self.x_phys = torch.nn.Parameter(torch.randn(20,60)) # debug
         # self.K = torch.nn.Parameter(torch.randn(2540,2540)) # debug
 
@@ -157,6 +158,7 @@ class CNNModel(nn.Module):
         # Squeeze the result in the last axis just like in the
         # tensorflow code
         output = torch.squeeze(output)
+        output = Fun.sigmoid(output)
 
         return output
 

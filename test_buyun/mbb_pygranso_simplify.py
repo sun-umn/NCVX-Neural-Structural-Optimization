@@ -74,6 +74,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # TODO: u_freedof[index_map] = u
     # u_freedof = u[new_index_map][:len(args['freedofs'])]
     # u_fixdof = u[new_index_map][len(args['freedofs']):]
+    # u = u[new_index_map][:len(args['freedofs'])]
 
     # print(torch.sum(u_freedof@freedofs_forces))
 
@@ -86,18 +87,18 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     f_factor = 1e-10
     # f = torch.sum(compliance_output)*f_factor #/dim_factor**2*0 #*1e-3#*0 + 0.1
     # f = torch.sum((K.to_dense()@u_freedof - freedofs_forces)**2)
-    f = torch.sum(u@freedofs_forces)*f_factor
+    f = torch.sum(u@freedofs_forces)*f_factor + (torch.mean(x_phys) - args["volfrac"])*0
     
-    # inequality constraint, matrix form: x_phys\in[0,1]^d
-    ci = pygransoStruct()
-    box_constr = torch.hstack(
-        (x_phys.reshape(x_phys.numel()) - 1,
-        -x_phys.reshape(x_phys.numel()))
-    )
-    box_constr = torch.clamp(box_constr, min=0)
-    folded_constr = torch.sum(box_constr**2)#**0.5 /dim_factor**0.5
-    ci.c1 = folded_constr # folded 2562 constraints
-    # ci = None
+    # # inequality constraint, matrix form: x_phys\in[0,1]^d
+    # ci = pygransoStruct()
+    # box_constr = torch.hstack(
+    #     (x_phys.reshape(x_phys.numel()) - 1,
+    #     -x_phys.reshape(x_phys.numel()))
+    # )
+    # box_constr = torch.clamp(box_constr, min=0)
+    # folded_constr = torch.sum(box_constr**2)#**0.5 /dim_factor**0.5
+    # ci.c1 = folded_constr # folded 2562 constraints
+    ci = None
     
     # phys_constr = torch.hstack(
     #     (
@@ -112,7 +113,8 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # equality constraint
     ce = pygransoStruct()
     ce.c1 = (torch.mean(x_phys) - args["volfrac"])*dim_factor
-    ce.c2 = torch.sum((K.to_dense()@u - freedofs_forces)**2)*1e3 #**0.5 #*dim_factor #/dim_factor # folded 2562 constraints
+    ce.c2 = torch.linalg.norm((K.to_dense()@u - freedofs_forces),ord=2)**2
+    # ce.c2 = torch.sum((K.to_dense()@u - freedofs_forces)**2)#*1e3 #**0.5 #*dim_factor #/dim_factor # folded 2562 constraints
     # ce.c3 = torch.sum(u_fixdof**2) #*0.5 /dim_factor**0.5
 
     # K = list(model.parameters())[2]
@@ -133,7 +135,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # ce.c1  = torch.sum(u_freedof**2)**0.5
     # ce.c1  = torch.sum(u_fixdof**2)**0.5
 
-    print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {} ".format(f/f_factor, ci.c1,ce.c1,ce.c2))
+    print("f = {}, ce.c1 = {}, ce.c2 = {} ".format(f/f_factor, ce.c1,ce.c2))
     # print("f = {}, ci.c1 = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {}".format(f/f_factor, ci.c1,ce.c1,ce.c2, ce.c3))
     # print("f = {}, ci.c1 = {}, ci.c2 = {}, ce.c2 = {}, ce.c3 = {}".format(f*dim_factor**2, ci.c1,ci.c2,ce.c2, ce.c3))
 
@@ -203,6 +205,7 @@ fixed_random_input = 10*torch.normal(mean=torch.zeros((1, 128)), std=torch.ones(
 # Calculate the forces (constant vector [2562,1])
 forces = topo_physics.calculate_forces(x_phys=None, args=args)
 freedofs_forces = forces[args['freedofs'].cpu().numpy()]
+fixdofs_forces = forces[args['fixdofs'].cpu().numpy()]
 
 
 
