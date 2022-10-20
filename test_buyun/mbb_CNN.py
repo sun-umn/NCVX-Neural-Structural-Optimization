@@ -19,7 +19,7 @@ problem = problems.mbb_beam(height=20, width=60)
 # Set up the cnn args for this problem
 cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
 
-rendered_frames, losses, x_phys, u_matrix = train.train_adam(problem, cnn_kwargs, lr=4e-3, iterations=500)
+rendered_frames, losses, x_phys, u_matrix = train.train_adam(problem, cnn_kwargs, lr=4e-3, iterations=2000)
 
 
 # Get the final frame
