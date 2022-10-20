@@ -229,10 +229,13 @@ for i in range(100):
             .detach()
             .reshape(nvar, 1)
         ).to(device=device, dtype=double_precision)
-        with open('data_file/u_matrix.npy', 'rb') as f:
-            u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+        # with open('data_file/u_matrix.npy', 'rb') as f:
+        #     u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+        # x0[0:2540,0] = u[new_index_map][:len(args['freedofs'])]
 
-        x0[0:2540,0] = u[new_index_map][:len(args['freedofs'])]
+        # u = -300 * torch.rand((2540,1)).to(device=kwargs['device'],dtype=kwargs['dtype'])
+        # x0[0:2540] = u
+
         debug = False
         opt_x_phys = True
         print("Optimize x_phys")
