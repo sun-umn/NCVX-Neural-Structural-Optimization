@@ -122,7 +122,7 @@ cnn_model = models.CNNModel(
 # Put the model in training mode
 cnn_model.train()
 
-fixed_random_input = 10*torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128))).to(device=device, dtype=double_precision)
+fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128))).to(device=device, dtype=double_precision)
 
 # Calculate the forces (constant vector [2562,1])
 forces = topo_physics.calculate_forces(x_phys=None, args=args)
