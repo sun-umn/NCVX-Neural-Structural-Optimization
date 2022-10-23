@@ -56,6 +56,8 @@ class CNNModel(nn.Module):
         latent_scale=1.0,
         dense_init_scale=1.0,
         train_u_matrix=False,
+        train_beta_matrix=False,
+        train_k_inverse_matrix=False,
     ):
         super().__init__()
 
@@ -80,8 +82,22 @@ class CNNModel(nn.Module):
 
         # Create the u_matrix vector
         if train_u_matrix:
-            self.u_matrix = nn.Parameter(
-                torch.randn(len(args['freedofs'])).double()
+            distribution = (
+                torch.distributions.uniform.Uniform(-1000.0, 1000.0)
+                # .Uniform(-1000.0, 1000.0)
+            )
+            sample = distribution.sample(torch.Size([len(args["freedofs"])]))
+            self.u_matrix = nn.Parameter(sample.double())
+            # self.u_matrix = nn.Parameter(
+            #     1e4 * torch.randn(len(args['freedofs'])).double()
+            # )
+
+        if train_beta_matrix:
+            self.beta_matrix = nn.Parameter(torch.randn(args["nelx"] * args["nely"]))
+
+        if train_k_inverse_matrix:
+            self.K_inverse = nn.Parameter(
+                torch.randn(len(args["freedofs"]), len(args["freedofs"])).double()
             )
 
         # Create the first dense layer
@@ -153,3 +169,25 @@ class CNNModel(nn.Module):
         output = torch.squeeze(output)
 
         return output
+
+
+class UMatrixModel(nn.Module):
+    """
+    Class that will simply implement a u matrix for us to
+    train
+    """
+
+    def __init__(self, args, uniform_lower_bound, uniform_upper_bound):  # noqa
+        super().__init__()
+        self.uniform_upper_bound = uniform_upper_bound
+        self.uniform_lower_bound = uniform_lower_bound
+
+        # Initialize U from a uniform distribution
+        distribution = torch.distributions.uniform.Uniform(
+            self.uniform_lower_bound, self.uniform_upper_bound
+        )
+        sample = distribution.sample(torch.Size([len(args["freedofs"])]))
+        self.u_matrix = nn.Parameter(sample.double())
+
+    def forward(self, x=None):  # noqa
+        return self.u_matrix

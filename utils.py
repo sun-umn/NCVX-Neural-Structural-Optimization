@@ -2,6 +2,7 @@ import warnings
 
 import autograd
 import autograd.numpy as anp
+import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
 import torch
@@ -263,6 +264,35 @@ def torch_scatter1d(nonzero_values, nonzero_indices, array_len):
     return values[index_map]
 
 
+def build_node_indexes(x_phys):
+    """
+    Function that creates the node of the discretized grid
+    for sturctural optimization
+    """
+    nely, nelx = x_phys.shape
+    ely, elx = np.meshgrid(range(nely), range(nelx))
+
+    # Nodes
+    n1 = (nely + 1) * (elx + 0) + (ely + 0)
+    n2 = (nely + 1) * (elx + 1) + (ely + 0)
+    n3 = (nely + 1) * (elx + 1) + (ely + 1)
+    n4 = (nely + 1) * (elx + 0) + (ely + 1)
+    all_ixs = np.array(
+        [
+            2 * n1,
+            2 * n1 + 1,
+            2 * n2,
+            2 * n2 + 1,
+            2 * n3,
+            2 * n3 + 1,
+            2 * n4,
+            2 * n4 + 1,
+        ]  # noqa
+    )
+    all_ixs = torch.from_numpy(all_ixs)
+    return all_ixs
+
+
 class HaltLog:
     """
     Save the iterations from pygranso
@@ -310,9 +340,9 @@ class HaltLog:
         # EXAMPLE
         # return x_iterates, trimmed to correct size
         log = pygransoStruct()
-        log.x = self.x_iterates[0:self.index]
-        log.f = self.f[0:self.index]
-        log.tv = self.tv[0:self.index]
+        log.x = self.x_iterates[0 : self.index]
+        log.f = self.f[0 : self.index]
+        log.tv = self.tv[0 : self.index]
         return log
 
     def makeHaltLogFunctions(self, maxit):  # noqa

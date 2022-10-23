@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+
 import utils
 
 
@@ -12,7 +13,7 @@ def young_modulus(x, e_0, e_min, p=3):
     e_min = torch.tensor(e_min)
     p = torch.tensor(p)
 
-    return e_min + x ** p * (e_0 - e_min)
+    return e_min + x**p * (e_0 - e_min)
 
 
 # Define the physical density with torch
@@ -21,7 +22,7 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
     Function that calculates the physical density
     """
     shape = (args["nely"], args["nelx"])
-    arg_mask = args['mask']
+    arg_mask = args["mask"]
     size_x = len(x.flatten())
 
     # In the code they do a reshape but this would not be necessary
@@ -30,20 +31,13 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
 
     if volume_constraint:
         if len(arg_mask.flatten()) == 1:
-            x = utils.sigmoid_with_constrained_mean(x, args['volfrac'])
+            x = utils.sigmoid_with_constrained_mean(x, args["volfrac"])
 
         else:
             mask = torch.broadcast_to(arg_mask, shape) > 0
-            x = (
-                utils
-                .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
-            )
-            flat_nonzero_mask = torch.nonzero(
-                mask.ravel(), as_tuple=True
-            )[0]
-            x = utils.torch_scatter1d(
-                x, flat_nonzero_mask, size_x
-            )
+            x = utils.sigmoid_with_constrained_mean(x[mask], args["volfrac"])
+            flat_nonzero_mask = torch.nonzero(mask.ravel(), as_tuple=True)[0]
+            x = utils.torch_scatter1d(x, flat_nonzero_mask, size_x)
             x = x.reshape(shape)
 
     else:
@@ -118,7 +112,7 @@ def get_stiffness_matrix(young: float, poisson: float) -> np.array:
         ]
     )
 
-    return e / (1 - nu ** 2) * shuffled_array
+    return e / (1 - nu**2) * shuffled_array
 
 
 # Compliance
@@ -162,7 +156,7 @@ def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1):
     ce = torch.einsum("ijk,ijk->jk", u_selected, ke_u)
     young_x_phys = young_modulus(x_phys, e_0, e_min, p=penal)
 
-    return young_x_phys * ce.T
+    return young_x_phys * ce.T, u_selected, ke_u
 
 
 def get_k(stiffness, ke):
@@ -228,17 +222,23 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
     ).double()
     K = (K + K.transpose(1, 0)) / 2.0
 
-    # Compute the inverse of K
-    K_inverse = torch.inverse(K)
-
     # Compute the non-zero u values
-    u_nonzero = K_inverse @ freedofs_forces
+    # Get the choleskly factorization
+    k_cholesky = torch.linalg.cholesky(K)
+
+    # Solve for u nonzero
+    u_nonzero = torch.cholesky_solve(
+        freedofs_forces.reshape(len(freedofs_forces), 1),
+        k_cholesky,
+    ).flatten()
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
 
     return u_values[index_map], K
 
 
-def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1):
+def sparse_displace(
+    x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1
+):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -256,9 +256,31 @@ def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
-    u_nonzero = utils.solve_coo(
-        keep_k_entries, indices, freedofs_forces, sym_pos=False
-    )
+    u_nonzero = utils.solve_coo(keep_k_entries, indices, freedofs_forces, sym_pos=False)
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
 
-    return u_values[index_map]
+    return u_values[index_map], None
+
+
+def build_full_K_matrix(x_phys, args):
+    """
+    Function to build the full K matrix
+    """
+    # Build the stiffness using young's modulus
+    stiffness = young_modulus(
+        x_phys, e_0=args["young"], e_min=args["young_min"], p=args["penal"]
+    )
+
+    # Build KE
+    ke = get_stiffness_matrix(young=args["young"], poisson=args["poisson"])
+
+    # Get the K indices and values
+    k_entries, k_ylist, k_xlist = get_k(stiffness=stiffness, ke=ke)
+
+    # Create full indices
+    indices = torch.stack([k_ylist, k_xlist])
+
+    # Create the K matrix
+    K = (torch.sparse_coo_tensor(indices, k_entries)).to_dense().double()
+
+    return K
