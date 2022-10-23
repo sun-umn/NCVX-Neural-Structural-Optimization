@@ -131,7 +131,9 @@ def plot_displacement(
 
         # Show the structure in grayscale
         axes[index].imshow(displacement_image)
-        axes[index].imshow(x_phys, alpha=0.1, cmap="Greys")
+
+        if x_phys is not None:
+            axes[index].imshow(x_phys, alpha=0.1, cmap="Greys")
         axes[index].set_title(f"Displacement Field {index + 1}-st/nd Node")
 
     fig.suptitle("Displacement Fields")
