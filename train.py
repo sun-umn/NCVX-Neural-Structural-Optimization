@@ -74,7 +74,7 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         )
 
         # Calculate the compliance output
-        compliance_output, displacement = topo_physics.compliance(
+        compliance_output, displacement, _ = topo_physics.compliance(
             x_phys, u_matrix, ke, **kwargs
         )  # noqa
 

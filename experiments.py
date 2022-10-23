@@ -3,6 +3,7 @@ import os
 
 # third party
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 
@@ -44,9 +45,7 @@ def build_structure_comparison_data(name: str) -> pd.DataFrame:
 
     # Load the pygranso files
     pygranso_filename = f"pygranso_{name}_results.csv"
-    pygranso_results = pd.read_csv(
-        os.path.join(path, pygranso_filename)
-    )  # noqa
+    pygranso_results = pd.read_csv(os.path.join(path, pygranso_filename))  # noqa
 
     # Similarly set the index to step
     if "step" not in pygranso_results.columns:
@@ -60,7 +59,7 @@ def build_structure_comparison_data(name: str) -> pd.DataFrame:
     results = pd.merge(
         pygranso_results, google_results, on="step", how="outer"
     ).ffill()  # noqa
-    results = results[['cnn-pygranso', 'cnn-lbfgs']]
+    results = results[["cnn-pygranso", "cnn-lbfgs"]]
 
     return results
 
@@ -77,8 +76,8 @@ def save_loss_plots(name: str) -> None:
     fig, ax = plt.subplots(1, 1)
 
     # plot the results
-    results['cnn-pygranso'][::10].plot(lw=2, ax=ax, marker='*', label='cnn-pygranso')
-    results['cnn-lbfgs'][::10].plot(lw=2, ax=ax, marker='o', label='cnn-lbfgs')
+    results["cnn-pygranso"][::10].plot(lw=2, ax=ax, marker="*", label="cnn-pygranso")
+    results["cnn-lbfgs"][::10].plot(lw=2, ax=ax, marker="o", label="cnn-lbfgs")
 
     # Set attributes of the plot
     title = name.lower().split("_")
@@ -96,18 +95,44 @@ def save_loss_plots(name: str) -> None:
 
 
 def build_and_save_pygranso_results(name: str, losses: list) -> None:
-	"""
-	Function that will build the results for pygranso and save
-	them to ./results
-	"""
-	path = './results'
+    """
+    Function that will build the results for pygranso and save
+    them to ./results
+    """
+    path = "./results"
 
-	# Create file name
-	filename = f'pygranso_{name}_results.csv'
+    # Create file name
+    filename = f"pygranso_{name}_results.csv"
 
-	# Create the step column
-	step = list(range(len(losses)))
-	results = pd.DataFrame({'cnn-pygranso': losses, 'step': step})
+    # Create the step column
+    step = list(range(len(losses)))
+    results = pd.DataFrame({"cnn-pygranso": losses, "step": step})
 
-	# Save the results
-	results.to_csv(os.path.join(path, filename), index=False)
+    # Save the results
+    results.to_csv(os.path.join(path, filename), index=False)
+
+
+def plot_displacement(
+    displacement_field: np.ndarray, x_phys: np.ndarray = None
+) -> None:
+    """
+    Plot the displacement fields for structural optimization and if
+    x_phys is not None we will overlay the structure with the displacement
+    field
+    """
+    # There will be 8 frames for the displacement field
+    # Create a figure and axis
+    fig, axes = plt.subplots(4, 2, figsize=(10, 9))
+    axes = axes.flatten()
+
+    # Go through the displacement fields
+    for index in range(displacement_field.shape[0]):
+        displacement_image = displacement_field[index, :, :].T
+
+        # Show the structure in grayscale
+        axes[index].imshow(displacement_image)
+        axes[index].imshow(x_phys, alpha=0.1, cmap="Greys")
+        axes[index].set_title(f"Displacement Field {index + 1}-st/nd Node")
+
+    fig.suptitle("Displacement Fields")
+    fig.tight_layout()
