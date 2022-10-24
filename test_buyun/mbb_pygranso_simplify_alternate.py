@@ -66,8 +66,8 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     # compliance_output = topo_physics.compliance(x_phys, u, ke, **kwargs)
     f_factor = 1e-10
     # f = torch.sum(compliance_output)*f_factor
-    f = torch.sum(u@freedofs_forces)*f_factor + (torch.mean(x_phys) - args["volfrac"])*0 
-    # f = torch.sum(u@K.to_dense()@u)*f_factor
+    # f = torch.sum(u@freedofs_forces)*f_factor + (torch.mean(x_phys) - args["volfrac"])*0 
+    f = torch.sum(u@K.to_dense()@u)*f_factor
     
     # inequality constraint
     ci = None
