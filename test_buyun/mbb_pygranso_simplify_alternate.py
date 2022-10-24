@@ -235,6 +235,7 @@ for i in range(100):
 
         # u = -300 * torch.rand((2540,1)).to(device=kwargs['device'],dtype=kwargs['dtype'])
         # x0[0:2540] = u
+        # x0[0:2540]*=1000
 
         debug = False
         opt_x_phys = True
