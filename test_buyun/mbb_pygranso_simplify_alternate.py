@@ -33,7 +33,7 @@ from pygranso.private.getNvar import getNvarTorch
 
 
 
-def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, kwargs, opt_x_phys, debug, x_phys): #,u,K):
+def structural_optimization_function(model,z,freedofs_forces, ke, args, designs, displacement_frames, kwargs, opt_x_phys, debug, x_phys, index_map): #,u,K):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -50,7 +50,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
         # x_phys = list(model.parameters())[1] # debug, shape [20,60] 
         u = list(model.parameters())[0].detach()
     else:
-        u = list(model.parameters())[0] # dummy variable, shape: [2562]
+        u = list(model.parameters())[0] # dummy variable, shape: [2540], without fix dof
         x_phys = torch.squeeze(model(z),1).detach()
 
     dim_factor = 2540 #u.shape[0]#**0.5 # used for rescaling
@@ -76,13 +76,50 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     ce = pygransoStruct()
     ce.c1 = (torch.mean(x_phys) - args["volfrac"])*dim_factor
     ce.c2 = torch.linalg.norm((K.to_dense()@u - freedofs_forces),ord=2)**2
+    # ce.c3 = torch.linalg.norm((x_phys**2-x_phys),ord=2)**2
 
     print("f = {}, ce.c1 = {}, ce.c2 = {} ".format(f/f_factor, ce.c1,ce.c2))
+    # print("f = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {} ".format(f/f_factor, ce.c1,ce.c2,ce.c3))
 
     if len(designs) == 0:
         designs.append(x_phys)
     else:
         designs[0] = x_phys
+
+
+    # ###################################################################
+    u_full = torch.hstack((u.detach().cpu(),torch.zeros(22)))
+    u_plot = u_full[index_map]
+    nely, nelx = x_phys.shape
+    ely, elx = np.meshgrid(range(nely), range(nelx))
+
+    # Nodes
+    n1 = (nely + 1) * (elx + 0) + (ely + 0)
+    n2 = (nely + 1) * (elx + 1) + (ely + 0)
+    n3 = (nely + 1) * (elx + 1) + (ely + 1)
+    n4 = (nely + 1) * (elx + 0) + (ely + 1)
+    all_ixs = np.array(
+        [
+            2 * n1,
+            2 * n1 + 1,
+            2 * n2,
+            2 * n2 + 1,
+            2 * n3,
+            2 * n3 + 1,
+            2 * n4,
+            2 * n4 + 1,
+        ]  # noqa
+    )
+    all_ixs = torch.from_numpy(all_ixs)
+
+    # The selected u and now needs to be multiplied by K
+    u_selected = u_plot[all_ixs].squeeze()
+
+    if len(displacement_frames) == 0:
+        displacement_frames.append(u_selected)
+    else:
+        displacement_frames[0] = u_selected
+    # ###################################################################
         
     return [f, ci, ce]
 
@@ -177,7 +214,12 @@ nvar = getNvarTorch(cnn_model.parameters())
 with open('data_file/x_phys.npy', 'rb') as f:
     x_phys = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
+# with open('data_file/u_matrix.npy', 'rb') as f:
+#     u = torch.tensor(np.load(f)).to(device=kwargs['device'],dtype=kwargs['dtype'])
 
+# u1 = u[new_index_map] # free + fix
+# u2 = u1[index_map] # random
+# print(torch.sum(u==u2))
 
 # x0[:2562] = u.reshape(-1,1) 
 # x0[2562:2562+1200] = x_phys.reshape(-1,1) + 1e-3*torch.randn_like(x_phys).reshape(-1,1).to(device=kwargs['device'],dtype=kwargs['dtype'])
@@ -212,7 +254,7 @@ opts.opt_tol = 1e-4
 
 # Structural optimization problem setup
 designs = []
-
+displacement_frames = []
 
 
 
@@ -257,7 +299,7 @@ for i in range(100):
 
     opts.x0 = x0
     comb_fn = lambda model: structural_optimization_function(
-        model, fixed_random_input, freedofs_forces, ke, args, designs, kwargs, opt_x_phys, debug, x_phys
+        model, fixed_random_input, freedofs_forces, ke, args, designs,displacement_frames, kwargs, opt_x_phys, debug, x_phys, index_map
     )
 
     soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
@@ -279,7 +321,29 @@ for i in range(100):
     ax.set_xlabel('MBB Beam - Width')
     ax.grid()
     fig.colorbar(im, orientation="horizontal", pad=0.2)
-    fig.savefig("fig/pygranso_test.png")
+    fig.savefig("fig/pygranso_test_xphys.png")
+
+    final_displacement = displacement_frames[-1].cpu().detach().numpy()
+    # There will be 8 frames for the displacement field
+    # Create a figure and axis
+    fig, axes = plt.subplots(4, 2, figsize=(10, 9))
+    axes = axes.flatten()
+
+    # Go through the displacement fields
+    for index in range(final_displacement.shape[0]):
+        displacement_image = final_displacement[index, :, :].T
+
+        # Show the structure in grayscale
+        axes[index].imshow(displacement_image,cmap="Greys")
+
+        # if final_frame is not None:
+        #     axes[index].imshow(final_frame, alpha=0.1, cmap="Greys")
+        axes[index].set_title(f"Displacement Field {index + 1} Node")
+
+    fig.suptitle("Displacement Fields")
+    fig.tight_layout()
+    fig.colorbar(im, orientation="horizontal", pad=0.2)
+    fig.savefig("fig/pygranso_test_displacement.png")
 
 end = time.time()
 print(f'Total wall time: {end - start}s')
