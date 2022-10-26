@@ -112,7 +112,6 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     )
     all_ixs = torch.from_numpy(all_ixs)
 
-    # The selected u and now needs to be multiplied by K
     u_selected = u_plot[all_ixs].squeeze()
 
     if len(displacement_frames) == 0:
