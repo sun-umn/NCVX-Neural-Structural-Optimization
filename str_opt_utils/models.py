@@ -4,6 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as Fun
 
 
+class STEFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return (input > 0).float()
+    @staticmethod
+    def backward(ctx, grad_output):
+        return Fun.hardtanh(grad_output)
+
 # Create a custom global normalization layer for pytorch
 class GlobalNormalization(nn.Module):
     """
@@ -159,6 +167,7 @@ class CNNModel(nn.Module):
         # tensorflow code
         output = torch.squeeze(output)
         output = Fun.sigmoid(output)
+        output = STEFunction.apply(output)
 
         return output
 
