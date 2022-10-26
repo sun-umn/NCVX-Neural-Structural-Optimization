@@ -76,10 +76,10 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     ce = pygransoStruct()
     ce.c1 = (torch.mean(x_phys) - args["volfrac"])*dim_factor
     ce.c2 = torch.linalg.norm((K.to_dense()@u - freedofs_forces),ord=2)**2
-    # ce.c3 = torch.linalg.norm((x_phys**2-x_phys),ord=2)**2
+    ce.c3 = torch.linalg.norm((x_phys**2-x_phys),ord=2)**2
 
-    print("f = {}, ce.c1 = {}, ce.c2 = {} ".format(f/f_factor, ce.c1,ce.c2))
-    # print("f = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {} ".format(f/f_factor, ce.c1,ce.c2,ce.c3))
+    # print("f = {}, ce.c1 = {}, ce.c2 = {} ".format(f/f_factor, ce.c1,ce.c2))
+    print("f = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {} ".format(f/f_factor, ce.c1,ce.c2,ce.c3))
 
     if len(designs) == 0:
         designs.append(x_phys)
