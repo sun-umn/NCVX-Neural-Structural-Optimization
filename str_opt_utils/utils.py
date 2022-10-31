@@ -33,7 +33,7 @@ class SparseSolver(Function):
 
         # Gather the result
         a = scipy.sparse.coo_matrix(
-            (a_entries.cpu().numpy(), a_indices.cpu().numpy()), shape=(b.cpu().numpy().size,) * 2
+            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()), shape=(b.cpu().numpy().size,) * 2
         ).tocsc()
         a = (a + a.T) / 2.0
 
@@ -64,7 +64,7 @@ class SparseSolver(Function):
 
         # Gather the result
         a = scipy.sparse.coo_matrix(
-            (a_entries.cpu().numpy(), a_indices.cpu().numpy()),
+            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()),
             shape=(grad_output.cpu().numpy().size,) * 2
         ).tocsc()
         a = (a + a.T) / 2.0

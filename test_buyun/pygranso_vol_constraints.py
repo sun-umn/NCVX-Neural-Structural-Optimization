@@ -42,6 +42,9 @@ def structural_optimization_function(model,z,forces, ke, args, designs, displace
     logits = model(None)
     x_phys = torch.sigmoid(logits)
 
+    # Calculate the forces
+    forces = topo_physics.calculate_forces(x_phys, args)
+
     # Calculate the u_matrix
     u_matrix, _ = topo_physics.sparse_displace(
         x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
@@ -65,7 +68,7 @@ def structural_optimization_function(model,z,forces, ke, args, designs, displace
     
     # equality constraint
     ce = pygransoStruct()
-    ce.c1 = (torch.mean(x_phys) - args["volfrac"])*1e4 # dim_factor
+    ce.c1 = torch.abs(torch.mean(x_phys) - args['volfrac'])*1e4
 
 
     if len(designs) == 0:
@@ -162,14 +165,14 @@ opts.x0 = (
 opts.limited_mem_size = 20
 opts.double_precision = True
 opts.mu0 = 1
-opts.maxit = 500
+opts.maxit = 150
 opts.print_frequency = 1
 opts.stat_l2_model = False
-opts.viol_ineq_tol = 1e-4
-opts.viol_eq_tol = 1e-4
-opts.opt_tol = 1e-4
+# opts.viol_ineq_tol = 1e-4
+opts.viol_eq_tol = 1e-8
+# opts.opt_tol = 1e-4
 
-opts.init_step_size = 1e-5
+opts.init_step_size = 5e-5
 opts.linesearch_maxit = 50
 opts.linesearch_reattempts = 15
 
