@@ -46,6 +46,9 @@ class SparseSolver(Function):
 
         result = torch.from_numpy(solver(b.cpu().numpy()))
 
+        if b.is_cuda:
+            result = result.to(device=torch.device('cuda:0'))
+
         # The output from the forward pass needs to have
         # requires_grad = True
         result = result.requires_grad_()
@@ -62,7 +65,7 @@ class SparseSolver(Function):
         # Gather the result
         a = scipy.sparse.coo_matrix(
             (a_entries.cpu().numpy(), a_indices.cpu().numpy()),
-            shape=(grad_output.numpy().size,) * 2
+            shape=(grad_output.cpu().numpy().size,) * 2
         ).tocsc()
         a = (a + a.T) / 2.0
 
@@ -77,7 +80,9 @@ class SparseSolver(Function):
             solver = scipy.sparse.linalg.splu(a).solve
 
         # Calculate the gradient
-        lambda_ = torch.from_numpy(solver(grad_output.numpy()))
+        lambda_ = torch.from_numpy(solver(grad_output.cpu().numpy()))
+        if grad_output.is_cuda:
+            lambda_ = lambda_.to(device=torch.device('cuda:0'))
         i, j = a_indices
         i, j = i.long(), j.long()
         output = -lambda_[i] * result[j]

@@ -271,7 +271,9 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
     return u_values[index_map], K
 
 
-def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
+def sparse_displace(
+    x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1, device=torch.device('cpu'), dtype=torch.double
+):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -279,8 +281,6 @@ def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-
 
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
-    k_ylist = k_ylist.to(device=device, dtype=dtype)
-    k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
@@ -291,13 +291,10 @@ def sparse_displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
-    u_nonzero = utils.solve_coo(
-        keep_k_entries, indices, freedofs_forces, sym_pos=False
-    )
-    u_nonzero = u_nonzero.to(device=device, dtype=dtype)
+    u_nonzero = utils.solve_coo(keep_k_entries, indices, freedofs_forces, sym_pos=False)
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))
 
-    return u_values[index_map.cpu().numpy()]
+    return u_values[index_map].to(device=device, dtype=dtype), None
 
 
 def get_KU(x_phys, ke, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
