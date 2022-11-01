@@ -170,7 +170,7 @@ def get_k(stiffness, ke):
     nely, nelx = stiffness.shape
 
     # Compute the torch based meshgrid
-    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
+    elx,ely = torch.meshgrid(torch.arange(nelx),torch.arange(nely))
     ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
 
     # Calculate nodes

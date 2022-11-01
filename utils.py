@@ -233,7 +233,7 @@ def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
 
     index_map = torch.argsort(torch.cat((freedofs, fixdofs)))
 
-    keep = torch.isin(k_xlist, freedofs) & torch.isin(k_ylist, freedofs)
+    keep = np.isin(k_xlist, freedofs.cpu()) & np.isin(k_ylist, freedofs.cpu())
     i = index_map[k_ylist][keep]
     j = index_map[k_xlist][keep]
 
