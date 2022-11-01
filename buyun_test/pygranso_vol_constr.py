@@ -70,6 +70,11 @@ def constrained_structural_optimization_function(model, ke, args, designs, losse
 
     return f, ci, ce
 
+# fix random seed
+seed = 43
+torch.manual_seed(seed)
+np.random.seed(seed)
+
 # Identify the problem
 problem = problems.mbb_beam(height=20, width=60)
 problem.name = 'mbb_beam'
