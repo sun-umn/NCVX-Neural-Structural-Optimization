@@ -20,6 +20,16 @@ from pygranso.private.getNvar import getNvarTorch
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 
+import torch.nn.functional as Fun
+
+
+class STEFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return (input > 0).float()
+    @staticmethod
+    def backward(ctx, grad_output):
+        return Fun.hardtanh(grad_output)
 
 def constrained_structural_optimization_function(model, z, ke, args, designs, losses):
     """
@@ -40,7 +50,10 @@ def constrained_structural_optimization_function(model, z, ke, args, designs, lo
         e_min=torch.tensor(args["young_min"]),
         e_0=torch.tensor(args["young"]),
     )
+
     x_phys = torch.sigmoid(logits)
+
+    # x_phys = STEFunction.apply(torch.sigmoid(logits))
 
     # Calculate the forces
     forces = topo_physics.calculate_forces(x_phys, args)
@@ -62,6 +75,7 @@ def constrained_structural_optimization_function(model, z, ke, args, designs, lo
     # Run this problem with no equality constraints
     ce = pygransoStruct()
     ce.c1 = 1e4 * (torch.mean(x_phys) - args['volfrac'])
+    # ce.c2 = torch.linalg.norm((x_phys**2-x_phys),ord=2)**2
 
     # Append updated physical density designs
     designs.append(
@@ -95,7 +109,7 @@ else:
 # Put the cnn model in training mode
 cnn_model.train()
 
-fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128))).to(device=device, dtype=double_precision)
+fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))#.to(device=device, dtype=double_precision)
 
 # Create the stiffness matrix
 ke = topo_physics.get_stiffness_matrix(
@@ -131,13 +145,13 @@ opts.x0 = (
 opts.limited_mem_size = 20
 opts.double_precision = True
 opts.mu0 = 1.0
-opts.maxit = 150
-opts.print_frequence = 10
+opts.maxit = 500
+# opts.print_frequency = 10
 opts.stat_l2_model = False
 
-opts.viol_ineq_tol = 1e-4
-opts.viol_eq_tol = 1e-4
-opts.opt_tol = 1e-4
+opts.viol_ineq_tol = 1e-6
+opts.viol_eq_tol = 1e-6
+opts.opt_tol = 1e-6
 
 # Other parameters that helped the structural optimization
 # problem
