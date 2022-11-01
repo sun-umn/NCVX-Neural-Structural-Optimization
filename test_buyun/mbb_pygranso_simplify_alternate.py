@@ -71,6 +71,8 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     
     # inequality constraint
     ci = None
+    # ci = pygransoStruct()
+    # ci.c1 = (torch.mean(x_phys) - args["volfrac"])*dim_factor + 0*torch.linalg.norm((K.to_dense()@u - freedofs_forces),ord=2)**2
     
     # equality constraint
     ce = pygransoStruct()
@@ -81,6 +83,7 @@ def structural_optimization_function(model,z,freedofs_forces, ke, args, designs,
     print("f = {}, ce.c1 = {}, ce.c2 = {} ".format(f/f_factor, ce.c1,ce.c2))
     print("min = {}, max = {}".format(torch.min(x_phys),torch.max(x_phys)))
     # print("f = {}, ce.c1 = {}, ce.c2 = {}, ce.c3 = {} ".format(f/f_factor, ce.c1,ce.c2,ce.c3))
+    # print("f = {}, ci.c1 = {}, ce.c2 = {} ".format(f/f_factor, ci.c1,ce.c2))
 
     if len(designs) == 0:
         designs.append(x_phys)
