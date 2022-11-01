@@ -21,7 +21,7 @@ from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 
 
-def constrained_structural_optimization_function(model, ke, args, designs, losses):
+def constrained_structural_optimization_function(model, z, ke, args, designs, losses):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -54,14 +54,14 @@ def constrained_structural_optimization_function(model, ke, args, designs, losse
     compliance_output,_,_ = topo_physics.compliance(x_phys, u_matrix, ke, **kwargs)
 
     # The loss is the sum of the compliance
-    f = torch.sum(compliance_output)
+    f = torch.abs(torch.sum(compliance_output)) #+ 1e4 * (torch.mean(x_phys) - args['volfrac'])**2
 
     # Run this problem with no inequality constraints
     ci = None
 
     # Run this problem with no equality constraints
     ce = pygransoStruct()
-    ce.c1 = 1e4 * torch.abs(torch.mean(x_phys) - args['volfrac'])
+    ce.c1 = 1e4 * (torch.mean(x_phys) - args['volfrac'])
 
     # Append updated physical density designs
     designs.append(
@@ -74,6 +74,7 @@ def constrained_structural_optimization_function(model, ke, args, designs, losse
 seed = 43
 torch.manual_seed(seed)
 np.random.seed(seed)
+
 
 # Identify the problem
 problem = problems.mbb_beam(height=20, width=60)
@@ -94,6 +95,8 @@ else:
 # Put the cnn model in training mode
 cnn_model.train()
 
+fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128))).to(device=device, dtype=double_precision)
+
 # Create the stiffness matrix
 ke = topo_physics.get_stiffness_matrix(
     young=args["young"],
@@ -107,7 +110,7 @@ designs = []
 losses = []
 # Combined function
 comb_fn = lambda model: constrained_structural_optimization_function(  # noqa
-    model, ke, args, designs, losses
+    model, fixed_random_input, ke, args, designs, losses
 )
 
 # Initalize the pygranso options
@@ -138,9 +141,9 @@ opts.opt_tol = 1e-4
 
 # Other parameters that helped the structural optimization
 # problem
-opts.init_step_size = 5e-5
-opts.linesearch_maxit = 50
-opts.linesearch_reattempts = 15
+# opts.init_step_size = 5e-5
+# opts.linesearch_maxit = 50
+# opts.linesearch_reattempts = 15
 
 # Train pygranso
 start = time.time()
