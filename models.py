@@ -82,18 +82,12 @@ class CNNModel(nn.Module):
 
         # Create the u_matrix vector
         if train_u_matrix:
-            distribution = (
-                torch.distributions.uniform.Uniform(-1000.0, 1000.0)
-                # .Uniform(-1000.0, 1000.0)
-            )
+            distribution = torch.distributions.uniform.Uniform(-5500.0, 500.0)
             sample = distribution.sample(torch.Size([len(args["freedofs"])]))
             self.u_matrix = nn.Parameter(sample.double())
-            # self.u_matrix = nn.Parameter(
-            #     1e4 * torch.randn(len(args['freedofs'])).double()
-            # )
 
         if train_beta_matrix:
-            self.beta_matrix = nn.Parameter(torch.randn(args["nelx"] * args["nely"]))
+            self.beta_matrix = nn.Parameter(torch.zeros(args["nely"], args["nelx"]))
 
         if train_k_inverse_matrix:
             self.K_inverse = nn.Parameter(

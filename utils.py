@@ -1,5 +1,7 @@
+# stdlib
 import warnings
 
+# third party
 import autograd
 import autograd.numpy as anp
 import numpy as np
@@ -105,7 +107,7 @@ class FindRoot(Function):
 
     @staticmethod
     def forward(  # noqa
-        ctx, x, f, lower_bound, upper_bound, tolerance=1e-12
+        ctx, x, f, lower_bound, upper_bound, tolerance=1e-6
     ) -> torch.tensor:  # noqa
         # define the maximum number of iterations
         max_iterations = 65

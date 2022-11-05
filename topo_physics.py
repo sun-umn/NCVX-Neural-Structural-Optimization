@@ -1,6 +1,9 @@
+# third party
 import numpy as np
+import scipy
 import torch
 
+# first party
 import utils
 
 
@@ -159,7 +162,7 @@ def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1):
     return young_x_phys * ce.T, u_selected, ke_u
 
 
-def get_k(stiffness, ke):
+def get_k_data(stiffness, ke, args, base="MATLAB"):
     """
     Function that is the pytorch version of get_K
     from the other repository
@@ -167,31 +170,11 @@ def get_k(stiffness, ke):
     if not torch.is_tensor(ke):
         ke = torch.from_numpy(ke)
 
-    nely, nelx = stiffness.shape
+    # Get the dimensions
+    nely, nelx = args["nely"], args["nelx"]
 
-    # Compute the torch based meshgrid
-    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
-    ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
+    edof, x_list, y_list = build_nodes_data(args, base=base)
 
-    # Calculate nodes
-    n1 = (nely + 1) * (elx + 0) + (ely + 0)
-    n2 = (nely + 1) * (elx + 1) + (ely + 0)
-    n3 = (nely + 1) * (elx + 1) + (ely + 1)
-    n4 = (nely + 1) * (elx + 0) + (ely + 1)
-
-    # The shape of this matrix results in
-    # (8, nelx, nely)
-    edof = torch.stack(
-        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
-    )
-
-    # Calculate the transpose & get the first
-    # element
-    edof = edof.permute(2, 1, 0)[0]
-
-    # Create the x & y list
-    x_list = edof.repeat_interleave(8)
-    y_list = edof.tile((8,)).flatten()
     kd = stiffness.T.reshape(nely * nelx, 1, 1)
     value_list = (kd * ke.tile(kd.shape)).flatten()
 
@@ -237,7 +220,17 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
 
 
 def sparse_displace(
-    x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1
+    x_phys,
+    ke,
+    args,
+    forces,
+    freedofs,
+    fixdofs,
+    *,
+    penal=3,
+    e_min=1e-9,
+    e_0=1,
+    base="Google",
 ):
     """
     Function that displaces the load x using finite element techniques.
@@ -245,7 +238,7 @@ def sparse_displace(
     stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
 
     # Get the K values
-    k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+    k_entries, k_ylist, k_xlist = get_k_data(stiffness, ke, args, base=base)
 
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
@@ -262,7 +255,7 @@ def sparse_displace(
     return u_values[index_map], None
 
 
-def build_full_K_matrix(x_phys, args):
+def build_K_matrix(x_phys, args, base="MATLAB"):
     """
     Function to build the full K matrix
     """
@@ -275,12 +268,114 @@ def build_full_K_matrix(x_phys, args):
     ke = get_stiffness_matrix(young=args["young"], poisson=args["poisson"])
 
     # Get the K indices and values
-    k_entries, k_ylist, k_xlist = get_k(stiffness=stiffness, ke=ke)
+    k_entries, k_ylist, k_xlist = get_k_data(
+        stiffness=stiffness, ke=ke, args=args, base=base
+    )
 
     # Create full indices
-    indices = torch.stack([k_ylist, k_xlist])
+    if base == "MATLAB":
+        indices = torch.stack([k_ylist, k_xlist])
+        k_entries = k_entries
 
-    # Create the K matrix
-    K = (torch.sparse_coo_tensor(indices, k_entries)).to_dense().double()
+        # Create the K matrix
+        K = (torch.sparse_coo_tensor(indices, k_entries)).to_dense().double()
+        K = (K + K.transpose(1, 0)) / 2.0
+
+    elif base == "Google":
+        freedofs = args["freedofs"].numpy()
+        fixdofs = args["fixdofs"].numpy()
+        free_forces = args["forces"][freedofs].numpy()
+
+        # Get the indices
+        index_map, keep, indices = utils._get_dof_indices(
+            freedofs, fixdofs, k_ylist, k_xlist
+        )
+        size = free_forces.size
+
+        # Calculate the K matrix for the google based code
+        k_entires = k_entries[keep].numpy()
+        indices = indices.numpy()
+
+        # Compute K
+        K = (
+            scipy.sparse.coo_matrix((k_entries[keep], indices), shape=(size,) * 2)
+            .tocsc()
+            .todense()
+        )
+        K = (K + K.T) / 2.0
+
+    else:
+        raise ValueError("Only methods MATLAB and Google are valid!")
 
     return K
+
+
+def build_nodes_data(args, base="MATLAB"):
+    """
+    Build the nodes matrix from both the MATLAB and Google
+    code. Turns out the code from the two different methods is
+    different but we want to be able to test that we have
+    the right implementation for each method. These same nodes will
+    also be fed into the compliance objective.
+    """
+    nely, nelx = args["nely"], args["nelx"]
+
+    # Compute the torch based meshgrid
+    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
+    ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
+
+    # Calculate nodes - reflects the MATLAB code
+    if base == "MATLAB":
+        n1 = (nely + 1) * (elx + 0) + (ely + 1)
+        n2 = (nely + 1) * (elx + 1) + (ely + 1)
+        n3 = (nely + 1) * (elx + 1) + (ely + 0)
+        n4 = (nely + 1) * (elx + 0) + (ely + 0)
+
+    elif base == "Google":
+        # Google implementation
+        n1 = (nely + 1) * (elx + 0) + (ely + 0)
+        n2 = (nely + 1) * (elx + 1) + (ely + 0)
+        n3 = (nely + 1) * (elx + 1) + (ely + 1)
+        n4 = (nely + 1) * (elx + 0) + (ely + 1)
+
+    else:
+        raise ValueError("Only options are MATLAB and Google!")
+
+    # The shape of this matrix results in
+    # (8, nelx, nely)
+    edof = torch.stack(
+        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
+    )
+
+    # Calculate the transpose & get the first
+    # element
+    edof = edof.permute(2, 1, 0)[0]
+
+    # Build the i & j indices for a sparse matrix
+    y_list = edof.tile((8,)).flatten()
+    x_list = edof.repeat_interleave(8)
+
+    return edof, y_list, x_list
+
+
+def build_nodes_data_google(args):
+    """
+    An exact implementation of the Google code to build
+    the nodes for K and the compliance
+    """
+    nely, nelx = args["nely"], args["nelx"]
+
+    # get position of the nodes of each element in the stiffness matrix
+    ely, elx = np.meshgrid(range(nely), range(nelx))  # x, y coords
+    ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
+
+    n1 = (nely + 1) * (elx + 0) + (ely + 0)
+    n2 = (nely + 1) * (elx + 1) + (ely + 0)
+    n3 = (nely + 1) * (elx + 1) + (ely + 1)
+    n4 = (nely + 1) * (elx + 0) + (ely + 1)
+    edof = np.array(
+        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
+    )
+    edof = edof.T[0]
+
+    return edof
