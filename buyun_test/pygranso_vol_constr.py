@@ -78,18 +78,19 @@ def constrained_structural_optimization_function(model, z, ke, args, designs, lo
     # ce.c2 = torch.linalg.norm((x_phys**2-x_phys),ord=2)**2
 
     # Append updated physical density designs
-    designs.append(
-        x_phys
-    )  # noqa
+    if len(designs) == 0:
+        designs.append(x_phys)
+    else:
+        designs[-1] = x_phys
 
     return f, ci, ce
 
 # fix random seed
-seed = 43
+seed = 42
 torch.manual_seed(seed)
 np.random.seed(seed)
 
-for i in range(10):
+for i in range(1):
 
     # Identify the problem
     problem = problems.mbb_beam(height=20, width=60)
@@ -153,6 +154,7 @@ for i in range(10):
     opts.viol_ineq_tol = 1e-6
     opts.viol_eq_tol = 1e-6
     opts.opt_tol = 1e-6
+    opts.maxclocktime = 600
 
     # Other parameters that helped the structural optimization
     # problem
