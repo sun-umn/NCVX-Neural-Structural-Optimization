@@ -157,12 +157,6 @@ for i in range(1):
     opts.opt_tol = 1e-6
     opts.maxclocktime = 600
 
-    # Other parameters that helped the structural optimization
-    # problem
-    # opts.init_step_size = 5e-5
-    # opts.linesearch_maxit = 50
-    # opts.linesearch_reattempts = 15
-
     # Train pygranso
     start = time.time()
     soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
