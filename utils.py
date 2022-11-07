@@ -36,7 +36,7 @@ class SparseSolver(Function):
 
         # Gather the result
         a = scipy.sparse.coo_matrix(
-            (a_entries.detach().numpy(), a_indices.numpy()), shape=(b.numpy().size,) * 2
+            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()), shape=(b.cpu().numpy().size,) * 2
         ).tocsc()
         a = (a + a.T) / 2.0
 
@@ -47,7 +47,9 @@ class SparseSolver(Function):
             # should be about twice as slow as the cholesky
             solver = scipy.sparse.linalg.splu(a).solve
 
-        result = torch.from_numpy(solver(b.numpy()))
+        result = torch.from_numpy(solver(b.cpu().numpy()))
+
+        result = result.to(device=torch.device('cuda:0'))
 
         # The output from the forward pass needs to have
         # requires_grad = True
@@ -80,7 +82,7 @@ class SparseSolver(Function):
             solver = scipy.sparse.linalg.splu(a).solve
 
         # Calculate the gradient
-        lambda_ = torch.from_numpy(solver(grad_output.numpy()))
+        lambda_ = lambda_.to(device=torch.device('cuda:0'))
         i, j = a_indices
         i, j = i.long(), j.long()
         output = -lambda_[i] * result[j]

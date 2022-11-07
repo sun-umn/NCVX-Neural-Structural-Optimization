@@ -76,26 +76,26 @@ class Problem:
         )
 
 
-def mbb_beam(width=60, height=20, density=0.5):
+def mbb_beam(width=60, height=20, density=0.5, device=torch.device('cpu'), dtype=torch.double):
     """Textbook beam example."""
-    normals = torch.zeros((width + 1, height + 1, 2))
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[-1, -1, Y] = 1
     normals[0, :, X] = 1
 
-    forces = torch.zeros((width + 1, height + 1, 2))
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, 0, Y] = -1
 
     return Problem(normals, forces, density)
 
 
 
-def multistory_building(width=32, height=32, density=0.3, interval=16):
+def multistory_building(width=32, height=32, density=0.3, interval=16, device=torch.device('cpu'), dtype=torch.double):
   """A multi-story building, supported from the ground."""
-  normals = np.zeros((width + 1, height + 1, 2))
+  normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
   normals[:, -1, Y] = 1
   normals[-1, :, X] = 1
 
-  forces = np.zeros((width + 1, height + 1, 2))
+  forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
   forces[:, ::interval, Y] = -1 / width
   return Problem(normals, forces, density)
 

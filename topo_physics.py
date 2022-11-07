@@ -116,7 +116,7 @@ def get_stiffness_matrix(young: float, poisson: float) -> np.array:
 
 
 # Compliance
-def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1):
+def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1, device=torch.device('cpu'), dtype=torch.double):
     """
     Calculate the compliance objective.
 
@@ -198,7 +198,7 @@ def get_k(stiffness, ke):
     return value_list, y_list, x_list
 
 
-def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1):
+def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1, device=torch.device('cpu'), dtype=torch.double):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -206,6 +206,8 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
 
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+    k_ylist = k_ylist.to(device=device, dtype=dtype)
+    k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
@@ -231,13 +233,13 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
         freedofs_forces.reshape(len(freedofs_forces), 1),
         k_cholesky,
     ).flatten()
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
+    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))  
 
     return u_values[index_map], K
 
 
 def sparse_displace(
-    x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1
+    x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1, device=torch.device('cpu'), dtype=torch.double
 ):
     """
     Function that displaces the load x using finite element techniques.
@@ -252,14 +254,14 @@ def sparse_displace(
     )
 
     # Reduced forces
-    freedofs_forces = forces[freedofs].double()
+    freedofs_forces = forces[freedofs.cpu().numpy()].double()
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
     u_nonzero = utils.solve_coo(keep_k_entries, indices, freedofs_forces, sym_pos=False)
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
+    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))
 
-    return u_values[index_map], None
+    return u_values[index_map].to(device=device, dtype=dtype), None
 
 
 def build_full_K_matrix(x_phys, args):
