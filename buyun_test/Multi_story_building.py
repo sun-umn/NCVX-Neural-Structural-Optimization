@@ -118,9 +118,9 @@ for i in range(20):
 
     # kwargs for displacement
     kwargs = dict(
-        penal=torch.tensor(args["penal"]),
-        e_min=torch.tensor(args["young_min"]),
-        e_0=torch.tensor(args["young"]),
+        penal=args["penal"],
+        e_min=args["young_min"],
+        e_0=args["young"],
         device=device,
         dtype=double_precision
     )
