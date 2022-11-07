@@ -4,6 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as Fun
 
 
+class STEFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return (input > 0).float()
+    @staticmethod
+    def backward(ctx, grad_output):
+        return Fun.hardtanh(grad_output)
+
 # Create a custom global normalization layer for pytorch
 class GlobalNormalization(nn.Module):
     """
@@ -65,8 +73,8 @@ class CNNModel(nn.Module):
             raise ValueError("resizes and filters are not the same!")
 
         total_resize = int(np.prod(resizes))
-        self.h = args["nely"] // total_resize
-        self.w = args["nelx"] // total_resize
+        self.h = int(torch.div(args["nely"], total_resize, rounding_mode='floor').item())
+        self.w = int(torch.div(args["nelx"], total_resize, rounding_mode='floor').item())
         self.dense_channels = dense_channels
         self.resizes = resizes
         self.conv_filters = conv_filters
@@ -77,12 +85,12 @@ class CNNModel(nn.Module):
 
         # Create the filters
         filters = dense_channels * self.h * self.w
-
-        # Create the u_matrix vector
-        if train_u_matrix:
-            self.u_matrix = nn.Parameter(
-                torch.randn(len(args['freedofs'])).double()
-            )
+        
+        # # Create the u_matrix vector
+        # if train_u_matrix:
+        #     self.u_matrix = nn.Parameter(
+        #         torch.randn(len(args['freedofs'])).double()
+        #     )
 
         # Create the first dense layer
         self.dense = nn.Linear(latent_size, filters)
@@ -98,7 +106,7 @@ class CNNModel(nn.Module):
         self.global_normalization = nn.ModuleList()
 
         # Trainable bias layer
-        self.add_offset = nn.ParameterList()
+        self.add_offset = nn.ModuleList()
 
         # Add the convolutional layers to the module list
         offset_filters = (dense_channels, 128, 64, 32, 16)
@@ -153,3 +161,25 @@ class CNNModel(nn.Module):
         output = torch.squeeze(output)
 
         return output
+
+
+class UMatrixModel(nn.Module):
+    """
+    Class that will simply implement a u matrix for us to
+    train
+    """
+
+    def __init__(self, args, uniform_lower_bound, uniform_upper_bound):  # noqa
+        super().__init__()
+        self.uniform_upper_bound = uniform_upper_bound
+        self.uniform_lower_bound = uniform_lower_bound
+
+        # Initialize U from a uniform distribution
+        distribution = torch.distributions.uniform.Uniform(
+            self.uniform_lower_bound, self.uniform_upper_bound
+        )
+        sample = distribution.sample(torch.Size([len(args["freedofs"])]))
+        self.u_matrix = nn.Parameter(sample.double())
+
+    def forward(self, x=None):  # noqa
+        return self.u_matrix
