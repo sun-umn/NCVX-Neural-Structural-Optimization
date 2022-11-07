@@ -106,7 +106,9 @@ for i in range(1):
     # Create the stiffness matrix
     ke = topo_physics.get_stiffness_matrix(
         young=args["young"],
-        poisson=args["poisson"],device=device, dtype=double_precision
+        poisson=args["poisson"],
+        device=device, 
+        dtype=double_precision
     )
 
     # kwargs for displacement

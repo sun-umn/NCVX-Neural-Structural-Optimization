@@ -23,7 +23,7 @@ from pygranso.pygransoStruct import pygransoStruct
 
 import torch.nn.functional as Fun
 
-def constrained_structural_optimization_function(model, ke, args, designs, losses):
+def constrained_structural_optimization_function(model, kwargs, ke, args, designs, losses):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -35,15 +35,6 @@ def constrained_structural_optimization_function(model, ke, args, designs, losse
     # tensorflow repository and only needs None to initialize and output
     # a first value of x
     logits = model(None)
-
-    # kwargs for displacement
-    kwargs = dict(
-        penal=torch.tensor(args["penal"]),
-        e_min=torch.tensor(args["young_min"]),
-        e_0=torch.tensor(args["young"]),
-        device=device,
-        dtype=double_precision
-    )
     x_phys = torch.sigmoid(logits)
 
     # Calculate the forces
@@ -68,11 +59,18 @@ def constrained_structural_optimization_function(model, ke, args, designs, losse
     ce.c1 = 1e3*(torch.mean(x_phys) - args['volfrac'])
 
     # Append updated physical density designs
-    designs.append(
-        x_phys
-    )  # noqa
+    if len(designs) == 0:
+        designs.append(x_phys)
+    else:
+        designs[-1] = x_phys
 
     return f, ci, ce
+
+
+# fix random seed
+seed = 42
+torch.manual_seed(seed)
+np.random.seed(seed)
 
 # Set devices and data type
 n_gpu = torch.cuda.device_count()
@@ -87,23 +85,15 @@ else:
 double_precision = torch.double
 
 
-# Identify the problem
-# problem = problems.PROBLEMS_BY_NAME['multistory_building_32x64_0.5']
-problem = problems.multistory_building(32, 64, density=0.5, device=device, dtype=double_precision)
-
-# Get the problem args
-args = topo_api.specified_task(problem, device=device, dtype=double_precision)
-cnn_kwargs = None
-
-# # Trials
-# trials = []
-
-# fix random seed
-seed = 42
-torch.manual_seed(seed)
-np.random.seed(seed)
-
 for i in range(20):
+
+    # Identify the problem
+    # problem = problems.PROBLEMS_BY_NAME['multistory_building_32x64_0.5']
+    problem = problems.multistory_building(32, 64, density=0.5, device=device, dtype=double_precision)
+
+    # Get the problem args
+    args = topo_api.specified_task(problem, device=device, dtype=double_precision)
+    cnn_kwargs = None
 
     # Initialize the CNN Model
     if cnn_kwargs is not None:
@@ -114,11 +104,26 @@ for i in range(20):
     # Put the cnn model in training mode
     cnn_model.train()
 
+    # # DEBUG part: print pygranso optimization variables
+    # for name, param in cnn_model.named_parameters():
+    #     print("{}: {}".format(name, param.data.shape))
+
     # Create the stiffness matrix
     ke = topo_physics.get_stiffness_matrix(
         young=args["young"],
         poisson=args["poisson"],
-    ).to(device=device, dtype=double_precision)
+        device=device, 
+        dtype=double_precision
+    )
+
+    # kwargs for displacement
+    kwargs = dict(
+        penal=torch.tensor(args["penal"]),
+        e_min=torch.tensor(args["young_min"]),
+        e_0=torch.tensor(args["young"]),
+        device=device,
+        dtype=double_precision
+    )
 
     # Create the combined function and structural optimization
     # setup
@@ -127,14 +132,16 @@ for i in range(20):
     losses = []
     # Combined function
     comb_fn = lambda model: constrained_structural_optimization_function(  # noqa
-        model, ke, args, designs, losses
+        model, kwargs, ke, args, designs, losses
     )
+
+    # f,_,_ = comb_fn(cnn_model)
+    # f.backward(retain_graph=True)
 
     # Initalize the pygranso options
     opts = pygransoStruct()
 
     # Set the device
-    # opts.torch_device = torch.device('cpu')
     opts.torch_device = device
 
     # Setup the intitial inputs for the solver
@@ -162,7 +169,7 @@ for i in range(20):
     
     # Final structure
     pygranso_structure = designs[-1].detach().numpy()
-    final_objective = soln.final.f
+    # final_objective = soln.final.f
     
     # trials.append((final_objective, pygranso_structure))
 
