@@ -159,8 +159,9 @@ for i in range(20):
     opts.maxit = 500
     opts.print_frequency = 10
     opts.stat_l2_model = False
-    opts.viol_eq_tol = 1e-8
-    opts.opt_tol = 1e-8
+    opts.viol_eq_tol = 1e-6
+    opts.opt_tol = 1e-6
+    opts.maxclocktime = 600
 
     # Train pygranso
     start = time.time()
