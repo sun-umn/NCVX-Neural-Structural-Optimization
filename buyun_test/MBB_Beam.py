@@ -169,7 +169,7 @@ for i in range(1):
     end = time.time()
     print(f'Total wall time: {end - start}s')
 
-    pygranso_structure = designs[-1].detach().numpy()
+    pygranso_structure = designs[-1].cpu().detach().numpy()
 
     # Plot the two structures together
     fig, ax1 = plt.subplots(1, 1, figsize=(6, 4))

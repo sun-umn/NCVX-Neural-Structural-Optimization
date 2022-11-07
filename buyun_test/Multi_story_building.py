@@ -168,7 +168,7 @@ for i in range(20):
     end = time.time()
     
     # Final structure
-    pygranso_structure = designs[-1].detach().numpy()
+    pygranso_structure = designs[-1].cpu().detach().numpy()
     # final_objective = soln.final.f
     
     # trials.append((final_objective, pygranso_structure))
