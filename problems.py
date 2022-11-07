@@ -44,10 +44,10 @@ class Problem:
     mirror_right: should the design be mirrored to the right when displayed?
     """
 
-    normals: np.ndarray
-    forces: np.ndarray
+    normals: torch.Tensor
+    forces: torch.Tensor
     density: float
-    mask: Union[np.ndarray, float] = 1
+    mask: Union[torch.Tensor, float] = 1
     name: Optional[str] = None
     width: int = dataclasses.field(init=False)
     height: int = dataclasses.field(init=False)
@@ -62,7 +62,7 @@ class Problem:
             raise ValueError(f"normals has wrong shape: {self.normals.shape}")
         if self.forces.shape != (self.width + 1, self.height + 1, 2):
             raise ValueError(f"forces has wrong shape: {self.forces.shape}")
-        if isinstance(self.mask, np.ndarray) and self.mask.shape != (
+        if isinstance(self.mask, torch.Tensor) and self.mask.shape != (
             self.height,
             self.width,
         ):

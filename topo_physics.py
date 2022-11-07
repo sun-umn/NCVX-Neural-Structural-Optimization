@@ -9,11 +9,11 @@ def young_modulus(x, e_0, e_min, p=3):
     """
     Function that calculates the young modulus
     """
-    e_0 = torch.tensor(e_0)
-    e_min = torch.tensor(e_min)
-    p = torch.tensor(p)
+    # e_0 = e_0.clone().detach()
+    # e_min = e_min.clone().detach()
+    # p = p.clone().detach()
 
-    return e_min + x**p * (e_0 - e_min)
+    return e_min + x ** p * (e_0 - e_min)
 
 
 # Define the physical density with torch
@@ -35,9 +35,16 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
 
         else:
             mask = torch.broadcast_to(arg_mask, shape) > 0
-            x = utils.sigmoid_with_constrained_mean(x[mask], args["volfrac"])
-            flat_nonzero_mask = torch.nonzero(mask.ravel(), as_tuple=True)[0]
-            x = utils.torch_scatter1d(x, flat_nonzero_mask, size_x)
+            x = (
+                utils
+                .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
+            )
+            flat_nonzero_mask = torch.nonzero(
+                mask.ravel(), as_tuple=True
+            )[0]
+            x = utils.torch_scatter1d(
+                x, flat_nonzero_mask, size_x
+            )
             x = x.reshape(shape)
 
     else:
@@ -66,7 +73,7 @@ def calculate_forces(x_phys, args):
 
 
 # Build a stiffness matrix
-def get_stiffness_matrix(young: float, poisson: float) -> np.array:
+def get_stiffness_matrix(young: float, poisson: float, device=torch.device('cpu'), dtype=torch.double) -> torch.tensor:
     """
     Function to build the elements of the stiffness matrix
     """
@@ -110,16 +117,15 @@ def get_stiffness_matrix(young: float, poisson: float) -> np.array:
             k[sixth_row_shuffle],
             k[seventh_row_shuffle],
         ]
-    )
+    ).to(device=device, dtype=dtype)
 
-    return e / (1 - nu**2) * shuffled_array
+    return e / (1 - nu ** 2) * shuffled_array
 
 
 # Compliance
-def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1, device=torch.device('cpu'), dtype=torch.double):
+def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
     """
     Calculate the compliance objective.
-
     NOTE: For our implementation both x_phys and u will require_grad
     and will both be torch tensors.
     """
@@ -170,7 +176,10 @@ def get_k(stiffness, ke):
     nely, nelx = stiffness.shape
 
     # Compute the torch based meshgrid
+    # Buyun: indexing not allowed for torch 1.9.0
+    # ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
     elx,ely = torch.meshgrid(torch.arange(nelx),torch.arange(nely))
+
     ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
 
     # Calculate nodes
@@ -198,7 +207,7 @@ def get_k(stiffness, ke):
     return value_list, y_list, x_list
 
 
-def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1, device=torch.device('cpu'), dtype=torch.double):
+def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -214,7 +223,7 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
     )
 
     # Reduced forces
-    freedofs_forces = forces[freedofs].double()
+    freedofs_forces = forces[freedofs.cpu().numpy()].double()
 
     # K matrix based on the size of forces[freedofs]
     K = (
@@ -254,7 +263,7 @@ def sparse_displace(
     )
 
     # Reduced forces
-    freedofs_forces = forces[freedofs.cpu().numpy()].double()
+    freedofs_forces = forces[freedofs.cpu().numpy()]
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]

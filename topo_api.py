@@ -17,21 +17,21 @@ def specified_task(problem,device=torch.device('cpu'), dtype=torch.double):
 
     params = {
         # material properties
-        "young": torch.tensor(1),
-        "young_min": torch.tensor(1e-9),
-        "poisson": torch.tensor(0.3),
-        "g": torch.tensor(0),
+        "young": 1,
+        "young_min": 1e-9,
+        "poisson": 0.3,
+        "g": 0,
         # constraints
-        "volfrac": torch.tensor(problem.density),
-        "xmin": torch.tensor(0.001),
-        "xmax": torch.tensor(1.0),
+        "volfrac": problem.density,
+        "xmin": 0.001,
+        "xmax": 1.0,
         # input parameters
-        "nelx": torch.tensor(problem.width),
-        "nely": torch.tensor(problem.height),
+        "nelx": problem.width,
+        "nely": problem.height,
         "mask": torch.tensor(problem.mask).to(device=device, dtype=dtype),
         "freedofs": torch.tensor(freedofs).to(device=device, dtype=dtype),
         "fixdofs": torch.tensor(fixdofs).to(device=device, dtype=dtype),
-        "forces": torch.tensor(problem.forces.ravel()),
+        "forces": problem.forces.ravel(),
         "penal": 3.0,
         "filter_width": 2,
     }

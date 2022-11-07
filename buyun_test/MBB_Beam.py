@@ -23,15 +23,7 @@ from pygranso.pygransoStruct import pygransoStruct
 import torch.nn.functional as Fun
 
 
-class STEFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input):
-        return (input > 0).float()
-    @staticmethod
-    def backward(ctx, grad_output):
-        return Fun.hardtanh(grad_output)
-
-def constrained_structural_optimization_function(model, z, ke, args, designs, losses):
+def constrained_structural_optimization_function(model, kwargs, ke, args, designs, losses):
     """
     Combined function for PyGranso for the structural optimization
     problem. The inputs will be the model that reparameterizes x as a function
@@ -43,17 +35,7 @@ def constrained_structural_optimization_function(model, z, ke, args, designs, lo
     # tensorflow repository and only needs None to initialize and output
     # a first value of x
     logits = model(None)
-
-    # kwargs for displacement
-    kwargs = dict(
-        penal=torch.tensor(args["penal"]),
-        e_min=torch.tensor(args["young_min"]),
-        e_0=torch.tensor(args["young"]),
-    )
-
     x_phys = torch.sigmoid(logits)
-
-    # x_phys = STEFunction.apply(torch.sigmoid(logits))
 
     # Calculate the forces
     forces = topo_physics.calculate_forces(x_phys, args)
@@ -67,7 +49,7 @@ def constrained_structural_optimization_function(model, z, ke, args, designs, lo
     compliance_output,_,_ = topo_physics.compliance(x_phys, u_matrix, ke, **kwargs)
 
     # The loss is the sum of the compliance
-    f = torch.abs(torch.sum(compliance_output)) #+ 1e4 * (torch.mean(x_phys) - args['volfrac'])**2
+    f = torch.abs(torch.sum(compliance_output)) 
 
     # Run this problem with no inequality constraints
     ci = None
@@ -75,7 +57,6 @@ def constrained_structural_optimization_function(model, z, ke, args, designs, lo
     # Run this problem with no equality constraints
     ce = pygransoStruct()
     ce.c1 = 1e4 * (torch.mean(x_phys) - args['volfrac'])
-    # ce.c2 = torch.linalg.norm((x_phys**2-x_phys),ord=2)**2
 
     # Append updated physical density designs
     if len(designs) == 0:
@@ -90,33 +71,51 @@ seed = 42
 torch.manual_seed(seed)
 np.random.seed(seed)
 
+# Set devices and data type
+n_gpu = torch.cuda.device_count()
+if n_gpu > 0:
+    print("Use CUDA")
+    gpu_list = ["cuda:{}".format(i) for i in range(n_gpu)]
+    device = torch.device(gpu_list[0])
+else:
+    device = torch.device("cpu")
+
+double_precision = torch.double
+
 for i in range(1):
 
     # Identify the problem
-    problem = problems.mbb_beam(height=20, width=60)
+    problem = problems.mbb_beam(height=20, width=60, device=device, dtype=double_precision)
     problem.name = 'mbb_beam'
 
     # cnn_kwargs
     cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
 
     # Get the problem args
-    args = topo_api.specified_task(problem)
+    args = topo_api.specified_task(problem, device=device, dtype=double_precision)
 
     # Initialize the CNN Model
     if cnn_kwargs is not None:
-        cnn_model = models.CNNModel(args, **cnn_kwargs)
+        cnn_model = models.CNNModel(args, **cnn_kwargs).to(device=device, dtype=double_precision)
     else:
-        cnn_model = models.CNNModel(args)
+        cnn_model = models.CNNModel(args).to(device=device, dtype=double_precision)
 
     # Put the cnn model in training mode
     cnn_model.train()
 
-    fixed_random_input = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))#.to(device=device, dtype=double_precision)
-
     # Create the stiffness matrix
     ke = topo_physics.get_stiffness_matrix(
         young=args["young"],
-        poisson=args["poisson"],
+        poisson=args["poisson"],device=device, dtype=double_precision
+    )
+
+    # kwargs for displacement
+    kwargs = dict(
+        penal=args["penal"],
+        e_min=args["young_min"],
+        e_0=args["young"],
+        device=device,
+        dtype=double_precision
     )
 
     # Create the combined function and structural optimization
@@ -126,14 +125,14 @@ for i in range(1):
     losses = []
     # Combined function
     comb_fn = lambda model: constrained_structural_optimization_function(  # noqa
-        model, fixed_random_input, ke, args, designs, losses
+        model, kwargs, ke, args, designs, losses
     )
 
     # Initalize the pygranso options
     opts = pygransoStruct()
 
     # Set the device
-    opts.torch_device = torch.device('cpu')
+    opts.torch_device = device
 
     # Setup the intitial inputs for the solver
     nvar = getNvarTorch(cnn_model.parameters())
@@ -141,7 +140,7 @@ for i in range(1):
         torch.nn.utils.parameters_to_vector(cnn_model.parameters())
         .detach()
         .reshape(nvar, 1)
-    )
+    ).to(device=device, dtype=double_precision)
 
     # Additional pygranso options
     opts.limited_mem_size = 20

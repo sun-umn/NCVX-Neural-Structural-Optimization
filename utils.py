@@ -49,7 +49,8 @@ class SparseSolver(Function):
 
         result = torch.from_numpy(solver(b.cpu().numpy()))
 
-        result = result.to(device=torch.device('cuda:0'))
+        if b.is_cuda:
+            result = result.to(device=torch.device('cuda:0'))
 
         # The output from the forward pass needs to have
         # requires_grad = True
@@ -66,8 +67,8 @@ class SparseSolver(Function):
 
         # Gather the result
         a = scipy.sparse.coo_matrix(
-            (a_entries.detach().numpy(), a_indices.numpy()),
-            shape=(grad_output.numpy().size,) * 2,
+            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()),
+            shape=(grad_output.cpu().numpy().size,) * 2
         ).tocsc()
         a = (a + a.T) / 2.0
 
@@ -82,7 +83,9 @@ class SparseSolver(Function):
             solver = scipy.sparse.linalg.splu(a).solve
 
         # Calculate the gradient
-        lambda_ = lambda_.to(device=torch.device('cuda:0'))
+        lambda_ = torch.from_numpy(solver(grad_output.cpu().numpy()))
+        if grad_output.is_cuda:
+            lambda_ = lambda_.to(device=torch.device('cuda:0'))
         i, j = a_indices
         i, j = i.long(), j.long()
         output = -lambda_[i] * result[j]
@@ -119,7 +122,7 @@ class FindRoot(Function):
         # Save the input data for the backward pass
         # For this particular case we will rely on autograd.numpy
         if torch.is_tensor(x):
-            x = x.detach().numpy().copy().astype(anp.float64)
+            x = x.detach().cpu().numpy().copy().astype(anp.float64)
 
         ctx.x_value = x
 
@@ -171,7 +174,7 @@ class FindRoot(Function):
         # Adding a small constant here because I could not get the
         # gradcheck to work without this. We will want to
         # investigate later
-        gradient_value = -grad_f_x / grad_f_y
+        gradient_value = (-grad_f_x / grad_f_y)
         return gradient_value * grad_output, None, None, None
 
 
@@ -203,13 +206,12 @@ def sigmoid_with_constrained_mean(x, average):
     """
     Function that will compute the sigmoid with the contrained
     mean.
-
     NOTE: For the udpated fuction we will use autograd.numpy
     to build f
     """
     # To avoid confusion about which variable needs to have
     # its gradient computed we will create a copy of x
-    x_copy = x.detach().numpy()
+    x_copy = x.detach().cpu().numpy()
 
     # If average is a torch tensor we need to convert it
     # to numpy
@@ -235,6 +237,8 @@ def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
 
     index_map = torch.argsort(torch.cat((freedofs, fixdofs)))
 
+    k_xlist = k_xlist.cpu().numpy()
+    k_ylist = k_ylist.cpu().numpy()
     keep = np.isin(k_xlist, freedofs.cpu()) & np.isin(k_ylist, freedofs.cpu())
     i = index_map[k_ylist][keep]
     j = index_map[k_xlist][keep]
@@ -246,7 +250,6 @@ def set_diff_1d(t1, t2, assume_unique=False):
     """
     Set difference of two 1D tensors.
     Returns the unique values in t1 that are not in t2.
-
     """
     if not assume_unique:
         t1 = torch.unique(t1)
@@ -260,7 +263,9 @@ def torch_scatter1d(nonzero_values, nonzero_indices, array_len):
     an output and ordering for the original array
     """
     all_indices = torch.arange(array_len)
-    zero_indices = set_diff_1d(all_indices, nonzero_indices, assume_unique=True)
+    zero_indices = set_diff_1d(
+        all_indices, nonzero_indices, assume_unique=True
+    )
     index_map = torch.argsort(torch.cat((nonzero_indices, zero_indices)))
     values = torch.cat((nonzero_values, torch.zeros(len(zero_indices))))
     return values[index_map]
