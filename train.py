@@ -71,12 +71,12 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
 
         # Calculate the u_matrix
         u_matrix, _ = topo_physics.sparse_displace(
-            x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
+            x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
         )
 
         # Calculate the compliance output
         compliance_output, displacement, _ = topo_physics.compliance(
-            x_phys, u_matrix, ke, **kwargs
+            x_phys, u_matrix, ke, args, **kwargs
         )  # noqa
 
         # The loss is the sum of the compliance
@@ -167,12 +167,12 @@ def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
 
             # Calculate the u_matrix
             u_matrix, _ = topo_physics.sparse_displace(
-                x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
+                x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
             )
 
             # Calculate the compliance output
             compliance_output, displacement, _ = topo_physics.compliance(
-                x_phys, u_matrix, ke, **kwargs
+                x_phys, u_matrix, ke, args, **kwargs
             )  # noqa
 
             # The loss is the sum of the compliance
@@ -184,7 +184,7 @@ def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
             u_matrix_frames.append(u_matrix)
 
             # Print the progress every 10 iterations
-            if (iteration % 10) == 0:
+            if (iteration % 1) == 0:
                 print(f"Compliance loss = {loss.item()} / Iteration={iteration}")
                 losses.append(loss.item())
 

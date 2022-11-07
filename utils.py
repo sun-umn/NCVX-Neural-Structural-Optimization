@@ -34,22 +34,24 @@ class SparseSolver(Function):
         # Set the inputs
         ctx.a_entries = a_entries
         ctx.a_indices = a_indices
+        ctx.b = b.data.numpy()
         ctx.sym_pos = sym_pos
 
         # Gather the result
-        a = scipy.sparse.coo_matrix(
-            (a_entries.detach().numpy(), a_indices.numpy()), shape=(b.numpy().size,) * 2
-        ).tocsc()
-        a = (a + a.T) / 2.0
+        a = scipy.sparse.csc_matrix(
+            (a_entries.detach().numpy(), a_indices.numpy()),
+            shape=(b.detach().numpy().size,) * 2,
+        ).astype(np.float64)
 
         if sym_pos and HAS_CHOLMOD:
-            solver = sksparse.cholmod.cholesky(a).solve_A
+            solver = sksparse.cholmod.cholesky(a, ordering_method="natural").solve_A
         else:
             # could also use scikits.umfpack.splu
             # should be about twice as slow as the cholesky
-            solver = scipy.sparse.linalg.splu(a).solve
+            solver = scipy.sparse.linalg.splu(a, permc_spec="NATURAL").solve
 
-        result = torch.from_numpy(solver(b.numpy()))
+        b_np = b.data.numpy().astype(np.float64)
+        result = torch.from_numpy(solver(b_np).astype(np.float64))
 
         # The output from the forward pass needs to have
         # requires_grad = True
@@ -58,35 +60,23 @@ class SparseSolver(Function):
         return result
 
     @staticmethod
-    def backward(ctx, grad_output):  # noqa
+    def backward(ctx, grad):  # noqa
+        """
+        Gather the values from the saved context
+        """
         a_entries = ctx.a_entries
         a_indices = ctx.a_indices
+        b = ctx.b
         sym_pos = ctx.sym_pos
         result = ctx.result
 
-        # Gather the result
-        a = scipy.sparse.coo_matrix(
-            (a_entries.detach().numpy(), a_indices.numpy()),
-            shape=(grad_output.numpy().size,) * 2,
-        ).tocsc()
-        a = (a + a.T) / 2.0
-
-        # If the matrix is postive definte and symetric then
-        # we can use the cholesky factorization
-        # otherwise we will use the sparse lu decomposition
-        if sym_pos and HAS_CHOLMOD:
-            solver = sksparse.cholmod.cholesky(a).solve_A
-        else:
-            # could also use scikits.umfpack.splu
-            # should be about twice as slow as the cholesky
-            solver = scipy.sparse.linalg.splu(a).solve
-
         # Calculate the gradient
-        lambda_ = torch.from_numpy(solver(grad_output.numpy()))
+        lambda_ = SparseSolver.apply(a_entries, a_indices, grad, False)
         i, j = a_indices
         i, j = i.long(), j.long()
         output = -lambda_[i] * result[j]
-        return output, None, None, None
+
+        return output, None, lambda_, None
 
 
 def solve_coo(a_entries, a_indices, b, sym_pos):
@@ -327,6 +317,7 @@ class HaltLog:
         self.x_iterates.append(x)
         self.f.append(penaltyfn_parts.f)
         self.tv.append(penaltyfn_parts.tv)
+        self.evals.append(ls_evals)
 
         # keep this false unless you want to implement a custom termination
         # condition
@@ -345,6 +336,7 @@ class HaltLog:
         log.x = self.x_iterates[0 : self.index]
         log.f = self.f[0 : self.index]
         log.tv = self.tv[0 : self.index]
+        log.fn_evals = self.evals[0 : self.index]
         return log
 
     def makeHaltLogFunctions(self, maxit):  # noqa
@@ -389,6 +381,7 @@ class HaltLog:
         self.x_iterates = []
         self.f = []
         self.tv = []
+        self.evals = []
 
         # Only modify the body of logIterate(), not its name or arguments.
         # Store whatever data you wish from the current PyGRANSO iteration info,

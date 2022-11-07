@@ -119,34 +119,62 @@ def get_stiffness_matrix(young: float, poisson: float) -> np.array:
 
 
 # Compliance
-def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1):
+def compliance(x_phys, u, ke, args, *, penal=3, e_min=1e-9, e_0=1, base="Google"):
     """
     Calculate the compliance objective.
 
     NOTE: For our implementation both x_phys and u will require_grad
     and will both be torch tensors.
     """
-    nely, nelx = x_phys.shape
-    ely, elx = np.meshgrid(range(nely), range(nelx))
+    # nely, nelx = x_phys.shape
+    # ely, elx = np.meshgrid(range(nely), range(nelx))
 
-    # Nodes
-    n1 = (nely + 1) * (elx + 0) + (ely + 0)
-    n2 = (nely + 1) * (elx + 1) + (ely + 0)
-    n3 = (nely + 1) * (elx + 1) + (ely + 1)
-    n4 = (nely + 1) * (elx + 0) + (ely + 1)
-    all_ixs = np.array(
-        [
-            2 * n1,
-            2 * n1 + 1,
-            2 * n2,
-            2 * n2 + 1,
-            2 * n3,
-            2 * n3 + 1,
-            2 * n4,
-            2 * n4 + 1,
-        ]  # noqa
+    # # Nodes
+    # n1 = (nely + 1) * (elx + 0) + (ely + 0)
+    # n2 = (nely + 1) * (elx + 1) + (ely + 0)
+    # n3 = (nely + 1) * (elx + 1) + (ely + 1)
+    # n4 = (nely + 1) * (elx + 0) + (ely + 1)
+    # all_ixs = np.array(
+    #     [
+    #         2 * n1,
+    #         2 * n1 + 1,
+    #         2 * n2,
+    #         2 * n2 + 1,
+    #         2 * n3,
+    #         2 * n3 + 1,
+    #         2 * n4,
+    #         2 * n4 + 1,
+    #     ]  # noqa
+    # )
+    # all_ixs = torch.from_numpy(all_ixs)
+
+    nely, nelx = args["nely"], args["nelx"]
+
+    # Compute the torch based meshgrid
+    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
+
+    # Calculate nodes - reflects the MATLAB code
+    if base == "MATLAB":
+        n1 = (nely + 1) * (elx + 0) + (ely + 1)
+        n2 = (nely + 1) * (elx + 1) + (ely + 1)
+        n3 = (nely + 1) * (elx + 1) + (ely + 0)
+        n4 = (nely + 1) * (elx + 0) + (ely + 0)
+
+    elif base == "Google":
+        # Google implementation
+        n1 = (nely + 1) * (elx + 0) + (ely + 0)
+        n2 = (nely + 1) * (elx + 1) + (ely + 0)
+        n3 = (nely + 1) * (elx + 1) + (ely + 1)
+        n4 = (nely + 1) * (elx + 0) + (ely + 1)
+
+    else:
+        raise ValueError("Only options are MATLAB and Google!")
+
+    # The shape of this matrix results in
+    # (8, nelx, nely)
+    all_ixs = torch.stack(
+        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
     )
-    all_ixs = torch.from_numpy(all_ixs)
 
     # The selected u and now needs to be multiplied by K
     u_selected = u[all_ixs].squeeze()
@@ -240,15 +268,32 @@ def sparse_displace(
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k_data(stiffness, ke, args, base=base)
 
+    # Get the full indices
+    full_indices = torch.stack([k_ylist, k_xlist])
+
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
     )
 
     # Reduced forces
     freedofs_forces = forces[freedofs].double()
+    size = freedofs_forces.numpy().size
+
+    # Require gradient on the forces
+    freedofs_forces = freedofs_forces.requires_grad_()
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
+
+    # Build the sparse matrix
+    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size])
+    K = (K + K.transpose(1, 0)) / 2.0
+
+    # Symmetric indices
+    keep_k_entries = K.coalesce().values()
+    indices = K.coalesce().indices()
+
+    # Compute the u_matrix values
     u_nonzero = utils.solve_coo(keep_k_entries, indices, freedofs_forces, sym_pos=False)
     u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
 
@@ -379,3 +424,40 @@ def build_nodes_data_google(args):
     edof = edof.T[0]
 
     return edof
+
+
+def get_stiffness_matrix_google(young, poisson):
+    """
+    Function from the google code to compute the stiffness
+    matrix
+    """
+    # Element stiffness matrix
+    e, nu = young, poisson
+    k = np.array(
+        [
+            1 / 2 - nu / 6,
+            1 / 8 + nu / 8,
+            -1 / 4 - nu / 12,
+            -1 / 8 + 3 * nu / 8,
+            -1 / 4 + nu / 12,
+            -1 / 8 - nu / 8,
+            nu / 6,
+            1 / 8 - 3 * nu / 8,
+        ]
+    )
+    return (
+        e
+        / (1 - nu**2)
+        * np.array(
+            [
+                [k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]],
+                [k[1], k[0], k[7], k[6], k[5], k[4], k[3], k[2]],
+                [k[2], k[7], k[0], k[5], k[6], k[3], k[4], k[1]],
+                [k[3], k[6], k[5], k[0], k[7], k[2], k[1], k[4]],
+                [k[4], k[5], k[6], k[7], k[0], k[1], k[2], k[3]],
+                [k[5], k[4], k[3], k[2], k[1], k[0], k[7], k[6]],
+                [k[6], k[3], k[4], k[1], k[2], k[7], k[0], k[5]],
+                [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]],
+            ]
+        )
+    )
