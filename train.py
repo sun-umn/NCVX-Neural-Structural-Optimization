@@ -223,7 +223,7 @@ def train_pygranso(
         gc.collect()
         torch.cuda.empty_cache()
 
-        return trials
+    return trials
 
 
 def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
