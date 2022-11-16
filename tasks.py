@@ -28,6 +28,9 @@ def structural_optimization_task():
         maxit=90,
     )
 
+    # Define the best trial
+    trial = sorted(trials)[0]
+
 
 if __name__ == "__main__":
     structural_optimization_task()
