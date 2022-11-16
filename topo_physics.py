@@ -12,10 +12,6 @@ def young_modulus(x, e_0, e_min, p=3):
     """
     Function that calculates the young modulus
     """
-    e_0 = torch.tensor(e_0)
-    e_min = torch.tensor(e_min)
-    p = torch.tensor(p)
-
     return e_min + x**p * (e_0 - e_min)
 
 
@@ -69,7 +65,9 @@ def calculate_forces(x_phys, args):
 
 
 # Build a stiffness matrix
-def get_stiffness_matrix(young: float, poisson: float) -> np.array:
+def get_stiffness_matrix(
+    young: float, poisson: float, device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
+) -> np.array:
     """
     Function to build the elements of the stiffness matrix
     """
@@ -113,45 +111,36 @@ def get_stiffness_matrix(young: float, poisson: float) -> np.array:
             k[sixth_row_shuffle],
             k[seventh_row_shuffle],
         ]
-    )
+    ).to(device=device, dtype=dtype)
 
     return e / (1 - nu**2) * shuffled_array
 
 
 # Compliance
-def compliance(x_phys, u, ke, args, *, penal=3, e_min=1e-9, e_0=1, base="Google"):
+def compliance(
+    x_phys,
+    u,
+    ke,
+    args,
+    *,
+    penal=3,
+    e_min=1e-9,
+    e_0=1,
+    base="Google",
+    device=utils.DEFAULT_DEVICE,
+    dtype=utils.DEFAULT_DTYPE,
+):
     """
     Calculate the compliance objective.
 
     NOTE: For our implementation both x_phys and u will require_grad
     and will both be torch tensors.
     """
-    # nely, nelx = x_phys.shape
-    # ely, elx = np.meshgrid(range(nely), range(nelx))
-
-    # # Nodes
-    # n1 = (nely + 1) * (elx + 0) + (ely + 0)
-    # n2 = (nely + 1) * (elx + 1) + (ely + 0)
-    # n3 = (nely + 1) * (elx + 1) + (ely + 1)
-    # n4 = (nely + 1) * (elx + 0) + (ely + 1)
-    # all_ixs = np.array(
-    #     [
-    #         2 * n1,
-    #         2 * n1 + 1,
-    #         2 * n2,
-    #         2 * n2 + 1,
-    #         2 * n3,
-    #         2 * n3 + 1,
-    #         2 * n4,
-    #         2 * n4 + 1,
-    #     ]  # noqa
-    # )
-    # all_ixs = torch.from_numpy(all_ixs)
-
     nely, nelx = args["nely"], args["nelx"]
 
     # Compute the torch based meshgrid
-    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
+    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
+    ely, elx = ely.transpose(1, 0), elx.transpose(1, 0)
 
     # Calculate nodes - reflects the MATLAB code
     if base == "MATLAB":
@@ -259,6 +248,8 @@ def sparse_displace(
     e_min=1e-9,
     e_0=1,
     base="Google",
+    device=utils.DEFAULT_DEVICE,
+    dtype=utils.DEFAULT_DTYPE,
 ):
     """
     Function that displaces the load x using finite element techniques.
@@ -267,17 +258,16 @@ def sparse_displace(
 
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k_data(stiffness, ke, args, base=base)
-
-    # Get the full indices
-    full_indices = torch.stack([k_ylist, k_xlist])
+    k_ylist = k_ylist.to(device=device, dtype=dtype)
+    k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
     )
 
     # Reduced forces
-    freedofs_forces = forces[freedofs].double()
-    size = freedofs_forces.numpy().size
+    freedofs_forces = forces[freedofs].double().to(device=device, dtype=dtype)
+    size = freedofs_forces.cpu().numpy().size
 
     # Require gradient on the forces
     freedofs_forces = freedofs_forces.requires_grad_()
@@ -294,10 +284,19 @@ def sparse_displace(
     indices = K.coalesce().indices()
 
     # Compute the u_matrix values
-    u_nonzero = utils.solve_coo(keep_k_entries, indices, freedofs_forces, sym_pos=False)
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
+    u_nonzero = utils.solve_coo(
+        keep_k_entries,
+        indices,
+        freedofs_forces,
+        sym_pos=False,
+        device=device,
+        dtype=dtype,
+    )
+    fixdofs_zeros = torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)
+    u_values = torch.cat((u_nonzero, fixdofs_zeros))
+    u_values = u_values[index_map].to(device=device, dtype=dtype)
 
-    return u_values[index_map], None
+    return u_values
 
 
 def build_K_matrix(x_phys, args, base="MATLAB"):
@@ -366,7 +365,8 @@ def build_nodes_data(args, base="MATLAB"):
     nely, nelx = args["nely"], args["nelx"]
 
     # Compute the torch based meshgrid
-    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
+    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
+    ely, elx = ely.transpose(1, 0), elx.transpose(1, 0)
     ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
 
     # Calculate nodes - reflects the MATLAB code

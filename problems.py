@@ -20,6 +20,8 @@ from typing import Optional, Union
 import numpy as np
 import torch
 
+from utils import DEFAULT_DEVICE, DEFAULT_DTYPE
+
 X, Y = 0, 1
 
 
@@ -76,13 +78,15 @@ class Problem:
         )
 
 
-def mbb_beam(width=60, height=20, density=0.5):
+def mbb_beam(
+    width=60, height=20, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+):
     """Textbook beam example."""
-    normals = torch.zeros((width + 1, height + 1, 2))
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[-1, -1, Y] = 1
     normals[0, :, X] = 1
 
-    forces = torch.zeros((width + 1, height + 1, 2))
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=torch.long)
     forces[0, 0, Y] = -1
 
     return Problem(normals, forces, density)

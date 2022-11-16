@@ -11,6 +11,8 @@ import torch
 from pygranso.pygransoStruct import pygransoStruct
 from torch.autograd import Function
 
+import utils
+
 try:
     import sksparse.cholmod
 
@@ -23,6 +25,11 @@ except ImportError:
     HAS_CHOLMOD = False
 
 
+# Default device
+DEFAULT_DEVICE = torch.device("cpu")
+DEFAULT_DTYPE = torch.double
+
+
 class SparseSolver(Function):
     """
     The SparseSolver method is a sparse linear solver which also
@@ -30,17 +37,27 @@ class SparseSolver(Function):
     """
 
     @staticmethod
-    def forward(ctx, a_entries, a_indices, b, sym_pos=False):  # noqa
+    def forward(
+        ctx,
+        a_entries,
+        a_indices,
+        b,
+        sym_pos=False,
+        device=utils.DEFAULT_DEVICE,
+        dtype=utils.DEFAULT_DTYPE,
+    ):  # noqa
         # Set the inputs
         ctx.a_entries = a_entries
         ctx.a_indices = a_indices
-        ctx.b = b.data.numpy()
+        ctx.b = b.data.cpu().numpy()
         ctx.sym_pos = sym_pos
+        ctx.device = device
+        ctx.dtype = dtype
 
         # Gather the result
         a = scipy.sparse.csc_matrix(
-            (a_entries.detach().numpy(), a_indices.numpy()),
-            shape=(b.detach().numpy().size,) * 2,
+            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()),
+            shape=(b.detach().cpu().numpy().size,) * 2,
         ).astype(np.float64)
 
         if sym_pos and HAS_CHOLMOD:
@@ -50,12 +67,17 @@ class SparseSolver(Function):
             # should be about twice as slow as the cholesky
             solver = scipy.sparse.linalg.splu(a, permc_spec="NATURAL").solve
 
-        b_np = b.data.numpy().astype(np.float64)
+        b_np = b.data.cpu().numpy().astype(np.float64)
         result = torch.from_numpy(solver(b_np).astype(np.float64))
 
         # The output from the forward pass needs to have
         # requires_grad = True
         result = result.requires_grad_()
+
+        # Need to put the result back on the same device
+        if b.is_cuda:
+            result = result.to(device=device, dtype=dtype)
+
         ctx.result = result
         return result
 
@@ -68,23 +90,25 @@ class SparseSolver(Function):
         a_indices = ctx.a_indices
         b = ctx.b
         sym_pos = ctx.sym_pos
+        device = ctx.device
+        dtype = ctx.dtype
         result = ctx.result
 
         # Calculate the gradient
-        lambda_ = SparseSolver.apply(a_entries, a_indices, grad, False)
+        lambda_ = SparseSolver.apply(a_entries, a_indices, grad, False, device, dtype)
         i, j = a_indices
         i, j = i.long(), j.long()
         output = -lambda_[i] * result[j]
 
-        return output, None, lambda_, None
+        return output, None, lambda_, None, None, None
 
 
-def solve_coo(a_entries, a_indices, b, sym_pos):
+def solve_coo(a_entries, a_indices, b, sym_pos, device, dtype):
     """
     Wrapper around the SparseSolver class for building
     a large sparse matrix gradient
     """
-    return SparseSolver.apply(a_entries, a_indices, b, sym_pos)
+    return SparseSolver.apply(a_entries, a_indices, b, sym_pos, device, dtype)
 
 
 # Implement a find root extension for pytorch
@@ -225,7 +249,9 @@ def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
 
     index_map = torch.argsort(torch.cat((freedofs, fixdofs)))
 
-    keep = torch.isin(k_xlist, freedofs) & torch.isin(k_ylist, freedofs)
+    k_xlist = k_xlist.cpu().numpy()
+    k_ylist = k_ylist.cpu().numpy()
+    keep = np.isin(k_xlist, freedofs.cpu()) & np.isin(k_ylist, freedofs.cpu())
     i = index_map[k_ylist][keep]
     j = index_map[k_xlist][keep]
 
@@ -283,6 +309,26 @@ def build_node_indexes(x_phys):
     )
     all_ixs = torch.from_numpy(all_ixs)
     return all_ixs
+
+
+def get_devices():
+    """
+    Function to get GPU devices if available. If there are
+    no GPU devices available then use CPU
+    """
+    # Default device
+    device = torch.device("cpu")
+
+    # Get available GPUs
+    n_gpus = torch.cuda.device_count()
+    if n_gpus > 0:
+        gpu_name_list = [f"cuda:{device}" for device in range(n_gpus)]
+
+        # NOTE: For now we will only use the first GPU
+        # but we might want to consider distributed GPUs in the future
+        device = torch.device(gpu_name_list[0])
+
+    return device
 
 
 class HaltLog:
