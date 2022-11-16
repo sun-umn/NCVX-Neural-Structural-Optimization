@@ -1,5 +1,10 @@
+# stdlib
+import gc
 import time
 
+# third party
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,10 +12,218 @@ from pygranso.private.getNvar import getNvarTorch
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 
+# first party
 import models
 import topo_api
 import topo_physics
 import utils
+
+
+# Updated Section for training PyGranso with Direct Volume constraints
+# TODO: We will want to create a more generalized format for training our PyGranso
+# problems for for now we will have a separate training process for the volume
+# constraint that we have been working on
+# Volume constrained function
+def volume_constrained_structural_optimization_function(
+    model, ke, alpha, args, designs, losses, device, dtype
+):
+    """
+    Combined function for PyGranso for the structural optimization
+    problem. The inputs will be the model that reparameterizes x as a function
+    of a neural network. V0 is the initial volume, K is the global stiffness
+    matrix and F is the forces that are applied in the problem.
+
+    Notes:
+    For the original MBB Beam the best alpha is 5e3
+    """
+    # Initialize the model
+    # In my version of the model it follows the similar behavior of the
+    # tensorflow repository and only needs None to initialize and output
+    # a first value of x
+    logits = model(None)
+
+    # kwargs for displacement
+    kwargs = dict(
+        penal=args["penal"],
+        e_min=args["young_min"],
+        e_0=args["young"],
+        base="MATLAB",
+        device=device,
+        dtype=dtype,
+    )
+    x_phys = torch.sigmoid(logits)
+
+    # Calculate the forces
+    forces = topo_physics.calculate_forces(x_phys, args)
+
+    # Calculate the u_matrix
+    u_matrix = topo_physics.sparse_displace(
+        x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
+    )
+
+    # Calculate the compliance output
+    compliance_output, _, _ = topo_physics.compliance(
+        x_phys, u_matrix, ke, args, **kwargs
+    )
+
+    # The loss is the sum of the compliance
+    f = torch.abs(torch.sum(compliance_output))
+
+    # Run this problem with no inequality constraints
+    ci = None
+
+    # Run this problem with no equality constraints
+    # TODO: We may also want a way to use different coefficients
+    # and see what type of coefficients have the best results
+    ce = pygransoStruct()
+    ce.c1 = alpha * (torch.mean(x_phys) - args["volfrac"])
+
+    # Append updated physical density designs
+    designs.append(x_phys.detach().cpu().numpy().astype(np.float16))  # noqa
+
+    # Let's try and clear as much stuff as we can to preserve memory
+    del logits, x_phys, forces, u_matrix, compliance_output
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    return f, ci, ce
+
+
+def train_pygranso(
+    problem,
+    pygranso_combined_function,
+    device,
+    cnn_kwargs=None,
+    *,
+    num_trials=50,
+    mu=1.0,
+    maxit=500,
+    alpha=5e3,
+) -> tuple:
+    """
+    Function to train structural optimization pygranso
+    """
+    # Get the device - if there is a GPU available then this
+    # will use the first GPU otherwise it will use the CPU
+    device = utils.get_devices()
+
+    # Get the problem args
+    args = topo_api.specified_task(problem, device=device)
+
+    # Create the stiffness matrix
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"],
+        poisson=args["poisson"],
+        device=device,
+    )
+
+    # Trials
+    trials = []
+
+    for seed in range(0, num_trials):
+        torch.random.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+        # Initialize the CNN Model
+        if cnn_kwargs is not None:
+            cnn_model = models.CNNModel(args, **cnn_kwargs).to(
+                device=device, dtype=utils.DEFAULT_DTYPE
+            )
+        else:
+            cnn_model = models.CNNModel(args).to(
+                device=device, dtype=utils.DEFAULT_DTYPE
+            )
+
+        # Put the cnn model in training mode
+        cnn_model.train()
+
+        # Create the combined function and structural optimization
+        # setup
+        # Save the physical density designs & the losses
+        designs = []
+        losses = []
+
+        # Combined function
+        comb_fn = lambda model: pygranso_combined_function(  # noqa
+            model,
+            ke,
+            alpha,
+            args,
+            designs=designs,
+            losses=losses,
+            device=device,
+            dtype=utils.DEFAULT_DTYPE,
+        )
+
+        # Initalize the pygranso options
+        opts = pygransoStruct()
+
+        # Set the device
+        opts.torch_device = device
+
+        # Setup the intitial inputs for the solver
+        nvar = getNvarTorch(cnn_model.parameters())
+        opts.x0 = (
+            torch.nn.utils.parameters_to_vector(cnn_model.parameters())
+            .detach()
+            .reshape(nvar, 1)
+        ).to(device=device, dtype=utils.DEFAULT_DTYPE)
+
+        # Additional pygranso options
+        opts.limited_mem_size = 30
+        opts.double_precision = True
+        opts.mu0 = mu
+        opts.maxit = maxit
+        opts.print_frequency = 10
+        opts.stat_l2_model = False
+        opts.viol_eq_tol = 1e-6
+        opts.opt_tol = 1e-6
+
+        mHLF_obj = utils.HaltLog()
+        halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)
+
+        #  Set PyGRANSO's logging function in opts
+        opts.halt_log_fn = halt_log_fn
+
+        # Main algorithm with logging enabled.
+        start = time.time()
+        soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
+        end = time.time()
+        wall_time = end - start
+
+        # GET THE HISTORY OF ITERATES
+        # Even if an error is thrown, the log generated until the error can be
+        # obtained by calling get_log_fn()
+        log = get_log_fn()
+
+        # Final structure
+        designs_indexes = (pd.Series(log.fn_evals).cumsum() - 1).values.tolist()
+        final_designs = [designs[i] for i in designs_indexes]
+
+        # Save the data from each trial
+        trials.append((soln.final.f, pd.Series(log.f), final_designs, wall_time))
+
+        # Remove all variables for the next round
+        del (
+            cnn_model,
+            designs,
+            losses,
+            comb_fn,
+            opts,
+            mHLF_obj,
+            halt_log_fn,
+            get_log_fn,
+            soln,
+            log,
+            designs_indexes,
+            final_designs,
+        )
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        return trials
 
 
 def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
@@ -256,95 +469,95 @@ def unconstrained_structural_optimization_function(model, ke, args, designs, los
     return f, ci, ce
 
 
-def train_pygranso(
-    problem,
-    cnn_kwargs=None,
-    *,
-    device="cpu",
-    mu=1.0,
-    maxit=150,
-    init_step_size=5e-6,
-    linesearch_maxit=50,
-    linesearch_reattempts=15,
-) -> tuple:
-    """
-    Function to train structural optimization pygranso
-    """
-    # Get the problem args
-    args = topo_api.specified_task(problem)
+# def train_pygranso(
+#     problem,
+#     cnn_kwargs=None,
+#     *,
+#     device="cpu",
+#     mu=1.0,
+#     maxit=150,
+#     init_step_size=5e-6,
+#     linesearch_maxit=50,
+#     linesearch_reattempts=15,
+# ) -> tuple:
+#     """
+#     Function to train structural optimization pygranso
+#     """
+#     # Get the problem args
+#     args = topo_api.specified_task(problem)
 
-    # Initialize the CNN Model
-    if cnn_kwargs is not None:
-        cnn_model = models.CNNModel(args, **cnn_kwargs)
-    else:
-        cnn_model = models.CNNModel(args)
+#     # Initialize the CNN Model
+#     if cnn_kwargs is not None:
+#         cnn_model = models.CNNModel(args, **cnn_kwargs)
+#     else:
+#         cnn_model = models.CNNModel(args)
 
-    # Put the cnn model in training mode
-    cnn_model.train()
+#     # Put the cnn model in training mode
+#     cnn_model.train()
 
-    # Create the stiffness matrix
-    ke = topo_physics.get_stiffness_matrix(
-        young=args["young"],
-        poisson=args["poisson"],
-    )
+#     # Create the stiffness matrix
+#     ke = topo_physics.get_stiffness_matrix(
+#         young=args["young"],
+#         poisson=args["poisson"],
+#     )
 
-    # Create the combined function and structural optimization
-    # setup
-    # Save the physical density designs & the losses
-    designs = []
-    losses = []
-    # Combined function
-    comb_fn = lambda model: unconstrained_structural_optimization_function(  # noqa
-        model, ke, args, designs, losses
-    )
+#     # Create the combined function and structural optimization
+#     # setup
+#     # Save the physical density designs & the losses
+#     designs = []
+#     losses = []
+#     # Combined function
+#     comb_fn = lambda model: unconstrained_structural_optimization_function(  # noqa
+#         model, ke, args, designs, losses
+#     )
 
-    # Initalize the pygranso options
-    opts = pygransoStruct()
+#     # Initalize the pygranso options
+#     opts = pygransoStruct()
 
-    # Set the device
-    opts.torch_device = torch.device(device)
+#     # Set the device
+#     opts.torch_device = torch.device(device)
 
-    # Setup the intitial inputs for the solver
-    nvar = getNvarTorch(cnn_model.parameters())
-    opts.x0 = (
-        torch.nn.utils.parameters_to_vector(cnn_model.parameters())
-        .detach()
-        .reshape(nvar, 1)
-    )
+#     # Setup the intitial inputs for the solver
+#     nvar = getNvarTorch(cnn_model.parameters())
+#     opts.x0 = (
+#         torch.nn.utils.parameters_to_vector(cnn_model.parameters())
+#         .detach()
+#         .reshape(nvar, 1)
+#     )
 
-    # Additional pygranso options
-    opts.limited_mem_size = 20
-    opts.double_precision = True
-    opts.mu0 = mu
-    opts.maxit = maxit
-    opts.print_frequence = 10
-    opts.stat_l2_model = False
+#     # Additional pygranso options
+#     opts.limited_mem_size = 20
+#     opts.double_precision = True
+#     opts.mu0 = mu
+#     opts.maxit = maxit
+#     opts.print_frequence = 10
+#     opts.stat_l2_model = False
 
-    # Other parameters that helped the structural optimization
-    # problem
-    opts.init_step_size = init_step_size
-    opts.linesearch_maxit = linesearch_maxit
-    opts.linesearch_reattempts = linesearch_reattempts
+#     # Other parameters that helped the structural optimization
+#     # problem
+#     opts.init_step_size = init_step_size
+#     opts.linesearch_maxit = linesearch_maxit
+#     opts.linesearch_reattempts = linesearch_reattempts
 
-    # Save the end results using the halt function
-    halt_function_obj = utils.HaltLog()
-    halt_log_fn, get_log_fn = halt_function_obj.makeHaltLogFunctions(opts.maxit)
+#     # Save the end results using the halt function
+#     halt_function_obj = utils.HaltLog()
+#     halt_log_fn, get_log_fn = halt_function_obj.makeHaltLogFunctions(opts.maxit)
 
-    #  Set PyGRANSO's logging function in opts
-    opts.halt_log_fn = halt_log_fn
+#     #  Set PyGRANSO's logging function in opts
+#     opts.halt_log_fn = halt_log_fn
 
-    # Train pygranso
-    start = time.time()
-    soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
-    end = time.time()
+#     # Train pygranso
+#     start = time.time()
+#     soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
+#     end = time.time()
 
-    # After pygranso runs we can gather the logs
-    log = get_log_fn()
+#     # After pygranso runs we can gather the logs
+#     log = get_log_fn()
 
-    # Print time
-    print(f"Total wall time: {end - start} seconds")
+#     # Print time
+#     print(f"Total wall time: {end - start} seconds")
 
-    return soln, designs, log
+#     return soln, designs, log
 
 
 def train_constrained_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
