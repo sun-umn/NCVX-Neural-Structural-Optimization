@@ -388,7 +388,7 @@ def build_final_design(problem_name, trials, figsize=(10, 6)):
     images_path = "./images"
     timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
     images_file = f"{timestamp}_{problem_name}_final_designs.png"
-    fig.savefig(os.path.join(images_path, images_file))
+    plt.savefig(os.path.join(images_path, images_file))
 
 
 def build_structure_design(problem_name, trials, display="vertical", figsize=(10, 6)):
@@ -428,7 +428,7 @@ def build_structure_design(problem_name, trials, display="vertical", figsize=(10
     images_path = "./images"
     timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
     images_file = f"{timestamp}_{problem_name}_designs.png"
-    fig.savefig(os.path.join(images_path, images_file))
+    plt.savefig(os.path.join(images_path, images_file))
 
 
 class HaltLog:
