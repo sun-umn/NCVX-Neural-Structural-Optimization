@@ -1,10 +1,13 @@
 # stdlib
+import os
 import warnings
 
 # third party
 import autograd
 import autograd.numpy as anp
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy.sparse
 import scipy.sparse.linalg
 import torch
@@ -329,6 +332,103 @@ def get_devices():
         device = torch.device(gpu_name_list[0])
 
     return device
+
+
+def build_trial_loss_plot(problem_name, trials):
+    """
+    Build the plots for all of the different trials
+    """
+    # Gather all of the losses from the different trials
+    losses = [loss for _, loss, _, _ in trials]
+
+    # Concat all of the losses
+    restart_losses = pd.concat(losses, axis=1)
+    restart_losses.columns = [f"trial-{i}" for i in range(restart_losses.shape[1])]
+
+    # Build the loss plots
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+    ax = restart_losses.apply(np.log1p).cummin(axis=0).plot(legend=False)
+    ax.set_title("Log-Compliance Score - MBB Beam - 50 Trials")
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Log-Compliance")
+    ax.grid()
+
+    # Will will save the raw data as well as the plot
+    raw_data_path = "./raw_data"
+    images_data_path = "./images"
+
+    # Get the timestamp for when we saved because we will be doing a lot
+    # of experiments
+    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
+    loss_filename = f"{timestamp}_{problem_name}_trial_losses_raw_data.csv"
+    image_filename = f"{timestamp}_{problem_name}_trial_losses.png"
+
+    # Save the data
+    restart_losses.to_csv(os.path.join(raw_data_path, loss_filename), index=False)
+    plt.savefig(os.path.join(images_data_path, image_filename))
+
+
+def build_final_design(problem_name, trials, figsize=(10, 6)):
+    """
+    Function to build and display the stages of the final structure.
+    For this plot we consider only the best structure that was found
+    """
+    # Get the final designs
+    final_designs = trials[2]
+
+    # Setup the figure
+    fig, axes = plt.subplots(1, 1, figsize=figsize)
+
+    axes.imshow(final_designs[-1], cmap="Greys")
+    axes.set_xlabel("x")
+    axes.set_ylabel("y")
+    axes.set_title(f"{problem_name}")
+
+    # Get the images path to save
+    images_path = "./images"
+    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
+    images_file = f"{timestamp}_{problem_name}_final_designs.png"
+    fig.savefig(os.path.join(images_path, images_file))
+
+
+def build_structure_design(problem_name, trials, display="vertical", figsize=(10, 6)):
+    """
+    Function to build and display the stages of the final structure.
+    For this plot we consider only the best structure that was found
+    """
+    # Get the final designs
+    final_designs = trials[2]
+
+    # Get 5 structures through time and plot them
+    if display == "vertical":
+        fig, axes = plt.subplots(5, 1, figsize=figsize)
+    elif display == "horizonal":
+        fig, axes = plt.subplots(1, 5, figsize=figsize)
+    else:
+        raise ValueError("Only options are horizonal and vertial!")
+
+    # flatten the axes
+    axes = axes.flatten()
+
+    # Split the arrays
+    indexes = np.arange(len(final_designs))
+    structures = np.array_split(indexes, 5)
+    for index, step in enumerate(structures):
+        step = int(step[-1])
+        axes[index].imshow(final_designs[step], cmap="Greys")
+        axes[index].set_xlabel("x")
+        axes[index].set_ylabel("y")
+        axes[index].set_title(f"iteration={step}")
+
+    # Title for the final plot
+    fig.suptitle(f"{problem_name}")
+    fig.tight_layout()
+
+    # Get the images path to save
+    images_path = "./images"
+    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
+    images_file = f"{timestamp}_{problem_name}_designs.png"
+    fig.savefig(os.path.join(images_path, images_file))
 
 
 class HaltLog:

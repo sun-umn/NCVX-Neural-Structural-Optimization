@@ -29,7 +29,16 @@ def structural_optimization_task():
     )
 
     # Define the best trial
-    trial = sorted(trials)[0]
+    best_trial = sorted(trials)[0]
+
+    # Build and save the losses data for this run
+    utils.build_trial_loss_plot(problem.name, trials)
+
+    # Save the final structure from the final design
+    utils.build_structure_design(problem.name, best_trial, display="vertical")
+
+    # Save the final design
+    utils.build_final_design(problem.name, best_trial)
 
 
 if __name__ == "__main__":
