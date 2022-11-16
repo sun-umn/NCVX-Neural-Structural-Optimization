@@ -347,7 +347,7 @@ def build_trial_loss_plot(problem_name, trials):
 
     # Build the loss plots
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-    ax = restart_losses.apply(np.log1p).cummin(axis=0).plot(legend=False)
+    ax = restart_losses.apply(np.log1p).cummin(axis=0).ffill(axis=0).plot(legend=False)
     ax.set_title("Log-Compliance Score - MBB Beam - 50 Trials")
     ax.set_xlabel("Iteration")
     ax.set_ylabel("Log-Compliance")
