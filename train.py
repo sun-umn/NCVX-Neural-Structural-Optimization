@@ -204,7 +204,10 @@ def train_pygranso(
             for f_value in log.f:
                 neptune_logging[f"trial = {index} / loss"].log(f_value)
 
-            fig = utils.build_final_design(problem.name, final_designs, figsize=(10, 6))
+            best_score = np.round(log.f[-1], 2)
+            fig = utils.build_final_design(
+                problem.name, final_designs, best_score, figsize=(10, 6)
+            )
             neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
 
         trials.append((soln.final.f, pd.Series(log.f), final_designs, wall_time))

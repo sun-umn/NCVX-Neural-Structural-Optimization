@@ -360,7 +360,7 @@ def build_trial_loss_plot(problem_name, trials, neptune_logging):
     neptune_logging["losses_image"].upload(fig)
 
 
-def build_final_design(problem_name, final_designs, figsize=(10, 6)):
+def build_final_design(problem_name, final_designs, compliance, figsize=(10, 6)):
     """
     Function to build and display the stages of the final structure.
     For this plot we consider only the best structure that was found
@@ -371,7 +371,7 @@ def build_final_design(problem_name, final_designs, figsize=(10, 6)):
     axes.imshow(final_designs[-1], cmap="Greys")
     axes.set_xlabel("x")
     axes.set_ylabel("y")
-    axes.set_title(f"{problem_name}")
+    axes.set_title(f"{problem_name} / Comp={compliance}")
 
     # # Get the images path to save
     # images_path = "./images"

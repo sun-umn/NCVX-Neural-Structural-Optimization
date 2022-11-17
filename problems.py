@@ -101,11 +101,11 @@ def multistory_building(
     dtype=DEFAULT_DTYPE,
 ):
     """A multi-story building, supported from the ground."""
-    normals = np.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[:, -1, Y] = 1
     normals[-1, :, X] = 1
 
-    forces = np.zeros((width + 1, height + 1, 2)).to(device=device, dtype=torch.long)
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, ::interval, Y] = -1 / width
     return Problem(normals, forces, density)
 

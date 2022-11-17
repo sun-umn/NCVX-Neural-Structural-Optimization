@@ -1,6 +1,10 @@
+#!/usr/bin/python
+# third party
 import click
 import neptune.new as neptune
+import numpy as np
 
+# first party
 import problems
 import train
 import utils
@@ -8,13 +12,17 @@ import utils
 
 # Run the tasks
 @click.command()
+@click.option("--problem_name", default="mbb_beam", type=click.STRING)
 @click.option("--height", default=20)
 @click.option("--width", default=60)
 @click.option("--density", default=0.5)
 @click.option("--alpha", default=5e3)
 @click.option("--num_trials", default=50)
 @click.option("--maxit", default=1500)
-def mbb_structural_optimization_task(height, width, density, alpha, num_trials, maxit):
+def structural_optimization_task(
+    problem_name, height, width, density, alpha, num_trials, maxit
+):
+    click.echo(problem_name)
     # Enable the neptune run
     # TODO: make the api token an environment variable
     run = neptune.init_run(
@@ -29,10 +37,22 @@ def mbb_structural_optimization_task(height, width, density, alpha, num_trials, 
     comb_fn = train.volume_constrained_structural_optimization_function
 
     # Initialize the problem to be solved
-    problem = problems.mbb_beam(
-        height=height, width=width, density=density, device=device
-    )
-    problem.name = f"mbb_beam_{width}x{height}_{density}"
+    if problem_name == "mbb_beam":
+        problem = problems.mbb_beam(
+            height=height, width=width, density=density, device=device
+        )
+        problem.name = f"mbb_beam_{width}x{height}_{density}"
+    elif problem_name == "multistory_building":
+        problem = problems.multistory_building(
+            width=width,
+            height=height,
+            density=density,
+            interval=16,
+            device=device,
+        )
+        problem.name = f"multistory_building_{width}x{height}_{density}"
+    else:
+        raise ValueError("Structure is not valid!")
 
     # Add a tag for each type of problem as well
     run["sys/tags"].add([problem.name])
@@ -74,8 +94,16 @@ def mbb_structural_optimization_task(height, width, density, alpha, num_trials, 
     # Build and save the losses data for this run
     utils.build_trial_loss_plot(problem.name, trials, run)
 
+    # Save the best final design
+    best_final_design = best_trial[2]
+    best_score = np.round(best_trial[0], 2)
+    fig = utils.build_final_design(
+        problem.name, best_final_design, best_score, figsize=(10, 6)
+    )
+    run[f"best_trial-{problem.name}-final-design"].upload(fig)
+
     run.stop()
 
 
 if __name__ == "__main__":
-    mbb_structural_optimization_task()
+    structural_optimization_task()
