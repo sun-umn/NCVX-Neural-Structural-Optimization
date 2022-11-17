@@ -1,7 +1,8 @@
+import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as Fun
-import torch
-import numpy as np
+
 
 class CNNModel_torch(nn.Module):
 

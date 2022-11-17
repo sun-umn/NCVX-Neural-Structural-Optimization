@@ -94,6 +94,7 @@ def train_pygranso(
     pygranso_combined_function,
     device,
     cnn_kwargs=None,
+    neptune_logging=None,
     *,
     num_trials=50,
     mu=1.0,
@@ -103,10 +104,6 @@ def train_pygranso(
     """
     Function to train structural optimization pygranso
     """
-    # Get the device - if there is a GPU available then this
-    # will use the first GPU otherwise it will use the CPU
-    device = utils.get_devices()
-
     # Get the problem args
     args = topo_api.specified_task(problem, device=device)
 
@@ -120,7 +117,7 @@ def train_pygranso(
     # Trials
     trials = []
 
-    for seed in range(0, num_trials):
+    for index, seed in enumerate(range(0, num_trials)):
         torch.random.manual_seed(seed)
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.deterministic = True
@@ -203,6 +200,13 @@ def train_pygranso(
         final_designs = [designs[i] for i in designs_indexes]
 
         # Save the data from each trial
+        if neptune_logging is not None:
+            for f_value in log.f:
+                neptune_logging[f"trial = {index} / loss"].log(f_value)
+
+            fig = utils.build_final_design(problem.name, final_designs, figsize=(10, 6))
+            neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
+
         trials.append((soln.final.f, pd.Series(log.f), final_designs, wall_time))
 
         # Remove all variables for the next round

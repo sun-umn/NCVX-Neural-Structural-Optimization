@@ -11,6 +11,7 @@ import pandas as pd
 import scipy.sparse
 import scipy.sparse.linalg
 import torch
+from neptune.new.types import File
 from pygranso.pygransoStruct import pygransoStruct
 from torch.autograd import Function
 
@@ -334,7 +335,7 @@ def get_devices():
     return device
 
 
-def build_trial_loss_plot(problem_name, trials):
+def build_trial_loss_plot(problem_name, trials, neptune_logging):
     """
     Build the plots for all of the different trials
     """
@@ -347,35 +348,23 @@ def build_trial_loss_plot(problem_name, trials):
 
     # Build the loss plots
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-    ax = restart_losses.apply(np.log1p).cummin(axis=0).ffill(axis=0).plot(legend=False)
-    ax.set_title("Log-Compliance Score - MBB Beam - 50 Trials")
+    restart_losses.apply(np.log1p).cummin(axis=0).ffill(axis=0).plot(
+        legend=False, ax=ax
+    )
+    ax.set_title(f"Log-Compliance Score - MBB Beam - {len(trials)} Trials")
     ax.set_xlabel("Iteration")
     ax.set_ylabel("Log-Compliance")
     ax.grid()
 
-    # Will will save the raw data as well as the plot
-    raw_data_path = "./raw_data"
-    images_data_path = "./images"
-
-    # Get the timestamp for when we saved because we will be doing a lot
-    # of experiments
-    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
-    loss_filename = f"{timestamp}_{problem_name}_trial_losses_raw_data.csv"
-    image_filename = f"{timestamp}_{problem_name}_trial_losses.png"
-
-    # Save the data
-    restart_losses.to_csv(os.path.join(raw_data_path, loss_filename), index=False)
-    plt.savefig(os.path.join(images_data_path, image_filename))
+    neptune_logging["losses_df"].upload(File.as_html(restart_losses))
+    neptune_logging["losses_image"].upload(fig)
 
 
-def build_final_design(problem_name, trials, figsize=(10, 6)):
+def build_final_design(problem_name, final_designs, figsize=(10, 6)):
     """
     Function to build and display the stages of the final structure.
     For this plot we consider only the best structure that was found
     """
-    # Get the final designs
-    final_designs = trials[2]
-
     # Setup the figure
     fig, axes = plt.subplots(1, 1, figsize=figsize)
 
@@ -384,11 +373,13 @@ def build_final_design(problem_name, trials, figsize=(10, 6)):
     axes.set_ylabel("y")
     axes.set_title(f"{problem_name}")
 
-    # Get the images path to save
-    images_path = "./images"
-    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
-    images_file = f"{timestamp}_{problem_name}_final_designs.png"
-    plt.savefig(os.path.join(images_path, images_file))
+    # # Get the images path to save
+    # images_path = "./images"
+    # timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
+    # images_file = f"{timestamp}_{problem_name}_final_designs.png"
+    # plt.savefig(os.path.join(images_path, images_file))
+
+    return fig
 
 
 def build_structure_design(problem_name, trials, display="vertical", figsize=(10, 6)):
