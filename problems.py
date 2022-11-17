@@ -92,13 +92,20 @@ def mbb_beam(
     return Problem(normals, forces, density)
 
 
-def multistory_building(width=32, height=32, density=0.3, interval=16):
+def multistory_building(
+    width=32,
+    height=32,
+    density=0.3,
+    interval=16,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
     """A multi-story building, supported from the ground."""
-    normals = np.zeros((width + 1, height + 1, 2))
+    normals = np.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[:, -1, Y] = 1
     normals[-1, :, X] = 1
 
-    forces = np.zeros((width + 1, height + 1, 2))
+    forces = np.zeros((width + 1, height + 1, 2)).to(device=device, dtype=torch.long)
     forces[:, ::interval, Y] = -1 / width
     return Problem(normals, forces, density)
 
