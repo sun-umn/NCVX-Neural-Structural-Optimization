@@ -42,6 +42,9 @@ def structural_optimization_task(
             height=height, width=width, density=density, device=device
         )
         problem.name = f"mbb_beam_{width}x{height}_{density}"
+
+        # CNN Kwargs
+        cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
     elif problem_name == "multistory_building":
         problem = problems.multistory_building(
             width=width,
@@ -51,14 +54,14 @@ def structural_optimization_task(
             device=device,
         )
         problem.name = f"multistory_building_{width}x{height}_{density}"
+
+        # CNN Kwargs
+        cnn_kwargs = None
     else:
         raise ValueError("Structure is not valid!")
 
     # Add a tag for each type of problem as well
     run["sys/tags"].add([problem.name])
-
-    # CNN Kwargs
-    cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
 
     # num trials
     num_trials = num_trials
