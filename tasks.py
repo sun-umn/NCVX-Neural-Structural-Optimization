@@ -20,8 +20,9 @@ import utils
 @click.option("--alpha", default=5e3)
 @click.option("--num_trials", default=50)
 @click.option("--maxit", default=1500)
+@click.option("--resizes", is_flag=True, default=False)
 def structural_optimization_task(
-    problem_name, height, width, interval, density, alpha, num_trials, maxit
+    problem_name, height, width, interval, density, alpha, num_trials, maxit, resizes
 ):
     click.echo(problem_name)
     # Enable the neptune run
@@ -37,6 +38,13 @@ def structural_optimization_task(
     # PyGranso Volume Function
     comb_fn = train.volume_constrained_structural_optimization_function
 
+    # Consider resizes
+    if resizes:
+        cnn_kwargs = dict(resizes(1, 1, 2, 2, 1))
+    else:
+        cnn_kwargs = None
+    print(f"Resizes = {cnn_kwargs}")
+
     # Initialize the problem to be solved
     if problem_name == "mbb_beam":
         problem = problems.mbb_beam(
@@ -44,8 +52,6 @@ def structural_optimization_task(
         )
         problem.name = f"mbb_beam_{width}x{height}_{density}"
 
-        # CNN Kwargs
-        cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
     elif problem_name == "multistory_building":
         problem = problems.multistory_building(
             width=width,
@@ -56,8 +62,6 @@ def structural_optimization_task(
         )
         problem.name = f"multistory_building_{width}x{height}_{density}"
 
-        # CNN Kwargs
-        cnn_kwargs = None
     elif problem_name == "thin_support_bridge":
         problem = problems.thin_support_bridge(
             width=width,
@@ -67,8 +71,6 @@ def structural_optimization_task(
         )
         problem.name = f"thin_support_bridge_{width}x{height}_{density}"
 
-        # CNN Kwargs
-        cnn_kwargs = None
     else:
         raise ValueError("Structure is not valid!")
 
