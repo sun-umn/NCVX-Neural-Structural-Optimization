@@ -52,6 +52,9 @@ def volume_constrained_structural_optimization_function(
         dtype=dtype,
     )
     x_phys = torch.sigmoid(logits)
+    mask = torch.broadcast_to(args["mask"], x_phys.shape) > 0
+    mask = mask.requires_grad_(False)
+    x_phys = x_phys * mask.int()
 
     # Calculate the forces
     forces = topo_physics.calculate_forces(x_phys, args)
@@ -76,7 +79,7 @@ def volume_constrained_structural_optimization_function(
     # TODO: We may also want a way to use different coefficients
     # and see what type of coefficients have the best results
     ce = pygransoStruct()
-    ce.c1 = alpha * (torch.mean(x_phys) - args["volfrac"])
+    ce.c1 = alpha * (torch.mean(x_phys[mask]) - args["volfrac"])
 
     # Append updated physical density designs
     designs.append(x_phys.detach().cpu().numpy().astype(np.float16))  # noqa
@@ -169,7 +172,7 @@ def train_pygranso(
         ).to(device=device, dtype=utils.DEFAULT_DTYPE)
 
         # Additional pygranso options
-        opts.limited_mem_size = 30
+        opts.limited_mem_size = 35
         opts.double_precision = True
         opts.mu0 = mu
         opts.maxit = maxit

@@ -110,19 +110,26 @@ def multistory_building(
     return Problem(normals, forces, density)
 
 
-def thin_support_bridge(width=32, height=32, density=0.25, design_width=0.25):
+def thin_support_bridge(
+    width=32,
+    height=32,
+    density=0.25,
+    design_width=0.25,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
     """
     A bridge supported from below with fixed width supports.
     """
-    normals = np.zeros((width + 1, height + 1, 2))
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[:, -1, Y] = 1
     normals[0, :, X] = 1
     normals[-1, :, X] = 1
 
-    forces = np.zeros((width + 1, height + 1, 2))
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
 
-    mask = np.ones((width, height))
+    mask = torch.ones((width, height)).to(device=device, dtype=dtype)
     mask[-round(width * (1 - design_width)) :, : round(height * (1 - design_width))] = 0
 
     return Problem(normals, forces, density, mask)

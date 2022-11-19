@@ -15,12 +15,13 @@ import utils
 @click.option("--problem_name", default="mbb_beam", type=click.STRING)
 @click.option("--height", default=20)
 @click.option("--width", default=60)
+@click.option("--interval", default=16)
 @click.option("--density", default=0.5)
 @click.option("--alpha", default=5e3)
 @click.option("--num_trials", default=50)
 @click.option("--maxit", default=1500)
 def structural_optimization_task(
-    problem_name, height, width, density, alpha, num_trials, maxit
+    problem_name, height, width, interval, density, alpha, num_trials, maxit
 ):
     click.echo(problem_name)
     # Enable the neptune run
@@ -50,10 +51,21 @@ def structural_optimization_task(
             width=width,
             height=height,
             density=density,
-            interval=16,
+            interval=interval,
             device=device,
         )
         problem.name = f"multistory_building_{width}x{height}_{density}"
+
+        # CNN Kwargs
+        cnn_kwargs = None
+    elif problem_name == "thin_support_bridge":
+        problem = problems.thin_support_bridge(
+            width=width,
+            height=height,
+            density=density,
+            device=device,
+        )
+        problem.name = f"thin_support_bridge_{width}x{height}_{density}"
 
         # CNN Kwargs
         cnn_kwargs = None
@@ -100,6 +112,9 @@ def structural_optimization_task(
     # Save the best final design
     best_final_design = best_trial[2]
     best_score = np.round(best_trial[0], 2)
+
+    # TODO: Will need a special implmentation for some of the final
+    # designs
     fig = utils.build_final_design(
         problem.name, best_final_design, best_score, figsize=(10, 6)
     )
