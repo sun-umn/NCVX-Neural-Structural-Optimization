@@ -172,7 +172,7 @@ def train_pygranso(
         ).to(device=device, dtype=utils.DEFAULT_DTYPE)
 
         # Additional pygranso options
-        opts.limited_mem_size = 35
+        opts.limited_mem_size = 10
         opts.double_precision = True
         opts.mu0 = mu
         opts.maxit = maxit
