@@ -5,15 +5,19 @@ import torch
 import os
 import pandas as pd
 
-# import problems to solve
-import problems
-import experiments
-import train
-import topo_api
-import topo_physics
-import models
-import utils
+import sys
+sys.path.append('/home/buyun/Documents/GitHub/NCVX-Neural-Structural-Optimization')
 
+# import problems to solve
+from str_opt_utils import problems
+from str_opt_utils import experiments
+from str_opt_utils import train
+from str_opt_utils import topo_api
+from str_opt_utils import topo_physics
+from str_opt_utils import models
+from str_opt_utils import utils
+
+sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
 from pygranso.private.getNvar import getNvarTorch
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
