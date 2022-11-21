@@ -11,7 +11,11 @@ import pandas as pd
 import scipy.sparse
 import scipy.sparse.linalg
 import torch
-from neptune.new.types import File
+
+import sys
+sys.path.append('/home/buyun/Documents/GitHub/PyGRANSO')
+
+# from neptune.new.types import File
 from pygranso.pygransoStruct import pygransoStruct
 from torch.autograd import Function
 
@@ -31,6 +35,8 @@ except ImportError:
 
 # Default device
 DEFAULT_DEVICE = torch.device("cpu")
+# DEFAULT_DEVICE = torch.device("cuda:0")
+
 DEFAULT_DTYPE = torch.double
 
 
@@ -356,8 +362,8 @@ def build_trial_loss_plot(problem_name, trials, neptune_logging):
     ax.set_ylabel("Log-Compliance")
     ax.grid()
 
-    neptune_logging["losses_df"].upload(File.as_html(restart_losses))
-    neptune_logging["losses_image"].upload(fig)
+    # neptune_logging["losses_df"].upload(File.as_html(restart_losses))
+    # neptune_logging["losses_image"].upload(fig)
 
 
 def build_final_design(problem_name, final_designs, compliance, figsize=(10, 6)):
