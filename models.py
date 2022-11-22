@@ -108,7 +108,6 @@ class CNNModel(nn.Module):
         self.global_normalization = nn.ModuleList()
 
         # Trainable bias layer
-        # self.add_offset = nn.ParameterList()
         self.add_offset = nn.ModuleList()
 
         # Add the convolutional layers to the module list
