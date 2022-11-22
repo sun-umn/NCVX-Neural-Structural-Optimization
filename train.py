@@ -3,6 +3,7 @@ import gc
 import time
 
 # third party
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -213,6 +214,7 @@ def train_pygranso(
                 problem.name, final_designs, best_score, figsize=(10, 6)
             )
             neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
+            plt.close()
 
         trials.append((soln.final.f, pd.Series(log.f), final_designs, wall_time))
 
@@ -230,6 +232,7 @@ def train_pygranso(
             log,
             designs_indexes,
             final_designs,
+            fig,
         )
         gc.collect()
         torch.cuda.empty_cache()

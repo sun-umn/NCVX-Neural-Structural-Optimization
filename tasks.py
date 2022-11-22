@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # third party
 import click
+import matplotlib.pyplot as plt
 import neptune.new as neptune
 import numpy as np
 
@@ -121,6 +122,9 @@ def structural_optimization_task(
         problem.name, best_final_design, best_score, figsize=(10, 6)
     )
     run[f"best_trial-{problem.name}-final-design"].upload(fig)
+
+    # Close the figure
+    plt.close()
 
     run.stop()
 
