@@ -1,6 +1,9 @@
+# third party
 import numpy as np
+import scipy
 import torch
 
+# first party
 import utils
 
 
@@ -9,11 +12,7 @@ def young_modulus(x, e_0, e_min, p=3):
     """
     Function that calculates the young modulus
     """
-    # e_0 = e_0.clone().detach()
-    # e_min = e_min.clone().detach()
-    # p = p.clone().detach()
-
-    return e_min + x ** p * (e_0 - e_min)
+    return e_min + x**p * (e_0 - e_min)
 
 
 # Define the physical density with torch
@@ -73,7 +72,9 @@ def calculate_forces(x_phys, args):
 
 
 # Build a stiffness matrix
-def get_stiffness_matrix(young: float, poisson: float, device=torch.device('cpu'), dtype=torch.double) -> torch.tensor:
+def get_stiffness_matrix(
+    young: float, poisson: float, device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
+) -> np.array:
     """
     Function to build the elements of the stiffness matrix
     """
@@ -123,33 +124,52 @@ def get_stiffness_matrix(young: float, poisson: float, device=torch.device('cpu'
 
 
 # Compliance
-def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
+def compliance(
+    x_phys,
+    u,
+    ke,
+    args,
+    *,
+    penal=3,
+    e_min=1e-9,
+    e_0=1,
+    base="Google",
+    device=utils.DEFAULT_DEVICE,
+    dtype=utils.DEFAULT_DTYPE,
+):
     """
     Calculate the compliance objective.
     NOTE: For our implementation both x_phys and u will require_grad
     and will both be torch tensors.
     """
-    nely, nelx = x_phys.shape
-    ely, elx = np.meshgrid(range(nely), range(nelx))
+    nely, nelx = args["nely"], args["nelx"]
 
-    # Nodes
-    n1 = (nely + 1) * (elx + 0) + (ely + 0)
-    n2 = (nely + 1) * (elx + 1) + (ely + 0)
-    n3 = (nely + 1) * (elx + 1) + (ely + 1)
-    n4 = (nely + 1) * (elx + 0) + (ely + 1)
-    all_ixs = np.array(
-        [
-            2 * n1,
-            2 * n1 + 1,
-            2 * n2,
-            2 * n2 + 1,
-            2 * n3,
-            2 * n3 + 1,
-            2 * n4,
-            2 * n4 + 1,
-        ]  # noqa
+    # Compute the torch based meshgrid
+    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
+    ely, elx = ely.transpose(1, 0), elx.transpose(1, 0)
+
+    # Calculate nodes - reflects the MATLAB code
+    if base == "MATLAB":
+        n1 = (nely + 1) * (elx + 0) + (ely + 1)
+        n2 = (nely + 1) * (elx + 1) + (ely + 1)
+        n3 = (nely + 1) * (elx + 1) + (ely + 0)
+        n4 = (nely + 1) * (elx + 0) + (ely + 0)
+
+    elif base == "Google":
+        # Google implementation
+        n1 = (nely + 1) * (elx + 0) + (ely + 0)
+        n2 = (nely + 1) * (elx + 1) + (ely + 0)
+        n3 = (nely + 1) * (elx + 1) + (ely + 1)
+        n4 = (nely + 1) * (elx + 0) + (ely + 1)
+
+    else:
+        raise ValueError("Only options are MATLAB and Google!")
+
+    # The shape of this matrix results in
+    # (8, nelx, nely)
+    all_ixs = torch.stack(
+        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
     )
-    all_ixs = torch.from_numpy(all_ixs)
 
     # The selected u and now needs to be multiplied by K
     u_selected = u[all_ixs].squeeze()
@@ -165,7 +185,7 @@ def compliance(x_phys, u, ke, *, penal=3, e_min=1e-9, e_0=1,device=torch.device(
     return young_x_phys * ce.T, u_selected, ke_u
 
 
-def get_k(stiffness, ke):
+def get_k_data(stiffness, ke, args, base="MATLAB"):
     """
     Function that is the pytorch version of get_K
     from the other repository
@@ -173,34 +193,11 @@ def get_k(stiffness, ke):
     if not torch.is_tensor(ke):
         ke = torch.from_numpy(ke)
 
-    nely, nelx = stiffness.shape
+    # Get the dimensions
+    nely, nelx = args["nely"], args["nelx"]
 
-    # Compute the torch based meshgrid
-    # Buyun: indexing not allowed for torch 1.9.0
-    # ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx), indexing="xy")
-    elx,ely = torch.meshgrid(torch.arange(nelx),torch.arange(nely))
+    edof, x_list, y_list = build_nodes_data(args, base=base)
 
-    ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
-
-    # Calculate nodes
-    n1 = (nely + 1) * (elx + 0) + (ely + 0)
-    n2 = (nely + 1) * (elx + 1) + (ely + 0)
-    n3 = (nely + 1) * (elx + 1) + (ely + 1)
-    n4 = (nely + 1) * (elx + 0) + (ely + 1)
-
-    # The shape of this matrix results in
-    # (8, nelx, nely)
-    edof = torch.stack(
-        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
-    )
-
-    # Calculate the transpose & get the first
-    # element
-    edof = edof.permute(2, 1, 0)[0]
-
-    # Create the x & y list
-    x_list = edof.repeat_interleave(8)
-    y_list = edof.tile((8,)).flatten()
     kd = stiffness.T.reshape(nely * nelx, 1, 1)
     value_list = (kd * ke.tile(kd.shape)).flatten()
 
@@ -248,7 +245,19 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
 
 
 def sparse_displace(
-    x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1, device=torch.device('cpu'), dtype=torch.double
+    x_phys,
+    ke,
+    args,
+    forces,
+    freedofs,
+    fixdofs,
+    *,
+    penal=3,
+    e_min=1e-9,
+    e_0=1,
+    base="Google",
+    device=utils.DEFAULT_DEVICE,
+    dtype=utils.DEFAULT_DTYPE,
 ):
     """
     Function that displaces the load x using finite element techniques.
@@ -256,24 +265,49 @@ def sparse_displace(
     stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
 
     # Get the K values
-    k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+    k_entries, k_ylist, k_xlist = get_k_data(stiffness, ke, args, base=base)
+    k_ylist = k_ylist.to(device=device, dtype=dtype)
+    k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
     )
 
     # Reduced forces
-    freedofs_forces = forces[freedofs.cpu().numpy()]
+    freedofs_forces = forces[freedofs].double().to(device=device, dtype=dtype)
+    size = freedofs_forces.cpu().numpy().size
+
+    # Require gradient on the forces
+    freedofs_forces = freedofs_forces.requires_grad_()
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
-    u_nonzero = utils.solve_coo(keep_k_entries, indices, freedofs_forces, sym_pos=False)
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))
 
-    return u_values[index_map].to(device=device, dtype=dtype), None
+    # Build the sparse matrix
+    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size])
+    K = (K + K.transpose(1, 0)) / 2.0
+
+    # Symmetric indices
+    keep_k_entries = K.coalesce().values()
+    indices = K.coalesce().indices()
+
+    # Compute the u_matrix values
+    u_nonzero = utils.solve_coo(
+        keep_k_entries,
+        indices,
+        freedofs_forces,
+        sym_pos=False,
+        device=device,
+        dtype=dtype,
+    )
+    fixdofs_zeros = torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)
+    u_values = torch.cat((u_nonzero, fixdofs_zeros))
+    u_values = u_values[index_map].to(device=device, dtype=dtype)
+
+    return u_values
 
 
-def build_full_K_matrix(x_phys, args):
+def build_K_matrix(x_phys, args, base="MATLAB"):
     """
     Function to build the full K matrix
     """
@@ -286,12 +320,152 @@ def build_full_K_matrix(x_phys, args):
     ke = get_stiffness_matrix(young=args["young"], poisson=args["poisson"])
 
     # Get the K indices and values
-    k_entries, k_ylist, k_xlist = get_k(stiffness=stiffness, ke=ke)
+    k_entries, k_ylist, k_xlist = get_k_data(
+        stiffness=stiffness, ke=ke, args=args, base=base
+    )
 
     # Create full indices
-    indices = torch.stack([k_ylist, k_xlist])
+    if base == "MATLAB":
+        indices = torch.stack([k_ylist, k_xlist])
+        k_entries = k_entries
 
-    # Create the K matrix
-    K = (torch.sparse_coo_tensor(indices, k_entries)).to_dense().double()
+        # Create the K matrix
+        K = (torch.sparse_coo_tensor(indices, k_entries)).to_dense().double()
+        K = (K + K.transpose(1, 0)) / 2.0
+
+    elif base == "Google":
+        freedofs = args["freedofs"].numpy()
+        fixdofs = args["fixdofs"].numpy()
+        free_forces = args["forces"][freedofs].numpy()
+
+        # Get the indices
+        index_map, keep, indices = utils._get_dof_indices(
+            freedofs, fixdofs, k_ylist, k_xlist
+        )
+        size = free_forces.size
+
+        # Calculate the K matrix for the google based code
+        k_entires = k_entries[keep].numpy()
+        indices = indices.numpy()
+
+        # Compute K
+        K = (
+            scipy.sparse.coo_matrix((k_entries[keep], indices), shape=(size,) * 2)
+            .tocsc()
+            .todense()
+        )
+        K = (K + K.T) / 2.0
+
+    else:
+        raise ValueError("Only methods MATLAB and Google are valid!")
 
     return K
+
+
+def build_nodes_data(args, base="MATLAB"):
+    """
+    Build the nodes matrix from both the MATLAB and Google
+    code. Turns out the code from the two different methods is
+    different but we want to be able to test that we have
+    the right implementation for each method. These same nodes will
+    also be fed into the compliance objective.
+    """
+    nely, nelx = args["nely"], args["nelx"]
+
+    # Compute the torch based meshgrid
+    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
+    ely, elx = ely.transpose(1, 0), elx.transpose(1, 0)
+    ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
+
+    # Calculate nodes - reflects the MATLAB code
+    if base == "MATLAB":
+        n1 = (nely + 1) * (elx + 0) + (ely + 1)
+        n2 = (nely + 1) * (elx + 1) + (ely + 1)
+        n3 = (nely + 1) * (elx + 1) + (ely + 0)
+        n4 = (nely + 1) * (elx + 0) + (ely + 0)
+
+    elif base == "Google":
+        # Google implementation
+        n1 = (nely + 1) * (elx + 0) + (ely + 0)
+        n2 = (nely + 1) * (elx + 1) + (ely + 0)
+        n3 = (nely + 1) * (elx + 1) + (ely + 1)
+        n4 = (nely + 1) * (elx + 0) + (ely + 1)
+
+    else:
+        raise ValueError("Only options are MATLAB and Google!")
+
+    # The shape of this matrix results in
+    # (8, nelx, nely)
+    edof = torch.stack(
+        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
+    )
+
+    # Calculate the transpose & get the first
+    # element
+    edof = edof.permute(2, 1, 0)[0]
+
+    # Build the i & j indices for a sparse matrix
+    y_list = edof.tile((8,)).flatten()
+    x_list = edof.repeat_interleave(8)
+
+    return edof, y_list, x_list
+
+
+def build_nodes_data_google(args):
+    """
+    An exact implementation of the Google code to build
+    the nodes for K and the compliance
+    """
+    nely, nelx = args["nely"], args["nelx"]
+
+    # get position of the nodes of each element in the stiffness matrix
+    ely, elx = np.meshgrid(range(nely), range(nelx))  # x, y coords
+    ely, elx = ely.reshape(-1, 1), elx.reshape(-1, 1)
+
+    n1 = (nely + 1) * (elx + 0) + (ely + 0)
+    n2 = (nely + 1) * (elx + 1) + (ely + 0)
+    n3 = (nely + 1) * (elx + 1) + (ely + 1)
+    n4 = (nely + 1) * (elx + 0) + (ely + 1)
+    edof = np.array(
+        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
+    )
+    edof = edof.T[0]
+
+    return edof
+
+
+def get_stiffness_matrix_google(young, poisson):
+    """
+    Function from the google code to compute the stiffness
+    matrix
+    """
+    # Element stiffness matrix
+    e, nu = young, poisson
+    k = np.array(
+        [
+            1 / 2 - nu / 6,
+            1 / 8 + nu / 8,
+            -1 / 4 - nu / 12,
+            -1 / 8 + 3 * nu / 8,
+            -1 / 4 + nu / 12,
+            -1 / 8 - nu / 8,
+            nu / 6,
+            1 / 8 - 3 * nu / 8,
+        ]
+    )
+    return (
+        e
+        / (1 - nu**2)
+        * np.array(
+            [
+                [k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]],
+                [k[1], k[0], k[7], k[6], k[5], k[4], k[3], k[2]],
+                [k[2], k[7], k[0], k[5], k[6], k[3], k[4], k[1]],
+                [k[3], k[6], k[5], k[0], k[7], k[2], k[1], k[4]],
+                [k[4], k[5], k[6], k[7], k[0], k[1], k[2], k[3]],
+                [k[5], k[4], k[3], k[2], k[1], k[0], k[7], k[6]],
+                [k[6], k[3], k[4], k[1], k[2], k[7], k[0], k[5]],
+                [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]],
+            ]
+        )
+    )

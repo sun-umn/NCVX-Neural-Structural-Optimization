@@ -1,13 +1,21 @@
+# stdlib
+import os
 import warnings
 
+# third party
 import autograd
 import autograd.numpy as anp
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy.sparse
 import scipy.sparse.linalg
 import torch
+from neptune.new.types import File
 from pygranso.pygransoStruct import pygransoStruct
 from torch.autograd import Function
+
+import utils
 
 try:
     import sksparse.cholmod
@@ -21,6 +29,11 @@ except ImportError:
     HAS_CHOLMOD = False
 
 
+# Default device
+DEFAULT_DEVICE = torch.device("cpu")
+DEFAULT_DTYPE = torch.double
+
+
 class SparseSolver(Function):
     """
     The SparseSolver method is a sparse linear solver which also
@@ -28,76 +41,78 @@ class SparseSolver(Function):
     """
 
     @staticmethod
-    def forward(ctx, a_entries, a_indices, b, sym_pos=False):  # noqa
+    def forward(
+        ctx,
+        a_entries,
+        a_indices,
+        b,
+        sym_pos=False,
+        device=utils.DEFAULT_DEVICE,
+        dtype=utils.DEFAULT_DTYPE,
+    ):  # noqa
         # Set the inputs
         ctx.a_entries = a_entries
         ctx.a_indices = a_indices
+        ctx.b = b.data.cpu().numpy()
         ctx.sym_pos = sym_pos
+        ctx.device = device
+        ctx.dtype = dtype
 
         # Gather the result
-        a = scipy.sparse.coo_matrix(
-            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()), shape=(b.cpu().numpy().size,) * 2
-        ).tocsc()
-        a = (a + a.T) / 2.0
+        a = scipy.sparse.csc_matrix(
+            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()),
+            shape=(b.detach().cpu().numpy().size,) * 2,
+        ).astype(np.float64)
 
         if sym_pos and HAS_CHOLMOD:
-            solver = sksparse.cholmod.cholesky(a).solve_A
+            solver = sksparse.cholmod.cholesky(a, ordering_method="natural").solve_A
         else:
             # could also use scikits.umfpack.splu
             # should be about twice as slow as the cholesky
-            solver = scipy.sparse.linalg.splu(a).solve
+            solver = scipy.sparse.linalg.splu(a, permc_spec="NATURAL").solve
 
-        result = torch.from_numpy(solver(b.cpu().numpy()))
-
-        if b.is_cuda:
-            result = result.to(device=torch.device('cuda:0'))
+        b_np = b.data.cpu().numpy().astype(np.float64)
+        result = torch.from_numpy(solver(b_np).astype(np.float64))
 
         # The output from the forward pass needs to have
         # requires_grad = True
         result = result.requires_grad_()
+
+        # Need to put the result back on the same device
+        if b.is_cuda:
+            result = result.to(device=device, dtype=dtype)
+
         ctx.result = result
         return result
 
     @staticmethod
-    def backward(ctx, grad_output):  # noqa
+    def backward(ctx, grad):  # noqa
+        """
+        Gather the values from the saved context
+        """
         a_entries = ctx.a_entries
         a_indices = ctx.a_indices
+        b = ctx.b
         sym_pos = ctx.sym_pos
+        device = ctx.device
+        dtype = ctx.dtype
         result = ctx.result
 
-        # Gather the result
-        a = scipy.sparse.coo_matrix(
-            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()),
-            shape=(grad_output.cpu().numpy().size,) * 2
-        ).tocsc()
-        a = (a + a.T) / 2.0
-
-        # If the matrix is postive definte and symetric then
-        # we can use the cholesky factorization
-        # otherwise we will use the sparse lu decomposition
-        if sym_pos and HAS_CHOLMOD:
-            solver = sksparse.cholmod.cholesky(a).solve_A
-        else:
-            # could also use scikits.umfpack.splu
-            # should be about twice as slow as the cholesky
-            solver = scipy.sparse.linalg.splu(a).solve
-
         # Calculate the gradient
-        lambda_ = torch.from_numpy(solver(grad_output.cpu().numpy()))
-        if grad_output.is_cuda:
-            lambda_ = lambda_.to(device=torch.device('cuda:0'))
+        lambda_ = SparseSolver.apply(a_entries, a_indices, grad, False, device, dtype)
         i, j = a_indices
         i, j = i.long(), j.long()
         output = -lambda_[i] * result[j]
-        return output, None, None, None
+
+        return output, None, lambda_, None, None, None
 
 
-def solve_coo(a_entries, a_indices, b, sym_pos):
+def solve_coo(a_entries, a_indices, b, sym_pos, device, dtype):
     """
     Wrapper around the SparseSolver class for building
     a large sparse matrix gradient
     """
-    return SparseSolver.apply(a_entries, a_indices, b, sym_pos)
+    return SparseSolver.apply(a_entries, a_indices, b, sym_pos, device, dtype)
 
 
 # Implement a find root extension for pytorch
@@ -110,7 +125,7 @@ class FindRoot(Function):
 
     @staticmethod
     def forward(  # noqa
-        ctx, x, f, lower_bound, upper_bound, tolerance=1e-12
+        ctx, x, f, lower_bound, upper_bound, tolerance=1e-6
     ) -> torch.tensor:  # noqa
         # define the maximum number of iterations
         max_iterations = 65
@@ -300,6 +315,126 @@ def build_node_indexes(x_phys):
     return all_ixs
 
 
+def get_devices():
+    """
+    Function to get GPU devices if available. If there are
+    no GPU devices available then use CPU
+    """
+    # Default device
+    device = torch.device("cpu")
+
+    # Get available GPUs
+    n_gpus = torch.cuda.device_count()
+    if n_gpus > 0:
+        gpu_name_list = [f"cuda:{device}" for device in range(n_gpus)]
+
+        # NOTE: For now we will only use the first GPU
+        # but we might want to consider distributed GPUs in the future
+        device = torch.device(gpu_name_list[0])
+
+    return device
+
+
+def build_trial_loss_plot(problem_name, trials, neptune_logging):
+    """
+    Build the plots for all of the different trials
+    """
+    # Gather all of the losses from the different trials
+    losses = [loss for _, loss, _, _ in trials]
+
+    # Concat all of the losses
+    restart_losses = pd.concat(losses, axis=1)
+    restart_losses.columns = [f"trial-{i}" for i in range(restart_losses.shape[1])]
+
+    # Build the loss plots
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+    restart_losses.apply(np.log1p).cummin(axis=0).ffill(axis=0).plot(
+        legend=False, ax=ax
+    )
+    ax.set_title(f"Log-Compliance Score - MBB Beam - {len(trials)} Trials")
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Log-Compliance")
+    ax.grid()
+
+    neptune_logging["losses_df"].upload(File.as_html(restart_losses))
+    neptune_logging["losses_image"].upload(fig)
+
+
+def build_final_design(problem_name, final_designs, compliance, figsize=(10, 6)):
+    """
+    Function to build and display the stages of the final structure.
+    For this plot we consider only the best structure that was found
+    """
+    # Get the final design
+    final_design = final_designs[-1]
+
+    # Set up the final design for the bridge
+    # TODO: Depending on how many sturctures we want there may
+    # be more modification
+    if "bridge" in problem_name:
+        final_frame = final_design
+        revered_final_frame = final_frame[:, ::-1]
+
+        # We stack the frames and replicate for the bridge
+        final_design = np.hstack([final_frame, revered_final_frame] * 2)
+
+    # Setup the figure
+    fig, axes = plt.subplots(1, 1, figsize=figsize)
+
+    axes.imshow(final_design, cmap="Greys")
+    axes.set_xlabel("x")
+    axes.set_ylabel("y")
+    axes.set_title(f"{problem_name} / Comp={compliance}")
+
+    # # Get the images path to save
+    # images_path = "./images"
+    # timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
+    # images_file = f"{timestamp}_{problem_name}_final_designs.png"
+    # plt.savefig(os.path.join(images_path, images_file))
+
+    return fig
+
+
+def build_structure_design(problem_name, trials, display="vertical", figsize=(10, 6)):
+    """
+    Function to build and display the stages of the final structure.
+    For this plot we consider only the best structure that was found
+    """
+    # Get the final designs
+    final_designs = trials[2]
+
+    # Get 5 structures through time and plot them
+    if display == "vertical":
+        fig, axes = plt.subplots(5, 1, figsize=figsize)
+    elif display == "horizonal":
+        fig, axes = plt.subplots(1, 5, figsize=figsize)
+    else:
+        raise ValueError("Only options are horizonal and vertial!")
+
+    # flatten the axes
+    axes = axes.flatten()
+
+    # Split the arrays
+    indexes = np.arange(len(final_designs))
+    structures = np.array_split(indexes, 5)
+    for index, step in enumerate(structures):
+        step = int(step[-1])
+        axes[index].imshow(final_designs[step], cmap="Greys")
+        axes[index].set_xlabel("x")
+        axes[index].set_ylabel("y")
+        axes[index].set_title(f"iteration={step}")
+
+    # Title for the final plot
+    fig.suptitle(f"{problem_name}")
+    fig.tight_layout()
+
+    # Get the images path to save
+    images_path = "./images"
+    timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
+    images_file = f"{timestamp}_{problem_name}_designs.png"
+    plt.savefig(os.path.join(images_path, images_file))
+
+
 class HaltLog:
     """
     Save the iterations from pygranso
@@ -332,6 +467,7 @@ class HaltLog:
         self.x_iterates.append(x)
         self.f.append(penaltyfn_parts.f)
         self.tv.append(penaltyfn_parts.tv)
+        self.evals.append(ls_evals)
 
         # keep this false unless you want to implement a custom termination
         # condition
@@ -350,6 +486,7 @@ class HaltLog:
         log.x = self.x_iterates[0 : self.index]
         log.f = self.f[0 : self.index]
         log.tv = self.tv[0 : self.index]
+        log.fn_evals = self.evals[0 : self.index]
         return log
 
     def makeHaltLogFunctions(self, maxit):  # noqa
@@ -394,6 +531,7 @@ class HaltLog:
         self.x_iterates = []
         self.f = []
         self.tv = []
+        self.evals = []
 
         # Only modify the body of logIterate(), not its name or arguments.
         # Store whatever data you wish from the current PyGRANSO iteration info,

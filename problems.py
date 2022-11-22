@@ -20,6 +20,8 @@ from typing import Optional, Union
 import numpy as np
 import torch
 
+from utils import DEFAULT_DEVICE, DEFAULT_DTYPE
+
 X, Y = 0, 1
 
 
@@ -76,7 +78,9 @@ class Problem:
         )
 
 
-def mbb_beam(width=60, height=20, density=0.5, device=torch.device('cpu'), dtype=torch.double):
+def mbb_beam(
+    width=60, height=20, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+):
     """Textbook beam example."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[-1, -1, Y] = 1
@@ -88,34 +92,45 @@ def mbb_beam(width=60, height=20, density=0.5, device=torch.device('cpu'), dtype
     return Problem(normals, forces, density)
 
 
+def multistory_building(
+    width=32,
+    height=32,
+    density=0.3,
+    interval=16,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A multi-story building, supported from the ground."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[:, -1, Y] = 1
+    normals[-1, :, X] = 1
 
-def multistory_building(width=32, height=32, density=0.3, interval=16, device=torch.device('cpu'), dtype=torch.double):
-  """A multi-story building, supported from the ground."""
-  normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
-  normals[:, -1, Y] = 1
-  normals[-1, :, X] = 1
-
-  forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
-  forces[:, ::interval, Y] = -1 / width
-  return Problem(normals, forces, density)
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, ::interval, Y] = -1 / width
+    return Problem(normals, forces, density)
 
 
 def thin_support_bridge(
-    width=32, height=32, density=0.25, design_width=0.25
+    width=32,
+    height=32,
+    density=0.25,
+    design_width=0.25,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
 ):
     """
-        A bridge supported from below with fixed width supports.
+    A bridge supported from below with fixed width supports.
     """
-    normals = np.zeros((width + 1, height + 1, 2))
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[:, -1, Y] = 1
     normals[0, :, X] = 1
     normals[-1, :, X] = 1
 
-    forces = np.zeros((width + 1, height + 1, 2))
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
 
-    mask = np.ones((width, height))
-    mask[-round(width*(1-design_width)):, :round(height*(1-design_width))] = 0
+    mask = torch.ones((width, height)).to(device=device, dtype=dtype)
+    mask[-round(width * (1 - design_width)) :, : round(height * (1 - design_width))] = 0
 
     return Problem(normals, forces, density, mask)
 
@@ -123,21 +138,21 @@ def thin_support_bridge(
 # Problems Category
 PROBLEMS_BY_CATEGORY = {
     # idealized beam and cantilevers
-    'mbb_beam': [
+    "mbb_beam": [
         mbb_beam(96, 32, density=0.5),
         mbb_beam(192, 64, density=0.4),
         mbb_beam(384, 128, density=0.3),
         mbb_beam(192, 32, density=0.5),
         mbb_beam(384, 64, density=0.4),
     ],
-    'multistory_building': [
+    "multistory_building": [
         multistory_building(32, 64, density=0.5),
         multistory_building(64, 128, interval=32, density=0.4),
         multistory_building(128, 256, interval=64, density=0.3),
         multistory_building(128, 512, interval=64, density=0.25),
         multistory_building(128, 512, interval=128, density=0.2),
     ],
-    'thin_support_bridge': [
+    "thin_support_bridge": [
         thin_support_bridge(64, 64, density=0.3),
         thin_support_bridge(128, 128, density=0.2),
         thin_support_bridge(256, 256, density=0.15),
@@ -149,8 +164,8 @@ PROBLEMS_BY_CATEGORY = {
 # Create the ability to do problems by name the same as the paper
 PROBLEMS_BY_NAME = {}
 for problem_class, problem_list in PROBLEMS_BY_CATEGORY.items():
-  for problem in problem_list:
-    name = f'{problem_class}_{problem.width}x{problem.height}_{problem.density}'
-    problem.name = name
-    assert name not in PROBLEMS_BY_NAME, f'redundant name {name}'
-    PROBLEMS_BY_NAME[name] = problem
+    for problem in problem_list:
+        name = f"{problem_class}_{problem.width}x{problem.height}_{problem.density}"
+        problem.name = name
+        assert name not in PROBLEMS_BY_NAME, f"redundant name {name}"
+        PROBLEMS_BY_NAME[name] = problem

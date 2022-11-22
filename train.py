@@ -1,5 +1,11 @@
+# stdlib
+import gc
 import time
 
+# third party
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,10 +13,231 @@ from pygranso.private.getNvar import getNvarTorch
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 
+# first party
 import models
 import topo_api
 import topo_physics
 import utils
+
+
+# Updated Section for training PyGranso with Direct Volume constraints
+# TODO: We will want to create a more generalized format for training our PyGranso
+# problems for for now we will have a separate training process for the volume
+# constraint that we have been working on
+# Volume constrained function
+def volume_constrained_structural_optimization_function(
+    model, ke, alpha, args, designs, losses, device, dtype
+):
+    """
+    Combined function for PyGranso for the structural optimization
+    problem. The inputs will be the model that reparameterizes x as a function
+    of a neural network. V0 is the initial volume, K is the global stiffness
+    matrix and F is the forces that are applied in the problem.
+
+    Notes:
+    For the original MBB Beam the best alpha is 5e3
+    """
+    # Initialize the model
+    # In my version of the model it follows the similar behavior of the
+    # tensorflow repository and only needs None to initialize and output
+    # a first value of x
+    logits = model(None)
+
+    # kwargs for displacement
+    kwargs = dict(
+        penal=args["penal"],
+        e_min=args["young_min"],
+        e_0=args["young"],
+        base="MATLAB",
+        device=device,
+        dtype=dtype,
+    )
+    x_phys = torch.sigmoid(logits)
+    mask = torch.broadcast_to(args["mask"], x_phys.shape) > 0
+    mask = mask.requires_grad_(False)
+    x_phys = x_phys * mask.int()
+
+    # Calculate the forces
+    forces = topo_physics.calculate_forces(x_phys, args)
+
+    # Calculate the u_matrix
+    u_matrix = topo_physics.sparse_displace(
+        x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
+    )
+
+    # Calculate the compliance output
+    compliance_output, _, _ = topo_physics.compliance(
+        x_phys, u_matrix, ke, args, **kwargs
+    )
+
+    # The loss is the sum of the compliance
+    f = torch.abs(torch.sum(compliance_output))
+
+    # Run this problem with no inequality constraints
+    ci = None
+
+    # Run this problem with no equality constraints
+    # TODO: We may also want a way to use different coefficients
+    # and see what type of coefficients have the best results
+    ce = pygransoStruct()
+    ce.c1 = alpha * (torch.mean(x_phys[mask]) - args["volfrac"])
+
+    # Append updated physical density designs
+    designs.append(x_phys.detach().cpu().numpy().astype(np.float16))  # noqa
+
+    # Let's try and clear as much stuff as we can to preserve memory
+    del logits, x_phys, forces, u_matrix, compliance_output
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    return f, ci, ce
+
+
+def train_pygranso(
+    problem,
+    pygranso_combined_function,
+    device,
+    cnn_kwargs=None,
+    neptune_logging=None,
+    *,
+    num_trials=50,
+    mu=1.0,
+    maxit=500,
+    alpha=5e3,
+) -> tuple:
+    """
+    Function to train structural optimization pygranso
+    """
+    # Get the problem args
+    args = topo_api.specified_task(problem, device=device)
+
+    # Create the stiffness matrix
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"],
+        poisson=args["poisson"],
+        device=device,
+    )
+
+    # Trials
+    trials = []
+
+    for index, seed in enumerate(range(0, num_trials)):
+        np.random.seed(seed)
+        torch.random.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+        # Initialize the CNN Model
+        if cnn_kwargs is not None:
+            cnn_model = models.CNNModel(args, **cnn_kwargs).to(
+                device=device, dtype=utils.DEFAULT_DTYPE
+            )
+        else:
+            cnn_model = models.CNNModel(args).to(
+                device=device, dtype=utils.DEFAULT_DTYPE
+            )
+
+        # Put the cnn model in training mode
+        cnn_model.train()
+
+        # Create the combined function and structural optimization
+        # setup
+        # Save the physical density designs & the losses
+        designs = []
+        losses = []
+
+        # Combined function
+        comb_fn = lambda model: pygranso_combined_function(  # noqa
+            model,
+            ke,
+            alpha,
+            args,
+            designs=designs,
+            losses=losses,
+            device=device,
+            dtype=utils.DEFAULT_DTYPE,
+        )
+
+        # Initalize the pygranso options
+        opts = pygransoStruct()
+
+        # Set the device
+        opts.torch_device = device
+
+        # Setup the intitial inputs for the solver
+        nvar = getNvarTorch(cnn_model.parameters())
+        opts.x0 = (
+            torch.nn.utils.parameters_to_vector(cnn_model.parameters())
+            .detach()
+            .reshape(nvar, 1)
+        ).to(device=device, dtype=utils.DEFAULT_DTYPE)
+
+        # Additional pygranso options
+        opts.limited_mem_size = 10
+        opts.double_precision = True
+        opts.mu0 = mu
+        opts.maxit = maxit
+        opts.print_frequency = 10
+        opts.stat_l2_model = False
+        opts.viol_eq_tol = 1e-6
+        opts.opt_tol = 1e-6
+
+        mHLF_obj = utils.HaltLog()
+        halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)
+
+        #  Set PyGRANSO's logging function in opts
+        opts.halt_log_fn = halt_log_fn
+
+        # Main algorithm with logging enabled.
+        start = time.time()
+        soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
+        end = time.time()
+        wall_time = end - start
+
+        # GET THE HISTORY OF ITERATES
+        # Even if an error is thrown, the log generated until the error can be
+        # obtained by calling get_log_fn()
+        log = get_log_fn()
+
+        # Final structure
+        designs_indexes = (pd.Series(log.fn_evals).cumsum() - 1).values.tolist()
+        final_designs = [designs[i] for i in designs_indexes]
+
+        # Save the data from each trial
+        if neptune_logging is not None:
+            for f_value in log.f:
+                neptune_logging[f"trial = {index} / loss"].log(f_value)
+
+            best_score = np.round(log.f[-1], 2)
+            fig = utils.build_final_design(
+                problem.name, final_designs, best_score, figsize=(10, 6)
+            )
+            neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
+            plt.close()
+
+        trials.append((soln.final.f, pd.Series(log.f), final_designs, wall_time))
+
+        # Remove all variables for the next round
+        del (
+            cnn_model,
+            designs,
+            losses,
+            comb_fn,
+            opts,
+            mHLF_obj,
+            halt_log_fn,
+            get_log_fn,
+            soln,
+            log,
+            designs_indexes,
+            final_designs,
+            fig,
+        )
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    return trials
 
 
 def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
@@ -40,6 +267,7 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     # and looking at tasks
     frames = []
     displacement_frames = []
+    u_matrix_frames = []
     losses = []
 
     # Set up additional kwargs
@@ -69,21 +297,20 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         forces = topo_physics.calculate_forces(x_phys, args)
 
         # Calculate the u_matrix
-        u_matrix, _ = topo_physics.sparse_displace(
-            x_phys, ke, forces, args["freedofs"], args["fixdofs"], **kwargs
+        u_matrix = topo_physics.sparse_displace(
+            x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
         )
 
         # Calculate the compliance output
-        compliance_output, displacement, _ = topo_physics.compliance(
-            x_phys, u_matrix, ke, **kwargs
-        )  # noqa
+        compliance_output, _, _ = topo_physics.compliance(
+            x_phys, u_matrix, ke, args, **kwargs
+        )
 
         # The loss is the sum of the compliance
         loss = torch.sum(compliance_output)
 
         # Append the frames
         frames.append(logits)
-        displacement_frames.append(displacement)
 
         # Print the progress every 10 iterations
         if (iteration % 10) == 0:
@@ -102,7 +329,105 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         topo_physics.physical_density(x, args, volume_constraint=True)
         for x in frames  # noqa
     ]
-    return render, losses, displacement_frames
+    return render, losses
+
+
+def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
+    """
+    Function that will train the structural optimization with
+    the Adam optimizer
+    """
+    # Get problem specific arguments
+    args = topo_api.specified_task(problem)
+
+    # Initiate the model to be trained
+    # Current, assumption is a CNN model
+    if cnn_kwargs is not None:
+        model = models.CNNModel(args=args, **cnn_kwargs)
+    else:
+        model = models.CNNModel(args=args)
+
+    # Build the stiffness matrix
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"], poisson=args["poisson"]
+    )  # noqa
+
+    # Set up the Adam optimizer
+    optimizer = optim.LBFGS(model.parameters(), lr=lr)
+
+    # We want to save the frames and losses for running
+    # and looking at tasks
+    frames = []
+    displacement_frames = []
+    u_matrix_frames = []
+    losses = []
+
+    # Set up additional kwargs
+    kwargs = dict(
+        penal=torch.tensor(args["penal"]),
+        e_min=torch.tensor(args["young_min"]),
+        e_0=torch.tensor(args["young"]),
+    )
+
+    # Put the model in training mode
+    model.train()
+
+    # Train the model
+    for iteration, i in enumerate(range(iterations)):
+
+        def closure():
+            # Zero out the gradients
+            optimizer.zero_grad()
+
+            # Get the model outputs
+            logits = model(None)
+
+            # Calculate the physical density
+            x_phys = topo_physics.physical_density(
+                logits, args, volume_constraint=True
+            )  # noqa
+
+            # Calculate the forces
+            forces = topo_physics.calculate_forces(x_phys, args)
+
+            # Calculate the u_matrix
+            u_matrix, _ = topo_physics.sparse_displace(
+                x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
+            )
+
+            # Calculate the compliance output
+            compliance_output, displacement, _ = topo_physics.compliance(
+                x_phys, u_matrix, ke, args, **kwargs
+            )  # noqa
+
+            # The loss is the sum of the compliance
+            loss = torch.sum(compliance_output)
+
+            # Append the frames
+            frames.append(logits)
+            displacement_frames.append(displacement)
+            u_matrix_frames.append(u_matrix)
+
+            # Print the progress every 10 iterations
+            if (iteration % 1) == 0:
+                print(f"Compliance loss = {loss.item()} / Iteration={iteration}")
+                losses.append(loss.item())
+
+            # Go through the backward pass and create the gradients
+            loss.backward()
+
+            return loss
+
+        # Step through the optimzer to update the data with the gradients
+        optimizer.step(closure)
+
+    # Render was also used in the original code to create
+    # images of the structures
+    render = [
+        topo_physics.physical_density(x, args, volume_constraint=True)
+        for x in frames  # noqa
+    ]
+    return render, losses, displacement_frames, u_matrix_frames
 
 
 def unconstrained_structural_optimization_function(model, ke, args, designs, losses):
@@ -156,95 +481,95 @@ def unconstrained_structural_optimization_function(model, ke, args, designs, los
     return f, ci, ce
 
 
-def train_pygranso(
-    problem,
-    cnn_kwargs=None,
-    *,
-    device="cpu",
-    mu=1.0,
-    maxit=150,
-    init_step_size=5e-6,
-    linesearch_maxit=50,
-    linesearch_reattempts=15,
-) -> tuple:
-    """
-    Function to train structural optimization pygranso
-    """
-    # Get the problem args
-    args = topo_api.specified_task(problem)
+# def train_pygranso(
+#     problem,
+#     cnn_kwargs=None,
+#     *,
+#     device="cpu",
+#     mu=1.0,
+#     maxit=150,
+#     init_step_size=5e-6,
+#     linesearch_maxit=50,
+#     linesearch_reattempts=15,
+# ) -> tuple:
+#     """
+#     Function to train structural optimization pygranso
+#     """
+#     # Get the problem args
+#     args = topo_api.specified_task(problem)
 
-    # Initialize the CNN Model
-    if cnn_kwargs is not None:
-        cnn_model = models.CNNModel(args, **cnn_kwargs)
-    else:
-        cnn_model = models.CNNModel(args)
+#     # Initialize the CNN Model
+#     if cnn_kwargs is not None:
+#         cnn_model = models.CNNModel(args, **cnn_kwargs)
+#     else:
+#         cnn_model = models.CNNModel(args)
 
-    # Put the cnn model in training mode
-    cnn_model.train()
+#     # Put the cnn model in training mode
+#     cnn_model.train()
 
-    # Create the stiffness matrix
-    ke = topo_physics.get_stiffness_matrix(
-        young=args["young"],
-        poisson=args["poisson"],
-    )
+#     # Create the stiffness matrix
+#     ke = topo_physics.get_stiffness_matrix(
+#         young=args["young"],
+#         poisson=args["poisson"],
+#     )
 
-    # Create the combined function and structural optimization
-    # setup
-    # Save the physical density designs & the losses
-    designs = []
-    losses = []
-    # Combined function
-    comb_fn = lambda model: unconstrained_structural_optimization_function(  # noqa
-        model, ke, args, designs, losses
-    )
+#     # Create the combined function and structural optimization
+#     # setup
+#     # Save the physical density designs & the losses
+#     designs = []
+#     losses = []
+#     # Combined function
+#     comb_fn = lambda model: unconstrained_structural_optimization_function(  # noqa
+#         model, ke, args, designs, losses
+#     )
 
-    # Initalize the pygranso options
-    opts = pygransoStruct()
+#     # Initalize the pygranso options
+#     opts = pygransoStruct()
 
-    # Set the device
-    opts.torch_device = torch.device(device)
+#     # Set the device
+#     opts.torch_device = torch.device(device)
 
-    # Setup the intitial inputs for the solver
-    nvar = getNvarTorch(cnn_model.parameters())
-    opts.x0 = (
-        torch.nn.utils.parameters_to_vector(cnn_model.parameters())
-        .detach()
-        .reshape(nvar, 1)
-    )
+#     # Setup the intitial inputs for the solver
+#     nvar = getNvarTorch(cnn_model.parameters())
+#     opts.x0 = (
+#         torch.nn.utils.parameters_to_vector(cnn_model.parameters())
+#         .detach()
+#         .reshape(nvar, 1)
+#     )
 
-    # Additional pygranso options
-    opts.limited_mem_size = 20
-    opts.double_precision = True
-    opts.mu0 = mu
-    opts.maxit = maxit
-    opts.print_frequence = 10
-    opts.stat_l2_model = False
+#     # Additional pygranso options
+#     opts.limited_mem_size = 20
+#     opts.double_precision = True
+#     opts.mu0 = mu
+#     opts.maxit = maxit
+#     opts.print_frequence = 10
+#     opts.stat_l2_model = False
 
-    # Other parameters that helped the structural optimization
-    # problem
-    opts.init_step_size = init_step_size
-    opts.linesearch_maxit = linesearch_maxit
-    opts.linesearch_reattempts = linesearch_reattempts
+#     # Other parameters that helped the structural optimization
+#     # problem
+#     opts.init_step_size = init_step_size
+#     opts.linesearch_maxit = linesearch_maxit
+#     opts.linesearch_reattempts = linesearch_reattempts
 
-    # Save the end results using the halt function
-    halt_function_obj = utils.HaltLog()
-    halt_log_fn, get_log_fn = halt_function_obj.makeHaltLogFunctions(opts.maxit)
+#     # Save the end results using the halt function
+#     halt_function_obj = utils.HaltLog()
+#     halt_log_fn, get_log_fn = halt_function_obj.makeHaltLogFunctions(opts.maxit)
 
-    #  Set PyGRANSO's logging function in opts
-    opts.halt_log_fn = halt_log_fn
+#     #  Set PyGRANSO's logging function in opts
+#     opts.halt_log_fn = halt_log_fn
 
-    # Train pygranso
-    start = time.time()
-    soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
-    end = time.time()
+#     # Train pygranso
+#     start = time.time()
+#     soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
+#     end = time.time()
 
-    # After pygranso runs we can gather the logs
-    log = get_log_fn()
+#     # After pygranso runs we can gather the logs
+#     log = get_log_fn()
 
-    # Print time
-    print(f"Total wall time: {end - start} seconds")
+#     # Print time
+#     print(f"Total wall time: {end - start} seconds")
 
-    return soln, designs, log
+#     return soln, designs, log
 
 
 def train_constrained_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
@@ -386,8 +711,8 @@ def train_u_matrix_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
 
     # Set up the Adam optimizer
     parameters = [
-        {"params": [u_nonzero], "lr": 5e-1},
-        {"params": neural_network_model_parameters, "lr": 4e-4},
+        {"params": [u_nonzero], "lr": 5e-3},
+        {"params": neural_network_model_parameters, "lr": 4e-5},
     ]
     optimizer = optim.Adam(parameters)
     # scheduler = (
@@ -427,12 +752,20 @@ def train_u_matrix_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
 
         # Calculate the forces
         forces = topo_physics.calculate_forces(x_phys, args)
+        forces_freedofs = forces[freedofs]
         node_indexes = utils.build_node_indexes(x_phys)
-        forces_nodes = forces[node_indexes]
 
         # Calculate the full u
         u = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
         u = u[index_map]
+
+        # Build the K matrix
+        K = topo_physics.build_full_K_matrix(
+            x_phys,
+            args,
+        )
+        K_freedofs = K[:, freedofs][freedofs, :]
+        K_freedofs = (K_freedofs + K_freedofs.transpose(1, 0)) / 2.0
 
         # Calculate the compliance output
         compliance_output, displacement, ke_u = topo_physics.compliance(
@@ -440,12 +773,14 @@ def train_u_matrix_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         )  # noqa
 
         # Equilibrium constraint
-        alpha = torch.mean(torch.pow(u, 2))
-        equilibrium_loss = torch.mean(torch.pow((forces_nodes - ke_u), 2))
+        KU = (K_freedofs @ u_nonzero.reshape(len(u_nonzero), 1)).flatten()
+        equilibrium_loss = 0.5 * torch.mean(
+            torch.pow((forces_freedofs - KU), 2)
+            # torch.abs(forces_freedofs - KU)
+        )
 
         # # The loss is the sum of the compliance
-        loss = torch.sum(compliance_output) + equilibrium_loss + 1e3 / alpha
-        # loss = equilibrium_loss
+        loss = torch.sum(compliance_output) + equilibrium_loss
 
         # Append the frames
         frames.append(logits)
@@ -475,9 +810,132 @@ def train_u_matrix_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     outputs = {
         "u": u,
         "ke_u": ke_u,
-        "forces_nodes": forces_nodes,
     }
     return render, losses, displacement_frames, outputs
+
+
+def train_u_matrix_lbfgs(
+    problem, model, args, cnn_kwargs=None, lr=4e-4, iterations=500, warmup=False
+):
+    """
+    Function that will train the structural optimization with
+    the Adam optimizer
+    """
+    # Consider a warm up period for the u_matrix where we
+    # freeze all of the non u_matrix layers
+    if warmup:
+        for layer_name, layer in model.named_parameters():
+            if layer_name != "u_matrix":
+                layer.requires_grad = False
+
+    else:
+        for layer_name, layer in model.named_parameters():
+            layer.requires_grad = True
+
+    # Get u nonzero
+    u_nonzero = list(model.parameters())[0]
+
+    # Get free and fixed degrees of freedom
+    freedofs = args["freedofs"]
+    fixdofs = args["fixdofs"]
+    index_map = torch.cat((freedofs, fixdofs))
+    index_map = torch.argsort(index_map)
+
+    # Build the stiffness matrix
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"], poisson=args["poisson"]
+    )  # noqa
+
+    optimizer = optim.LBFGS(model.parameters(), lr=lr, max_iter=50, history_size=150)
+
+    # We want to save the frames and losses for running
+    # and looking at tasks
+    frames = []
+    losses = []
+    displacement_frames = []
+    u_frames = []
+
+    # Set up additional kwargs
+    kwargs = dict(
+        penal=torch.tensor(args["penal"]),
+        e_min=torch.tensor(args["young_min"]),
+        e_0=torch.tensor(args["young"]),
+    )
+
+    # Train the model
+    for iteration, i in enumerate(range(iterations)):
+
+        def closure():
+            # Zero out the gradients
+            optimizer.zero_grad()
+
+            # Get the model outputs
+            logits = model(None)
+
+            # Calculate the physical density
+            x_phys = topo_physics.physical_density(
+                logits, args, volume_constraint=True
+            )  # noqa
+
+            # Calculate the forces
+            forces = topo_physics.calculate_forces(x_phys, args)
+            forces_freedofs = forces[freedofs]
+            node_indexes = utils.build_node_indexes(x_phys)
+
+            # Calculate the full u
+            u = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
+            u = u[index_map]
+
+            # Build the K matrix
+            K = topo_physics.build_full_K_matrix(
+                x_phys,
+                args,
+            )
+            K_freedofs = K[:, freedofs][freedofs, :]
+            K_freedofs = (K_freedofs + K_freedofs.transpose(1, 0)) / 2.0
+
+            # Calculate the compliance output
+            compliance_output, displacement, ke_u = topo_physics.compliance(
+                x_phys, u, ke, **kwargs
+            )  # noqa
+
+            # Equilibrium constraint
+            KU = (K_freedofs @ u_nonzero.reshape(len(u_nonzero), 1)).flatten()
+            equilibrium_loss = torch.pow(torch.norm(KU - forces_freedofs), 2)
+
+            # # The loss is the sum of the compliance
+            loss = torch.sum(compliance_output) + equilibrium_loss
+
+            # Append the frames
+            frames.append(logits)
+            displacement_frames.append(displacement)
+            u_frames.append(u)
+
+            # Print the progress every 10 iterations
+            if (iteration % 100) == 0:
+                print(f"loss = {loss.item()} / Iteration={iteration}")
+                print(f"compliance output = {torch.sum(compliance_output)}")
+                print(f"Equilibrium loss = {equilibrium_loss}")
+                losses.append(loss.item())
+
+            # Go through the backward pass and create the gradients
+            loss.backward()
+
+            return loss
+
+        # Space between the evaluations
+        # Step through the optimzer to update the data with the gradients
+        nn.utils.clip_grad_value_(list(model.parameters())[0], clip_value=1.0)
+        optimizer.step(closure)
+
+    # Render was also used in the original code to create
+    # images of the structures
+    render = [
+        topo_physics.physical_density(x, args, volume_constraint=True)
+        for x in frames  # noqa
+    ]
+
+    return render, losses, displacement_frames, u_frames
 
 
 def train_u_matrix(problem, iterations=20000):
@@ -508,9 +966,9 @@ def train_u_matrix(problem, iterations=20000):
     ).double()  # noqa
 
     # Set up the Adam optimizer
-    optimizer = optim.Adam(model.parameters(), lr=5e-1)
+    optimizer = optim.Adam(model.parameters(), lr=5e-3)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "min", patience=100, factor=0.5
+        optimizer, "min", patience=10, factor=0.5
     )
 
     # We want to save the frames and losses for running
@@ -601,6 +1059,13 @@ def train_u_full_k_matrix(
 
     # Get K freedofs
     K_freedofs = K[:, freedofs][freedofs, :]
+    K_freedofs = (K_freedofs + K_freedofs.transpose(1, 0)) / 2.0
+
+    # Calculate the forces and the nodes
+    node_indexes = utils.build_node_indexes(x_phys)
+    forces = topo_physics.calculate_forces(x_phys, args)
+    forces_freedofs = forces[freedofs]
+    forces_nodes = forces[node_indexes].squeeze()
 
     # Set up the Adam optimizer
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -621,12 +1086,6 @@ def train_u_full_k_matrix(
         # Get the model outputs
         u_nonzero = model(None)
 
-        # Calculate the forces
-        forces = topo_physics.calculate_forces(x_phys, args)
-        forces_freedofs = forces[freedofs]
-        node_indexes = utils.build_node_indexes(x_phys)
-        forces_nodes = forces[node_indexes].squeeze()
-
         # Calculate the full u
         u = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
         u = u[index_map].reshape(len(u), 1).double()
@@ -635,16 +1094,13 @@ def train_u_full_k_matrix(
         # Run the compliance calculation
         ke_u = torch.einsum("ij,jkl->ikl", ke, displacement_field)
 
-        # # Equilibrium constraint
-        # KU = torch.einsum('ij,jk->ik', K, u).flatten()
-        KU = torch.einsum(
-            "ij,ik->ik", K_freedofs, u_nonzero.reshape(len(u_nonzero), 1)
-        ).flatten()
+        # KU calculation
+        KU = (K_freedofs @ u_nonzero).flatten()
 
         if warmup:
             loss = torch.mean(torch.pow((forces_nodes - ke_u), 2))
         else:
-            loss = torch.mean(torch.pow(forces_freedofs - KU, 2))
+            loss = torch.pow(torch.norm(KU - forces_freedofs), 2)
 
         # Print the progress every 10 iterations
         if (iteration % 100) == 0:
@@ -656,10 +1112,17 @@ def train_u_full_k_matrix(
         loss.backward()
 
         # Step through the optimzer to update the data with the gradients
+        nn.utils.clip_grad_value_(model.parameters(), clip_value=1.5)
         optimizer.step()
 
     print(f"    equilibrium loss = {loss.item()} / Iteration={iteration}")
-    return u.flatten().detach(), displacement_field
+    extra_outputs = {
+        "u_nonzero": u_nonzero,
+        "K_freedofs": K_freedofs,
+        "forces_freedofs": forces_freedofs,
+        "losses": losses,
+    }
+    return u.flatten().detach(), displacement_field, extra_outputs
 
 
 def train_constrained_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
@@ -717,11 +1180,11 @@ def train_constrained_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
 
     # Warm up training for u
     print("u matrix warmup")
-    u, displacement_field = train_u_full_k_matrix(
+    u, displacement_field, _ = train_u_full_k_matrix(
         problem,
         u_matrix_model,
         x_phys=None,
-        iterations=20000,
+        iterations=30000,
         logging=True,
         warmup=True,
     )
@@ -741,7 +1204,7 @@ def train_constrained_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         )  # noqa
 
         # Calculate U matrix
-        u, displacement_field = train_u_full_k_matrix(
+        u, displacement_field, _ = train_u_full_k_matrix(
             problem, u_matrix_model, x_phys, iterations=500, logging=True, lr=5e-4
         )
         u = 1e2 * u
@@ -777,3 +1240,121 @@ def train_constrained_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     ]
 
     return render, losses, displacement_frames
+
+
+def train_u_full_k_matrix_lbfgs(
+    problem, model, x_phys=None, iterations=20000, lr=1, logging=False
+):
+    """
+    Function that will train the structural optimization with
+    the Adam optimizer
+    """
+    # Get problem specific arguments
+    args = topo_api.specified_task(problem)
+
+    # Calculate the physical density
+    if x_phys is None:
+        x_phys = torch.ones(args["nely"], args["nelx"]) * 0.5
+    else:
+        x_phys = x_phys.detach()
+
+    # Build the full K which is dependent on x_phys
+    K = topo_physics.build_full_K_matrix(
+        x_phys,
+        args,
+    )
+
+    # Get free and fixed degrees of freedom
+    freedofs = args["freedofs"]
+    fixdofs = args["fixdofs"]
+    index_map = torch.cat((freedofs, fixdofs))
+    index_map = torch.argsort(index_map)
+
+    # Build the stiffness matrix
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"], poisson=args["poisson"]
+    ).double()  # noqa
+
+    # Get K freedofs
+    K_freedofs = K[:, freedofs][freedofs, :].float()
+    K_freedofs = (K_freedofs + K_freedofs.transpose(1, 0)) / 2.0
+
+    # Calculate the forces and the nodes
+    node_indexes = utils.build_node_indexes(x_phys)
+    forces = topo_physics.calculate_forces(x_phys, args)
+    forces_freedofs = forces[freedofs]
+    forces_nodes = forces[node_indexes].squeeze()
+
+    # Set up the Adam optimizer
+    optimizer = optim.LBFGS(
+        model.parameters(),
+        lr=lr,
+        max_iter=50,
+        history_size=350,
+    )
+
+    # We want to save the frames and losses for running
+    # and looking at tasks
+    frames = []
+    losses = []
+    u_frames = []
+    displacement_frames = []
+
+    # Put the model in training mode
+    model.train()
+
+    # Train the model
+    for iteration, i in enumerate(range(iterations)):
+
+        def closure():
+            # Zero out the gradients
+            optimizer.zero_grad()
+
+            # Get the model outputs
+            u_nonzero = model(None)
+
+            # Calculate the full u
+            u = torch.cat((u_nonzero, torch.zeros(len(fixdofs)))).detach()
+            u = u[index_map].reshape(len(u), 1).double()
+            displacement_field = u[node_indexes].squeeze()
+
+            # KU calculation
+            u_vector = u_nonzero.reshape(len(u_nonzero), 1).float()
+            f_vector = forces_freedofs.reshape(len(forces_freedofs), 1).float()
+            KU = K_freedofs @ u_vector
+            # equilibrium_loss = 0.5 * torch.mean(
+            #     torch.pow((forces_freedofs - KU), 2)
+            # )
+            # Let's try adding a preconditioner
+            M = torch.diag(K_freedofs)
+            M = torch.diag_embed(1.0 / M)
+            precondition = (M @ KU) - (M @ f_vector)
+
+            # Compute the loss
+            loss = torch.pow(torch.norm(precondition), 2)
+
+            # Print the progress every 10 iterations
+            if (iteration % 10) == 0:
+                if logging:
+                    print(
+                        f"    equilibrium loss = {loss.item()} / Iteration={iteration}"
+                    )
+                losses.append(loss.item())
+                u_frames.append(u_nonzero.detach().numpy().flatten())
+                displacement_frames.append(displacement_field)
+
+            # Go through the backward pass and create the gradients
+            loss.backward()
+
+            return loss
+
+        nn.utils.clip_grad_value_(model.parameters(), clip_value=1.0)
+        # Step through the optimzer to update the data with the gradients
+        optimizer.step(closure)
+
+    extra_outputs = {
+        "u_nonzero": u_frames,
+        "losses": losses,
+        "displacement_field": displacement_frames,
+    }
+    return extra_outputs
