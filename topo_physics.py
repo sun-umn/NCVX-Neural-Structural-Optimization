@@ -34,9 +34,16 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
 
         else:
             mask = torch.broadcast_to(arg_mask, shape) > 0
-            x = utils.sigmoid_with_constrained_mean(x[mask], args["volfrac"])
-            flat_nonzero_mask = torch.nonzero(mask.ravel(), as_tuple=True)[0]
-            x = utils.torch_scatter1d(x, flat_nonzero_mask, size_x)
+            x = (
+                utils
+                .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
+            )
+            flat_nonzero_mask = torch.nonzero(
+                mask.ravel(), as_tuple=True
+            )[0]
+            x = utils.torch_scatter1d(
+                x, flat_nonzero_mask, size_x
+            )
             x = x.reshape(shape)
 
     else:
@@ -113,7 +120,7 @@ def get_stiffness_matrix(
         ]
     ).to(device=device, dtype=dtype)
 
-    return e / (1 - nu**2) * shuffled_array
+    return e / (1 - nu ** 2) * shuffled_array
 
 
 # Compliance
@@ -132,7 +139,6 @@ def compliance(
 ):
     """
     Calculate the compliance objective.
-
     NOTE: For our implementation both x_phys and u will require_grad
     and will both be torch tensors.
     """
@@ -198,7 +204,7 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
     return value_list, y_list, x_list
 
 
-def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1):
+def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -206,13 +212,15 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
 
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+    k_ylist = k_ylist.to(device=device, dtype=dtype)
+    k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
         freedofs, fixdofs, k_ylist, k_xlist
     )
 
     # Reduced forces
-    freedofs_forces = forces[freedofs].double()
+    freedofs_forces = forces[freedofs.cpu().numpy()].double()
 
     # K matrix based on the size of forces[freedofs]
     K = (
@@ -231,7 +239,7 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
         freedofs_forces.reshape(len(freedofs_forces), 1),
         k_cholesky,
     ).flatten()
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs))))
+    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))  
 
     return u_values[index_map], K
 

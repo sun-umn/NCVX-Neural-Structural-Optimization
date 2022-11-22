@@ -4,6 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as Fun
 
 
+class STEFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return (input > 0).float()
+    @staticmethod
+    def backward(ctx, grad_output):
+        return Fun.hardtanh(grad_output)
+
 # Create a custom global normalization layer for pytorch
 class GlobalNormalization(nn.Module):
     """
@@ -56,8 +64,6 @@ class CNNModel(nn.Module):
         latent_scale=1.0,
         dense_init_scale=1.0,
         train_u_matrix=False,
-        train_beta_matrix=False,
-        train_k_inverse_matrix=False,
     ):
         super().__init__()
 
@@ -67,8 +73,8 @@ class CNNModel(nn.Module):
             raise ValueError("resizes and filters are not the same!")
 
         total_resize = int(np.prod(resizes))
-        self.h = args["nely"] // total_resize
-        self.w = args["nelx"] // total_resize
+        self.h = int(torch.div(args["nely"], total_resize, rounding_mode='floor').item())
+        self.w = int(torch.div(args["nelx"], total_resize, rounding_mode='floor').item())
         self.dense_channels = dense_channels
         self.resizes = resizes
         self.conv_filters = conv_filters
@@ -79,6 +85,7 @@ class CNNModel(nn.Module):
 
         # Create the filters
         filters = dense_channels * self.h * self.w
+<<<<<<< HEAD
 
         # Create the u_matrix vector
         if train_u_matrix:
@@ -93,6 +100,14 @@ class CNNModel(nn.Module):
             self.K_inverse = nn.Parameter(
                 torch.randn(len(args["freedofs"]), len(args["freedofs"])).double()
             )
+=======
+        
+        # # Create the u_matrix vector
+        # if train_u_matrix:
+        #     self.u_matrix = nn.Parameter(
+        #         torch.randn(len(args['freedofs'])).double()
+        #     )
+>>>>>>> master
 
         # Create the first dense layer
         self.dense = nn.Linear(latent_size, filters)

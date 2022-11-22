@@ -24,14 +24,14 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
 
     params = {
         # material properties
-        "young": torch.tensor(1),
-        "young_min": torch.tensor(1e-9),
-        "poisson": torch.tensor(0.3),
-        "g": torch.tensor(0),
+        "young": 1,
+        "young_min": 1e-9,
+        "poisson": 0.3,
+        "g": 0,
         # constraints
-        "volfrac": torch.tensor(problem.density),
-        "xmin": torch.tensor(0.001),
-        "xmax": torch.tensor(1.0),
+        "volfrac": problem.density,
+        "xmin": 0.001,
+        "xmax": 1.0,
         # input parameters
         "nelx": torch.tensor(problem.width),
         "nely": torch.tensor(problem.height),
