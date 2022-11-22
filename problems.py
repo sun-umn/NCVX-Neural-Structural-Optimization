@@ -86,7 +86,7 @@ def mbb_beam(
     normals[-1, -1, Y] = 1
     normals[0, :, X] = 1
 
-    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=torch.long)
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, 0, Y] = -1
 
     return Problem(normals, forces, density)

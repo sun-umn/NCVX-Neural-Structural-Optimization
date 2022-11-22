@@ -293,22 +293,20 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         forces = topo_physics.calculate_forces(x_phys, args)
 
         # Calculate the u_matrix
-        u_matrix, _ = topo_physics.sparse_displace(
+        u_matrix = topo_physics.sparse_displace(
             x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
         )
 
         # Calculate the compliance output
-        compliance_output, displacement, _ = topo_physics.compliance(
+        compliance_output, _, _ = topo_physics.compliance(
             x_phys, u_matrix, ke, args, **kwargs
-        )  # noqa
+        )
 
         # The loss is the sum of the compliance
         loss = torch.sum(compliance_output)
 
         # Append the frames
         frames.append(logits)
-        displacement_frames.append(displacement)
-        u_matrix_frames.append(u_matrix)
 
         # Print the progress every 10 iterations
         if (iteration % 10) == 0:
@@ -327,7 +325,7 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         topo_physics.physical_density(x, args, volume_constraint=True)
         for x in frames  # noqa
     ]
-    return render, losses, displacement_frames, u_matrix_frames
+    return render, losses
 
 
 def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
