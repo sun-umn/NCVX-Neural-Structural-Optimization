@@ -121,6 +121,7 @@ def train_pygranso(
     trials = []
 
     for index, seed in enumerate(range(0, num_trials)):
+        np.random.seed(seed)
         torch.random.manual_seed(seed)
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.deterministic = True

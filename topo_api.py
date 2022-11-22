@@ -38,7 +38,7 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
         "mask": mask,
         "freedofs": freedofs,
         "fixdofs": fixdofs,
-        "forces": torch.tensor(problem.forces.ravel()),
+        "forces": problem.forces.ravel(),
         "penal": 3.0,
         "filter_width": 2,
     }

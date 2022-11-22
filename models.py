@@ -8,9 +8,11 @@ class STEFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
         return (input > 0).float()
+
     @staticmethod
     def backward(ctx, grad_output):
         return Fun.hardtanh(grad_output)
+
 
 # Create a custom global normalization layer for pytorch
 class GlobalNormalization(nn.Module):
@@ -73,8 +75,12 @@ class CNNModel(nn.Module):
             raise ValueError("resizes and filters are not the same!")
 
         total_resize = int(np.prod(resizes))
-        self.h = int(torch.div(args["nely"], total_resize, rounding_mode='floor').item())
-        self.w = int(torch.div(args["nelx"], total_resize, rounding_mode='floor').item())
+        self.h = int(
+            torch.div(args["nely"], total_resize, rounding_mode="floor").item()
+        )
+        self.w = int(
+            torch.div(args["nelx"], total_resize, rounding_mode="floor").item()
+        )
         self.dense_channels = dense_channels
         self.resizes = resizes
         self.conv_filters = conv_filters
@@ -85,29 +91,12 @@ class CNNModel(nn.Module):
 
         # Create the filters
         filters = dense_channels * self.h * self.w
-<<<<<<< HEAD
 
         # Create the u_matrix vector
         if train_u_matrix:
             distribution = torch.distributions.uniform.Uniform(-5500.0, 500.0)
             sample = distribution.sample(torch.Size([len(args["freedofs"])]))
             self.u_matrix = nn.Parameter(sample.double())
-
-        if train_beta_matrix:
-            self.beta_matrix = nn.Parameter(torch.zeros(args["nely"], args["nelx"]))
-
-        if train_k_inverse_matrix:
-            self.K_inverse = nn.Parameter(
-                torch.randn(len(args["freedofs"]), len(args["freedofs"])).double()
-            )
-=======
-        
-        # # Create the u_matrix vector
-        # if train_u_matrix:
-        #     self.u_matrix = nn.Parameter(
-        #         torch.randn(len(args['freedofs'])).double()
-        #     )
->>>>>>> master
 
         # Create the first dense layer
         self.dense = nn.Linear(latent_size, filters)
@@ -162,7 +151,9 @@ class CNNModel(nn.Module):
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
             # function to use here
-            output = Fun.interpolate(output, scale_factor=resize, mode="bilinear")
+            output = Fun.interpolate(
+                output, scale_factor=resize, mode="bilinear", align_corners=False
+            )
 
             # Apply the normalization
             output = self.global_normalization[idx](output)
