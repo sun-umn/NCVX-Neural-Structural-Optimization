@@ -38,14 +38,19 @@ class AddOffset(nn.Module):
     trainable for the structural optimization code
     """
 
-    def __init__(self, scale=1):  # noqa
+    def __init__(self, conv_channels, height, width, scale=10):  # noqa
         super().__init__()
         self.scale = scale
+        self.conv_channels = conv_channels
+        self.height = height
+        self.width = width
+        self.bias = nn.Parameter(
+            torch.zeros(1, self.conv_channels, self.height, self.width) * self.scale,
+            requires_grad=True,
+        )
 
     def forward(self, x):  # noqa
-        torch_scale = torch.tensor(self.scale)
-        bias = nn.Parameter(torch.zeros_like(x) * torch_scale)
-        return x + bias
+        return x + self.bias
 
 
 class CNNModel(nn.Module):
@@ -115,8 +120,12 @@ class CNNModel(nn.Module):
         self.add_offset = nn.ModuleList()
 
         # Add the convolutional layers to the module list
+        height = self.h
+        width = self.w
         offset_filters = (dense_channels, 128, 64, 32, 16)
-        for in_channels, out_channels in zip(offset_filters, conv_filters):
+        for resize, in_channels, out_channels in zip(
+            self.resizes, offset_filters, conv_filters
+        ):
             convolution_layer = nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -128,13 +137,19 @@ class CNNModel(nn.Module):
             self.global_normalization.append(GlobalNormalization())
 
             # TODO: Fix the offset layer
-            offset_layer = AddOffset(self.offset_scale)
+            height = height * resize
+            width = width * resize
+            offset_layer = AddOffset(
+                scale=self.offset_scale,
+                conv_channels=out_channels,
+                height=height,
+                width=width,
+            )
             self.add_offset.append(offset_layer)
 
-        # Set up x here otherwise it is not part of the leaf tensors
-        self.z = torch.nn.Parameter(
-            torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
-        )
+        # # Set up x here otherwise it is not part of the leaf tensors
+        self.z = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
+        self.z = self.z.to(torch.float64)
 
     def forward(self, x=None):  # noqa
 
@@ -145,14 +160,13 @@ class CNNModel(nn.Module):
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
             output = nn.ReLU()(output)
-            # output = torch.tanh(output)
 
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
             # function to use here
             output = Fun.interpolate(
-                output, scale_factor=resize, mode="bilinear", align_corners=False
+                output, scale_factor=resize, mode="bilinear", align_corners=True
             )
 
             # Apply the normalization

@@ -149,7 +149,7 @@ def train_pygranso(
 
         # Combined function
         comb_fn = lambda model: pygranso_combined_function(  # noqa
-            model,
+            cnn_model,
             ke,
             alpha,
             args,
@@ -245,6 +245,8 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     Function that will train the structural optimization with
     the Adam optimizer
     """
+    np.random.seed(0)
+
     # Get problem specific arguments
     args = topo_api.specified_task(problem)
 

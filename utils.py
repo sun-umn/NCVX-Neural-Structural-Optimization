@@ -59,17 +59,21 @@ class SparseSolver(Function):
         ctx.dtype = dtype
 
         # Gather the result
+        a_entries = a_entries.detach().cpu().numpy()
+        all_indices = a_indices.cpu().numpy()
+        col = a_indices.t()[:, 1]
+        row = a_indices.t()[:, 0]
         a = scipy.sparse.csc_matrix(
-            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()),
+            (a_entries, (row, col)),
             shape=(b.detach().cpu().numpy().size,) * 2,
         ).astype(np.float64)
 
         if sym_pos and HAS_CHOLMOD:
-            solver = sksparse.cholmod.cholesky(a, ordering_method="natural").solve_A
+            solver = sksparse.cholmod.cholesky(a).solve_A
         else:
             # could also use scikits.umfpack.splu
             # should be about twice as slow as the cholesky
-            solver = scipy.sparse.linalg.splu(a, permc_spec="NATURAL").solve
+            solver = scipy.sparse.linalg.splu(a).solve
 
         b_np = b.data.cpu().numpy().astype(np.float64)
         result = torch.from_numpy(solver(b_np).astype(np.float64))
@@ -189,7 +193,7 @@ class FindRoot(Function):
         # Adding a small constant here because I could not get the
         # gradcheck to work without this. We will want to
         # investigate later
-        gradient_value = (-grad_f_x / grad_f_y)
+        gradient_value = -grad_f_x / grad_f_y
         return gradient_value * grad_output, None, None, None
 
 
@@ -241,7 +245,7 @@ def sigmoid_with_constrained_mean(x, average):
     return torch.sigmoid(x + b)
 
 
-def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
+def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist, k_entries):
     # Check if the degrees of freedom defined in the problem
     # are torch tensors
     if not torch.is_tensor(freedofs):
@@ -254,7 +258,12 @@ def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
 
     k_xlist = k_xlist.cpu().numpy()
     k_ylist = k_ylist.cpu().numpy()
-    keep = np.isin(k_xlist, freedofs.cpu()) & np.isin(k_ylist, freedofs.cpu())
+    k_entries = k_entries.detach().cpu().numpy()
+    keep = (
+        np.isin(k_xlist, freedofs.cpu())
+        & np.isin(k_ylist, freedofs.cpu())
+        & (k_entries != 0)
+    )
     i = index_map[k_ylist][keep]
     j = index_map[k_xlist][keep]
 
@@ -278,9 +287,7 @@ def torch_scatter1d(nonzero_values, nonzero_indices, array_len):
     an output and ordering for the original array
     """
     all_indices = torch.arange(array_len)
-    zero_indices = set_diff_1d(
-        all_indices, nonzero_indices, assume_unique=True
-    )
+    zero_indices = set_diff_1d(all_indices, nonzero_indices, assume_unique=True)
     index_map = torch.argsort(torch.cat((nonzero_indices, zero_indices)))
     values = torch.cat((nonzero_values, torch.zeros(len(zero_indices))))
     return values[index_map]

@@ -34,16 +34,9 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
 
         else:
             mask = torch.broadcast_to(arg_mask, shape) > 0
-            x = (
-                utils
-                .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
-            )
-            flat_nonzero_mask = torch.nonzero(
-                mask.ravel(), as_tuple=True
-            )[0]
-            x = utils.torch_scatter1d(
-                x, flat_nonzero_mask, size_x
-            )
+            x = utils.sigmoid_with_constrained_mean(x[mask], args["volfrac"])
+            flat_nonzero_mask = torch.nonzero(mask.ravel(), as_tuple=True)[0]
+            x = utils.torch_scatter1d(x, flat_nonzero_mask, size_x)
             x = x.reshape(shape)
 
     else:
@@ -120,7 +113,7 @@ def get_stiffness_matrix(
         ]
     ).to(device=device, dtype=dtype)
 
-    return e / (1 - nu ** 2) * shuffled_array
+    return e / (1 - nu**2) * shuffled_array
 
 
 # Compliance
@@ -204,7 +197,19 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
     return value_list, y_list, x_list
 
 
-def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
+def displace(
+    x_phys,
+    ke,
+    forces,
+    freedofs,
+    fixdofs,
+    *,
+    penal=3,
+    e_min=1e-9,
+    e_0=1,
+    device=torch.device("cpu"),
+    dtype=torch.double,
+):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -239,7 +244,9 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
         freedofs_forces.reshape(len(freedofs_forces), 1),
         k_cholesky,
     ).flatten()
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))  
+    u_values = torch.cat(
+        (u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype))
+    )
 
     return u_values[index_map], K
 
@@ -270,7 +277,11 @@ def sparse_displace(
     k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
-        freedofs, fixdofs, k_ylist, k_xlist
+        freedofs,
+        fixdofs,
+        k_ylist,
+        k_xlist,
+        k_entries,
     )
 
     # Reduced forces
@@ -284,8 +295,8 @@ def sparse_displace(
     keep_k_entries = k_entries[keep]
 
     # Build the sparse matrix
-    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size])
-    K = (K + K.transpose(1, 0)) / 2.0
+    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size]).double()
+    K = K.to_dense().to_sparse_coo()
 
     # Symmetric indices
     keep_k_entries = K.coalesce().values()
@@ -340,7 +351,7 @@ def build_K_matrix(x_phys, args, base="MATLAB"):
 
         # Get the indices
         index_map, keep, indices = utils._get_dof_indices(
-            freedofs, fixdofs, k_ylist, k_xlist
+            freedofs, fixdofs, k_ylist, k_xlist, k_entries
         )
         size = free_forces.size
 
