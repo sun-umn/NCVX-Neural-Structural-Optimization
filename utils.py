@@ -60,9 +60,9 @@ class SparseSolver(Function):
 
         # Gather the result
         a_entries = a_entries.detach().cpu().numpy()
-        all_indices = a_indices.cpu().numpy()
-        col = a_indices.t()[:, 1]
-        row = a_indices.t()[:, 0]
+        all_indices = a_indices.detach().cpu().numpy()
+        col = all_indices.T[:, 1]
+        row = all_indices.T[:, 0]
         a = scipy.sparse.csc_matrix(
             (a_entries, (row, col)),
             shape=(b.detach().cpu().numpy().size,) * 2,

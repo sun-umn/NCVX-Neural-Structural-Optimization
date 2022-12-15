@@ -325,8 +325,8 @@ def sparse_displace(
 
     # Build the sparse matrix
     K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size]).double()
-    K = K.to_dense()
-    K = ((K + K.t()) / 2.0).to_sparse_coo()
+    # K = K.to_dense()
+    # K = ((K + K.t()) / 2.0).to_sparse_coo()
 
     # # Use a Jacobi preconditioner
     # M = torch.diag(K)

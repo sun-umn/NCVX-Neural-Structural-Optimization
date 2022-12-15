@@ -149,7 +149,7 @@ class CNNModel(nn.Module):
 
         # # Set up x here otherwise it is not part of the leaf tensors
         self.z = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
-        self.z = self.z.to(torch.float64)
+        self.z = nn.Parameter(self.z)
 
     def forward(self, x=None):  # noqa
 
