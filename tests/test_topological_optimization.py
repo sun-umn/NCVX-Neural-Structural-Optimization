@@ -2,9 +2,10 @@
 import os
 from pathlib import Path
 
-# third part
+# third party
 import numpy as np
 import scipy
+import sksparse.cholmod
 import torch
 from torch.autograd import gradcheck
 
@@ -232,3 +233,177 @@ def test_sparse_solver_grad_check():
 
     # Check the gradient
     assert gradcheck(solver, [A.flatten().double(), indices, b.double(), False])
+
+
+# Specific tests for all of the MBB Beam problems
+def test_mbb_beam_384_64_40():
+    """
+    We will fully test the values between the MATLAB version
+    and our version - what we found was that the values were
+    not matching up 100%
+    """
+    # Setup problem
+    problem = problems.mbb_beam(
+        height=64,
+        width=384,
+        density=0.4,
+        device=utils.DEFAULT_DEVICE,
+    )
+    args = topo_api.specified_task(problem, device=utils.DEFAULT_DEVICE)
+
+    # Test inputs to the sparse matrix
+    fixture_path = str(Path(__file__).parent / "fixtures")
+    iK = np.loadtxt(os.path.join(fixture_path, "mbb_384_64_40_iK.mat"))  # noqa
+    jK = np.loadtxt(os.path.join(fixture_path, "mbb_384_64_40_jK.mat"))  # noqa
+    sK = np.loadtxt(os.path.join(fixture_path, "mbb_384_64_40_sK.mat"))  # noqa
+    matlab_K_free = np.loadtxt(  # noqa
+        os.path.join(fixture_path, "mbb_384_64_40_K_free.mat")
+    )  # noqa
+
+    # Get ke
+    ke = topo_physics.get_stiffness_matrix(
+        young=args["young"],
+        poisson=args["poisson"],
+        device=utils.DEFAULT_DEVICE,
+    )
+
+    # Set up x_phys
+    nely, nelx = args["nely"], args["nelx"]
+    x_phys = torch.ones(nely, nelx) * 0.4
+
+    # Free and fixed degress of freedom
+    freedofs = args["freedofs"]
+    fixdofs = args["fixdofs"]
+
+    # Reduced forces
+    forces = topo_physics.calculate_forces(x_phys, args)
+    freedofs_forces = (
+        forces[freedofs]
+        .double()
+        .to(device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE)
+    )
+    size = freedofs_forces.cpu().numpy().size
+
+    # setup stiffness
+    stiffness = topo_physics.young_modulus(
+        x_phys, e_0=args["young"], e_min=args["young_min"], p=args["penal"]
+    )
+
+    # Get K Data
+    k_entries, k_ylist, k_xlist = topo_physics.get_k_data(
+        stiffness, ke, args, base="MATLAB"
+    )
+
+    # Assert all entities are equal
+    np.testing.assert_allclose(k_ylist, jK - 1)
+    np.testing.assert_allclose(k_xlist, iK - 1)
+    np.testing.assert_almost_equal(k_entries, sK, decimal=4)
+
+    # Get the indices for the free degress of freedom
+    index_map, keep, indices = utils._get_dof_indices(
+        freedofs, fixdofs, k_ylist, k_xlist, k_entries
+    )
+
+    # Next create the sparse matrix - let's test the full and
+    # freedof versions
+    keep_k_entries = k_entries[keep]
+    K = (
+        torch.sparse_coo_tensor(indices, keep_k_entries, [size, size])  # noqa
+        .double()
+        .coalesce()
+    )  # noqa
+    K = K.to_dense().to_sparse_coo()  # noqa
+
+    # Get indices and values to check
+    indices = K.indices().t().int()
+    values = K.values()
+
+    # Testing matrix that goes into solver
+    np.testing.assert_allclose(indices[:, 0], matlab_K_free[:, 1] - 1)
+    np.testing.assert_allclose(indices[:, 1], matlab_K_free[:, 0] - 1)
+    np.testing.assert_almost_equal(values, matlab_K_free[:, 2], decimal=4)
+
+    # Now test the u_values
+    row_mat = matlab_K_free[:, 0] - 1
+    col_mat = matlab_K_free[:, 1] - 1
+    a_entries_mat = np.round(matlab_K_free[:, 2], 7)
+    b = freedofs_forces.detach().cpu().numpy()
+
+    a_matlab = scipy.sparse.csc_matrix(
+        (a_entries_mat, (row_mat, col_mat)), shape=(b.size,) * 2
+    ).astype(np.float64)
+
+    # Solver for matlab data
+    solver_mat = sksparse.cholmod.cholesky(a_matlab).solve_A
+
+    # Test the u values that we are creating
+    row = K.indices().t()[:, 1].cpu().numpy()
+    col = K.indices().t()[:, 0].cpu().numpy()
+
+    # We prove above that they are equal if it gets to this
+    # stage
+    a_entries = np.round(values.cpu().numpy(), 7)
+    b = freedofs_forces.detach().cpu().numpy()
+
+    a = scipy.sparse.csc_matrix((a_entries, (row, col)), shape=(b.size,) * 2).astype(
+        np.float64
+    )
+
+    # Our values
+    solver = sksparse.cholmod.cholesky(a).solve_A
+
+    # Test everything
+    np.testing.assert_allclose(row_mat, row)
+    np.testing.assert_allclose(col_mat, col)
+    np.testing.assert_almost_equal(a_entries_mat, a_entries, decimal=5)
+    assert (a != a_matlab).nnz == 0
+
+    # Check the u values
+    u_matlab = solver_mat(b)
+    u_ = solver(b)
+
+    # Assert that we have the same displacement values
+    np.testing.assert_allclose(u_matlab, u_)
+
+    # Finally assert that we have the same compliance values
+    kwargs = dict(
+        penal=args["penal"],
+        e_min=args["young_min"],
+        e_0=args["young"],
+        base="MATLAB",
+        device=utils.DEFAULT_DEVICE,
+        dtype=utils.DEFAULT_DTYPE,
+    )
+
+    # Fixed zeros
+    fixdofs_zeros = torch.zeros(len(fixdofs)).to(
+        device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
+    )
+
+    # Updated u matlab
+    u_matlab = torch.from_numpy(u_matlab)
+    u_values_mat = torch.cat((u_matlab, fixdofs_zeros))
+    u_values_mat = u_values_mat[index_map].to(
+        device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
+    )
+
+    # Calculate the compliance output
+    compliance_output, _, _ = topo_physics.compliance(
+        x_phys, u_values_mat, ke, args, **kwargs
+    )
+    compliance_output = torch.sum(compliance_output)
+
+    u_ = torch.from_numpy(u_)
+    u_values = torch.cat((u_, fixdofs_zeros))
+    u_values = u_values[index_map].to(
+        device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
+    )
+
+    compliance_output_mat, _, _ = topo_physics.compliance(
+        x_phys, u_values, ke, args, **kwargs
+    )
+    compliance_output_mat = torch.sum(compliance_output_mat)
+
+    print(u_values_mat, u_values)
+
+    assert compliance_output == compliance_output_mat

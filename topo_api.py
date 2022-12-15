@@ -24,10 +24,10 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
 
     params = {
         # material properties
-        "young": 1,
+        "young": 1.0,
         "young_min": 1e-9,
         "poisson": 0.3,
-        "g": 0,
+        "g": 0.0,
         # constraints
         "volfrac": problem.density,
         "xmin": 0.001,

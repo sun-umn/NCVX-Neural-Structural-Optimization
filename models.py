@@ -166,7 +166,7 @@ class CNNModel(nn.Module):
             # so we will do that here. Also, interpolate is teh correct
             # function to use here
             output = Fun.interpolate(
-                output, scale_factor=resize, mode="bilinear", align_corners=True
+                output, scale_factor=resize, mode="bilinear", align_corners=False
             )
 
             # Apply the normalization
