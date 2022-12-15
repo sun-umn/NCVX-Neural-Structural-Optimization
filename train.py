@@ -4,11 +4,16 @@ import time
 
 # third party
 import matplotlib.pyplot as plt
+import neural_structural_optimization.models as google_models
+import neural_structural_optimization.topo_api as google_api
+import neural_structural_optimization.train as google_train
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import xarray
 from pygranso.private.getNvar import getNvarTorch
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
@@ -430,6 +435,59 @@ def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         for x in frames  # noqa
     ]
     return render, losses, displacement_frames, u_matrix_frames
+
+
+def train_google(
+    problem, max_iterations=1000, cnn_kwargs=None, num_trials=50, neptune_logging=None
+):
+    """
+    Replica of the google neural structural optimization training
+    function in google colab
+    """
+    args = google_api.specified_task(problem)
+    if cnn_kwargs is None:
+        cnn_kwargs = {}
+
+    trials = []
+    for index, seed in enumerate(range(0, num_trials)):
+        print(f"Google training trial {index + 1}")
+        # Set seeds for this training
+        np.random.seed(seed)
+        tf.random.set_seed(seed)
+
+        # Set up the model
+        model = google_models.CNNModel(args=args, **cnn_kwargs)
+        ds_cnn = google_train.train_lbfgs(model, max_iterations)
+
+        dims = pd.Index(["google-cnn-lbfgs"], name="model")
+        ds = xarray.concat([ds_cnn], dim=dims)
+
+        # Extract the loss
+        loss_df = ds.loss.transpose().to_pandas().cummin()
+        loss_df = loss_df.reset_index(drop=True)
+        loss_df = loss_df.rename_axis(index=None, columns=None)
+
+        # Final loss
+        final_loss = np.round(loss_df.min().values[0], 2)
+
+        # Extract the image
+        design = ds.design.sel(step=max_iterations).data.squeeze()
+        design = design.astype(np.float16)
+
+        if neptune_logging is not None:
+            fig = utils.build_final_design(
+                problem.name, [design], final_loss, figsize=(10, 6)
+            )
+            neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
+            plt.close()
+
+        # Append to the trials
+        trials.append((final_loss, loss_df, design, None))
+
+        del model, ds_cnn, dims, ds, loss_df, design
+        gc.collect()
+
+    return trials
 
 
 def unconstrained_structural_optimization_function(model, ke, args, designs, losses):

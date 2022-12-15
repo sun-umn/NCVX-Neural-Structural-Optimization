@@ -3,6 +3,7 @@
 import click
 import matplotlib.pyplot as plt
 import neptune.new as neptune
+import neural_structural_optimization.problems as google_problems
 import numpy as np
 
 # first party
@@ -41,17 +42,24 @@ def structural_optimization_task(
 
     # Consider resizes
     if resizes:
-        cnn_kwargs = dict(resizes(1, 1, 2, 2, 1))
+        cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
     else:
         cnn_kwargs = None
     print(f"Resizes = {cnn_kwargs}")
 
     # Initialize the problem to be solved
     if problem_name == "mbb_beam":
+        # Set up the problem for pygranso
         problem = problems.mbb_beam(
-            height=height, width=width, density=density, device=device
+            width=width, height=height, density=density, device=device
         )
         problem.name = f"mbb_beam_{width}x{height}_{density}"
+
+        # Set up the problem for google
+        google_problem = google_problems.mbb_beam(
+            width=width, height=height, density=density
+        )
+        google_problem.name = f"google-mbb_beam_{width}x{height}_{density}"
 
     elif problem_name == "multistory_building":
         problem = problems.multistory_building(
@@ -109,9 +117,6 @@ def structural_optimization_task(
     # Define the best trial
     best_trial = sorted(trials)[0]
 
-    # Build and save the losses data for this run
-    utils.build_trial_loss_plot(problem.name, trials, run)
-
     # Save the best final design
     best_final_design = best_trial[2]
     best_score = np.round(best_trial[0], 2)
@@ -121,10 +126,52 @@ def structural_optimization_task(
     fig = utils.build_final_design(
         problem.name, best_final_design, best_score, figsize=(10, 6)
     )
+    fig.subplots_adjust(hspace=0)
+    fig.tight_layout()
     run[f"best_trial-{problem.name}-final-design"].upload(fig)
 
     # Close the figure
     plt.close()
+
+    # Train the google problem
+    print(f"Training Google - {google_problem.name}")
+    google_trials = train.train_google(
+        google_problem,
+        maxit,
+        cnn_kwargs=cnn_kwargs,
+        num_trials=num_trials,
+        neptune_logging=run,
+    )
+    print("Finished training")
+
+    # Google best trial
+    google_best_trial = sorted(google_trials)[0]
+
+    # Get the losses
+    google_best_score = np.round(google_best_trial[0], 2)
+
+    # Next extract the final image
+    google_design = google_best_trial[2]
+    google_design = [google_design]
+
+    # Plot the google image
+    google_fig = utils.build_final_design(
+        google_problem.name, google_design, google_best_score, figsize=(10, 6)
+    )
+    google_fig.subplots_adjust(hspace=0)
+    google_fig.tight_layout()
+    run[f"google-test"].upload(google_fig)
+
+    plt.close()
+
+    # Get the losses for pygranso and google
+    pygranso_losses = [losses for _, losses, _, _ in trials]
+    google_losses = [losses for _, losses, _, _ in google_trials]
+
+    trials_dict = {"pygranso_losses": pygranso_losses, "google_losses": google_losses}
+
+    # Build and save the losses data for this run
+    utils.build_loss_plots(problem.name, trials_dict, run)
 
     run.stop()
 

@@ -342,29 +342,70 @@ def get_devices():
     return device
 
 
-def build_trial_loss_plot(problem_name, trials, neptune_logging):
+def build_loss_plots(problem_name, trials_dict, neptune_logging):
     """
-    Build the plots for all of the different trials
+    Build the plots for all of the different trials. We will
+    also build and compare the median and mean losses
+    for google vs pygranso
     """
-    # Gather all of the losses from the different trials
-    losses = [loss for _, loss, _, _ in trials]
+    # Gather the pygranso losses
+    pygranso_losses = trials_dict["pygranso_losses"]
+    google_losses = trials_dict["google_losses"]
 
-    # Concat all of the losses
-    restart_losses = pd.concat(losses, axis=1)
-    restart_losses.columns = [f"trial-{i}" for i in range(restart_losses.shape[1])]
+    # Concat all of the losses for pygranso
+    all_pygranso_losses_df = pd.concat(pygranso_losses, axis=1)
+    all_pygranso_losses_df.columns = [
+        f"pygranso-trial-{i}" for i in range(all_pygranso_losses_df.shape[1])
+    ]
 
-    # Build the loss plots
-    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-    restart_losses.apply(np.log1p).cummin(axis=0).ffill(axis=0).plot(
-        legend=False, ax=ax
-    )
-    ax.set_title(f"Log-Compliance Score - MBB Beam - {len(trials)} Trials")
-    ax.set_xlabel("Iteration")
-    ax.set_ylabel("Log-Compliance")
+    # Concat all of the losses for google
+    all_google_losses_df = pd.concat(google_losses, axis=1)
+    all_google_losses_df.columns = [
+        f"google-trial-{i}" for i in range(all_google_losses_df.shape[1])
+    ]
+
+    # Build the loss plots for pygranso
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    all_pygranso_losses_df.cummin().ffill().plot(legend=False, ax=ax, lw=2)
+    ax.set_title(f"Training loss PyGranso - {problem_name}")
+    ax.set_xlabel("Optimization Step")
+    ax.set_ylabel("Compliance (loss)")
     ax.grid()
 
-    neptune_logging["losses_df"].upload(File.as_html(restart_losses))
-    neptune_logging["losses_image"].upload(fig)
+    neptune_logging["pygranso-losses-image"].upload(fig)
+
+    plt.close()
+
+    # Build the loss plots for google
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    all_google_losses_df.cummin().ffill().plot(legend=False, ax=ax, lw=2)
+    ax.set_title(f"Training loss Google - {problem_name}")
+    ax.set_xlabel("Optimization Step")
+    ax.set_ylabel("Compliance (loss)")
+    ax.grid()
+
+    neptune_logging["google-losses-image"].upload(fig)
+
+    plt.close()
+
+    # Calculate the mean and median values across all trials and compare
+    pygranso_median_df = all_pygranso_losses_df.median(axis=1)
+    google_median_df = all_google_losses_df.median(axis=1)
+    median_report_df = pd.concat([pygranso_median_df, google_median_df], axis=1)
+    median_report_df = median_report_df.cummin().ffill()
+    median_report_df.columns = ["pygranso-cnn", "google-cnn"]
+
+    # Plot the losses
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    median_report_df.plot(ax=ax, lw=2)
+    ax.set_title("Model Comparisons")
+    ax.set_xlabel("Optimization Step")
+    ax.set_ylabel("Compliance (loss)")
+    ax.grid()
+
+    neptune_logging["median-model-comparisons"].upload(fig)
+
+    plt.close()
 
 
 def build_final_design(problem_name, final_designs, compliance, figsize=(10, 6)):
