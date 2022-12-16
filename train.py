@@ -76,7 +76,7 @@ def volume_constrained_structural_optimization_function(
     )
 
     # The loss is the sum of the compliance
-    f = torch.abs(torch.sum(compliance_output))
+    f = torch.sum(compliance_output)
 
     # Run this problem with no inequality constraints
     ci = None
@@ -471,7 +471,7 @@ def train_google(
         final_loss = np.round(loss_df.min().values[0], 2)
 
         # Extract the image
-        design = ds.design.sel(step=max_iterations).data.squeeze()
+        design = ds.design.sel(step=max_iterations, method='nearest').data.squeeze()
         design = design.astype(np.float16)
 
         if neptune_logging is not None:
