@@ -12,7 +12,7 @@ def young_modulus(x, e_0, e_min, p=3):
     """
     Function that calculates the young modulus
     """
-    return e_min + x**p * (e_0 - e_min)
+    return (e_min + x**p * (e_0 - e_min)).double()
 
 
 # Define the physical density with torch
@@ -34,16 +34,9 @@ def physical_density(x, args, volume_constraint=True, filtering=False):
 
         else:
             mask = torch.broadcast_to(arg_mask, shape) > 0
-            x = (
-                utils
-                .sigmoid_with_constrained_mean(x[mask], args["volfrac"])
-            )
-            flat_nonzero_mask = torch.nonzero(
-                mask.ravel(), as_tuple=True
-            )[0]
-            x = utils.torch_scatter1d(
-                x, flat_nonzero_mask, size_x
-            )
+            x = utils.sigmoid_with_constrained_mean(x[mask], args["volfrac"])
+            flat_nonzero_mask = torch.nonzero(mask.ravel(), as_tuple=True)[0]
+            x = utils.torch_scatter1d(x, flat_nonzero_mask, size_x)
             x = x.reshape(shape)
 
     else:
@@ -82,45 +75,55 @@ def get_stiffness_matrix(
     # What are e & nu?
     e, nu = young, poisson
 
-    # I want to understand where these elements come from
-    k = torch.tensor(
-        [
-            1 / 2 - nu / 6,
-            1 / 8 + nu / 8,
-            -1 / 4 - nu / 12,
-            -1 / 8 + 3 * nu / 8,
-            -1 / 4 + nu / 12,
-            -1 / 8 - nu / 8,
-            nu / 6,
-            1 / 8 - 3 * nu / 8,
-        ]
-    )
+    # k = torch.tensor(
+    #     [
+    #         1 / 2 - nu / 6,
+    #         1 / 8 + nu / 8,
+    #         -1 / 4 - nu / 12,
+    #         -1 / 8 + 3 * nu / 8,
+    #         -1 / 4 + nu / 12,
+    #         -1 / 8 - nu / 8,
+    #         nu / 6,
+    #         1 / 8 - 3 * nu / 8,
+    #     ]
+    # ).double()
 
-    # We want to shuffle the k matrix with different indices
-    zero_row_shuffle = torch.arange(len(k))
-    first_row_shuffle = torch.tensor([1, 0, 7, 6, 5, 4, 3, 2])
-    second_row_shuffle = torch.tensor([2, 7, 0, 5, 6, 3, 4, 1])
-    third_row_shuffle = torch.tensor([3, 6, 5, 0, 7, 2, 1, 4])
-    fourth_row_shuffle = torch.tensor([4, 5, 6, 7, 0, 1, 2, 3])
-    fifth_row_shuffle = torch.tensor([5, 4, 3, 2, 1, 0, 7, 6])
-    sixth_row_shuffle = torch.tensor([6, 3, 4, 1, 2, 7, 0, 5])
-    seventh_row_shuffle = torch.tensor([7, 2, 1, 4, 3, 6, 5, 0])
+    # ke = (
+    #     e
+    #     / (1 - nu**2)
+    #     * torch.tensor(
+    #         [
+    #             [k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]],
+    #             [k[1], k[0], k[7], k[6], k[5], k[4], k[3], k[2]],
+    #             [k[2], k[7], k[0], k[5], k[6], k[3], k[4], k[1]],
+    #             [k[3], k[6], k[5], k[0], k[7], k[2], k[1], k[4]],
+    #             [k[4], k[5], k[6], k[7], k[0], k[1], k[2], k[3]],
+    #             [k[5], k[4], k[3], k[2], k[1], k[0], k[7], k[6]],
+    #             [k[6], k[3], k[4], k[1], k[2], k[7], k[0], k[5]],
+    #             [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]],
+    #         ]
+    #     ).to(device=device, dtype=dtype)
+    # )
 
-    # Create shuffled array
-    shuffled_array = torch.stack(
-        [
-            k[zero_row_shuffle],
-            k[first_row_shuffle],
-            k[second_row_shuffle],
-            k[third_row_shuffle],
-            k[fourth_row_shuffle],
-            k[fifth_row_shuffle],
-            k[sixth_row_shuffle],
-            k[seventh_row_shuffle],
-        ]
+    A11 = torch.tensor(
+        [[12, 3, -6, -3], [3, 12, 3, 0], [-6, 3, 12, -3], [-3, 0, -3, 12]]
+    ).to(device=device, dtype=dtype)
+    A12 = torch.tensor(
+        [[-6, -3, 0, 3], [-3, -6, -3, -6], [0, -3, -6, 3], [3, -6, 3, -6]]
+    ).to(device=device, dtype=dtype)
+    B11 = torch.tensor(
+        [[-4, 3, -2, 9], [3, -4, -9, 4], [-2, -9, -4, -3], [9, 4, -3, -4]]
+    ).to(device=device, dtype=dtype)
+    B12 = torch.tensor(
+        [[2, -3, 4, -9], [-3, 2, 9, -2], [4, 9, 2, 3], [-9, -2, 3, 2]]
     ).to(device=device, dtype=dtype)
 
-    return e / (1 - nu ** 2) * shuffled_array
+    M1 = torch.vstack([torch.hstack([A11, A12]), torch.hstack([A12.t(), A11])])
+    M2 = torch.vstack([torch.hstack([B11, B12]), torch.hstack([B12.t(), B11])])
+
+    ke = (1.0 / (1.0 - nu**2) / 24.0) * (M1 + nu * M2)
+
+    return ke
 
 
 # Compliance
@@ -144,45 +147,52 @@ def compliance(
     """
     nely, nelx = args["nely"], args["nelx"]
 
-    # Compute the torch based meshgrid
-    ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
-    ely, elx = ely.transpose(1, 0), elx.transpose(1, 0)
+    # # Compute the torch based meshgrid
+    # ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
+    # ely, elx = ely.transpose(1, 0), elx.transpose(1, 0)
 
-    # Calculate nodes - reflects the MATLAB code
-    if base == "MATLAB":
-        n1 = (nely + 1) * (elx + 0) + (ely + 1)
-        n2 = (nely + 1) * (elx + 1) + (ely + 1)
-        n3 = (nely + 1) * (elx + 1) + (ely + 0)
-        n4 = (nely + 1) * (elx + 0) + (ely + 0)
+    # # Calculate nodes - reflects the MATLAB code
+    # if base == "MATLAB":
+    #     n1 = (nely + 1) * (elx + 0) + (ely + 1)
+    #     n2 = (nely + 1) * (elx + 1) + (ely + 1)
+    #     n3 = (nely + 1) * (elx + 1) + (ely + 0)
+    #     n4 = (nely + 1) * (elx + 0) + (ely + 0)
 
-    elif base == "Google":
-        # Google implementation
-        n1 = (nely + 1) * (elx + 0) + (ely + 0)
-        n2 = (nely + 1) * (elx + 1) + (ely + 0)
-        n3 = (nely + 1) * (elx + 1) + (ely + 1)
-        n4 = (nely + 1) * (elx + 0) + (ely + 1)
+    # elif base == "Google":
+    #     # Google implementation
+    #     n1 = (nely + 1) * (elx + 0) + (ely + 0)
+    #     n2 = (nely + 1) * (elx + 1) + (ely + 0)
+    #     n3 = (nely + 1) * (elx + 1) + (ely + 1)
+    #     n4 = (nely + 1) * (elx + 0) + (ely + 1)
 
-    else:
-        raise ValueError("Only options are MATLAB and Google!")
+    # else:
+    #     raise ValueError("Only options are MATLAB and Google!")
 
-    # The shape of this matrix results in
-    # (8, nelx, nely)
-    all_ixs = torch.stack(
-        [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
-    )
+    # # The shape of this matrix results in
+    # # (8, nelx, nely)
+    # all_ixs = torch.stack(
+    #     [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
+    # )
 
-    # The selected u and now needs to be multiplied by K
-    u_selected = u[all_ixs].squeeze()
+    # # The selected u and now needs to be multiplied by K
+    # u_selected = u[all_ixs].squeeze()
 
-    # Set ke to have double
-    ke = ke.double()
+    # # Set ke to have double
+    # ke = ke.double()
 
-    # Run the compliance calculation
-    ke_u = torch.einsum("ij,jkl->ikl", ke, u_selected)
-    ce = torch.einsum("ijk,ijk->jk", u_selected, ke_u)
+    # # Run the compliance calculation
+    # ke_u = torch.einsum("ij,jkl->ikl", ke, u_selected)
+    # ce = torch.einsum("ijk,ijk->jk", u_selected, ke_u)
+
+    # Updated code
+    edof, x_list, y_list = build_nodes_data(args, base=base)
+    ce = (u[edof] @ ke) * u[edof]
+    ce = torch.sum(ce, 1)
+    ce = ce.reshape(nelx, nely)
+
     young_x_phys = young_modulus(x_phys, e_0, e_min, p=penal)
 
-    return young_x_phys * ce.T, u_selected, ke_u
+    return young_x_phys * ce.t(), None, None
 
 
 def get_k_data(stiffness, ke, args, base="MATLAB"):
@@ -198,13 +208,37 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
 
     edof, x_list, y_list = build_nodes_data(args, base=base)
 
-    kd = stiffness.T.reshape(nely * nelx, 1, 1)
-    value_list = (kd * ke.tile(kd.shape)).flatten()
+    # kd = stiffness.T.reshape(nely * nelx, 1, 1)
+    # value_list = (kd * ke.tile(kd.shape)).flatten()
+
+    # stiffness flattened
+    stiffness_flat = stiffness.t().flatten()
+    stiffness_flat = stiffness_flat.reshape(1, len(stiffness_flat))
+
+    # ke flattened
+    ke_flat = ke.flatten()
+    ke_flat = ke_flat.reshape(len(ke_flat), 1)
+
+    # value list
+    value_list = ke_flat @ stiffness_flat
+    value_list = value_list.t().flatten()
 
     return value_list, y_list, x_list
 
 
-def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=1,device=torch.device('cpu'), dtype=torch.double):
+def displace(
+    x_phys,
+    ke,
+    forces,
+    freedofs,
+    fixdofs,
+    *,
+    penal=3,
+    e_min=1e-9,
+    e_0=1,
+    device=torch.device("cpu"),
+    dtype=torch.double,
+):
     """
     Function that displaces the load x using finite element techniques.
     """
@@ -239,7 +273,9 @@ def displace(x_phys, ke, forces, freedofs, fixdofs, *, penal=3, e_min=1e-9, e_0=
         freedofs_forces.reshape(len(freedofs_forces), 1),
         k_cholesky,
     ).flatten()
-    u_values = torch.cat((u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype)))  
+    u_values = torch.cat(
+        (u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype))
+    )
 
     return u_values[index_map], K
 
@@ -270,7 +306,11 @@ def sparse_displace(
     k_xlist = k_xlist.to(device=device, dtype=dtype)
 
     index_map, keep, indices = utils._get_dof_indices(
-        freedofs, fixdofs, k_ylist, k_xlist
+        freedofs,
+        fixdofs,
+        k_ylist,
+        k_xlist,
+        k_entries,
     )
 
     # Reduced forces
@@ -284,8 +324,16 @@ def sparse_displace(
     keep_k_entries = k_entries[keep]
 
     # Build the sparse matrix
-    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size])
-    K = (K + K.transpose(1, 0)) / 2.0
+    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size]).double()
+    # K = K.to_dense()
+    # K = ((K + K.t()) / 2.0).to_sparse_coo()
+
+    # # Use a Jacobi preconditioner
+    # M = torch.diag(K)
+    # M = (1.0 / M).double()
+    # M = torch.diag(M)
+    # K = (M @ K).to_sparse_coo()
+    # freedofs_forces = M @ freedofs_forces
 
     # Symmetric indices
     keep_k_entries = K.coalesce().values()
@@ -296,7 +344,7 @@ def sparse_displace(
         keep_k_entries,
         indices,
         freedofs_forces,
-        sym_pos=False,
+        sym_pos=True,
         device=device,
         dtype=dtype,
     )
@@ -340,7 +388,7 @@ def build_K_matrix(x_phys, args, base="MATLAB"):
 
         # Get the indices
         index_map, keep, indices = utils._get_dof_indices(
-            freedofs, fixdofs, k_ylist, k_xlist
+            freedofs, fixdofs, k_ylist, k_xlist, k_entries
         )
         size = free_forces.size
 

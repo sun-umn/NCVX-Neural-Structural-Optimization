@@ -4,11 +4,16 @@ import time
 
 # third party
 import matplotlib.pyplot as plt
+import neural_structural_optimization.models as google_models
+import neural_structural_optimization.topo_api as google_api
+import neural_structural_optimization.train as google_train
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import xarray
 from pygranso.private.getNvar import getNvarTorch
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
@@ -71,7 +76,7 @@ def volume_constrained_structural_optimization_function(
     )
 
     # The loss is the sum of the compliance
-    f = torch.abs(torch.sum(compliance_output))
+    f = torch.sum(compliance_output)
 
     # Run this problem with no inequality constraints
     ci = None
@@ -149,7 +154,7 @@ def train_pygranso(
 
         # Combined function
         comb_fn = lambda model: pygranso_combined_function(  # noqa
-            model,
+            cnn_model,
             ke,
             alpha,
             args,
@@ -245,6 +250,8 @@ def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     Function that will train the structural optimization with
     the Adam optimizer
     """
+    np.random.seed(0)
+
     # Get problem specific arguments
     args = topo_api.specified_task(problem)
 
@@ -391,12 +398,12 @@ def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
             forces = topo_physics.calculate_forces(x_phys, args)
 
             # Calculate the u_matrix
-            u_matrix, _ = topo_physics.sparse_displace(
+            u_matrix = topo_physics.sparse_displace(
                 x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
             )
 
             # Calculate the compliance output
-            compliance_output, displacement, _ = topo_physics.compliance(
+            compliance_output, _, _ = topo_physics.compliance(
                 x_phys, u_matrix, ke, args, **kwargs
             )  # noqa
 
@@ -405,8 +412,8 @@ def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
 
             # Append the frames
             frames.append(logits)
-            displacement_frames.append(displacement)
-            u_matrix_frames.append(u_matrix)
+            # displacement_frames.append(displacement)
+            # u_matrix_frames.append(u_matrix)
 
             # Print the progress every 10 iterations
             if (iteration % 1) == 0:
@@ -427,7 +434,60 @@ def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
         topo_physics.physical_density(x, args, volume_constraint=True)
         for x in frames  # noqa
     ]
-    return render, losses, displacement_frames, u_matrix_frames
+    return render, losses
+
+
+def train_google(
+    problem, max_iterations=1000, cnn_kwargs=None, num_trials=50, neptune_logging=None
+):
+    """
+    Replica of the google neural structural optimization training
+    function in google colab
+    """
+    args = google_api.specified_task(problem)
+    if cnn_kwargs is None:
+        cnn_kwargs = {}
+
+    trials = []
+    for index, seed in enumerate(range(0, num_trials)):
+        print(f"Google training trial {index + 1}")
+        # Set seeds for this training
+        np.random.seed(seed)
+        tf.random.set_seed(seed)
+
+        # Set up the model
+        model = google_models.CNNModel(args=args, **cnn_kwargs)
+        ds_cnn = google_train.train_lbfgs(model, max_iterations)
+
+        dims = pd.Index(["google-cnn-lbfgs"], name="model")
+        ds = xarray.concat([ds_cnn], dim=dims)
+
+        # Extract the loss
+        loss_df = ds.loss.transpose().to_pandas().cummin()
+        loss_df = loss_df.reset_index(drop=True)
+        loss_df = loss_df.rename_axis(index=None, columns=None)
+
+        # Final loss
+        final_loss = np.round(loss_df.min().values[0], 2)
+
+        # Extract the image
+        design = ds.design.sel(step=max_iterations, method="nearest").data.squeeze()
+        design = design.astype(np.float16)
+
+        if neptune_logging is not None:
+            fig = utils.build_final_design(
+                problem.name, [design], final_loss, figsize=(10, 6)
+            )
+            neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
+            plt.close()
+
+        # Append to the trials
+        trials.append((final_loss, loss_df, design, None))
+
+        del model, ds_cnn, dims, ds, loss_df, design
+        gc.collect()
+
+    return trials
 
 
 def unconstrained_structural_optimization_function(model, ke, args, designs, losses):
@@ -479,97 +539,6 @@ def unconstrained_structural_optimization_function(model, ke, args, designs, los
     )  # noqa
 
     return f, ci, ce
-
-
-# def train_pygranso(
-#     problem,
-#     cnn_kwargs=None,
-#     *,
-#     device="cpu",
-#     mu=1.0,
-#     maxit=150,
-#     init_step_size=5e-6,
-#     linesearch_maxit=50,
-#     linesearch_reattempts=15,
-# ) -> tuple:
-#     """
-#     Function to train structural optimization pygranso
-#     """
-#     # Get the problem args
-#     args = topo_api.specified_task(problem)
-
-#     # Initialize the CNN Model
-#     if cnn_kwargs is not None:
-#         cnn_model = models.CNNModel(args, **cnn_kwargs)
-#     else:
-#         cnn_model = models.CNNModel(args)
-
-#     # Put the cnn model in training mode
-#     cnn_model.train()
-
-#     # Create the stiffness matrix
-#     ke = topo_physics.get_stiffness_matrix(
-#         young=args["young"],
-#         poisson=args["poisson"],
-#     )
-
-#     # Create the combined function and structural optimization
-#     # setup
-#     # Save the physical density designs & the losses
-#     designs = []
-#     losses = []
-#     # Combined function
-#     comb_fn = lambda model: unconstrained_structural_optimization_function(  # noqa
-#         model, ke, args, designs, losses
-#     )
-
-#     # Initalize the pygranso options
-#     opts = pygransoStruct()
-
-#     # Set the device
-#     opts.torch_device = torch.device(device)
-
-#     # Setup the intitial inputs for the solver
-#     nvar = getNvarTorch(cnn_model.parameters())
-#     opts.x0 = (
-#         torch.nn.utils.parameters_to_vector(cnn_model.parameters())
-#         .detach()
-#         .reshape(nvar, 1)
-#     )
-
-#     # Additional pygranso options
-#     opts.limited_mem_size = 20
-#     opts.double_precision = True
-#     opts.mu0 = mu
-#     opts.maxit = maxit
-#     opts.print_frequence = 10
-#     opts.stat_l2_model = False
-
-#     # Other parameters that helped the structural optimization
-#     # problem
-#     opts.init_step_size = init_step_size
-#     opts.linesearch_maxit = linesearch_maxit
-#     opts.linesearch_reattempts = linesearch_reattempts
-
-#     # Save the end results using the halt function
-#     halt_function_obj = utils.HaltLog()
-#     halt_log_fn, get_log_fn = halt_function_obj.makeHaltLogFunctions(opts.maxit)
-
-#     #  Set PyGRANSO's logging function in opts
-#     opts.halt_log_fn = halt_log_fn
-
-#     # Train pygranso
-#     start = time.time()
-#     soln = pygranso(var_spec=cnn_model, combined_fn=comb_fn, user_opts=opts)
-#     end = time.time()
-
-#     # After pygranso runs we can gather the logs
-#     log = get_log_fn()
-
-#     # Print time
-#     print(f"Total wall time: {end - start} seconds")
-
-#     return soln, designs, log
 
 
 def train_constrained_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):

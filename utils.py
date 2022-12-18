@@ -59,17 +59,21 @@ class SparseSolver(Function):
         ctx.dtype = dtype
 
         # Gather the result
+        a_entries = a_entries.detach().cpu().numpy()
+        all_indices = a_indices.detach().cpu().numpy()
+        col = all_indices.T[:, 1]
+        row = all_indices.T[:, 0]
         a = scipy.sparse.csc_matrix(
-            (a_entries.detach().cpu().numpy(), a_indices.cpu().numpy()),
+            (a_entries, (row, col)),
             shape=(b.detach().cpu().numpy().size,) * 2,
         ).astype(np.float64)
 
         if sym_pos and HAS_CHOLMOD:
-            solver = sksparse.cholmod.cholesky(a, ordering_method="natural").solve_A
+            solver = sksparse.cholmod.cholesky(a).solve_A
         else:
             # could also use scikits.umfpack.splu
             # should be about twice as slow as the cholesky
-            solver = scipy.sparse.linalg.splu(a, permc_spec="NATURAL").solve
+            solver = scipy.sparse.linalg.splu(a).solve
 
         b_np = b.data.cpu().numpy().astype(np.float64)
         result = torch.from_numpy(solver(b_np).astype(np.float64))
@@ -189,7 +193,7 @@ class FindRoot(Function):
         # Adding a small constant here because I could not get the
         # gradcheck to work without this. We will want to
         # investigate later
-        gradient_value = (-grad_f_x / grad_f_y)
+        gradient_value = -grad_f_x / grad_f_y
         return gradient_value * grad_output, None, None, None
 
 
@@ -241,7 +245,7 @@ def sigmoid_with_constrained_mean(x, average):
     return torch.sigmoid(x + b)
 
 
-def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
+def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist, k_entries):
     # Check if the degrees of freedom defined in the problem
     # are torch tensors
     if not torch.is_tensor(freedofs):
@@ -254,7 +258,12 @@ def _get_dof_indices(freedofs, fixdofs, k_xlist, k_ylist):
 
     k_xlist = k_xlist.cpu().numpy()
     k_ylist = k_ylist.cpu().numpy()
-    keep = np.isin(k_xlist, freedofs.cpu()) & np.isin(k_ylist, freedofs.cpu())
+    k_entries = k_entries.detach().cpu().numpy()
+    keep = (
+        np.isin(k_xlist, freedofs.cpu())
+        & np.isin(k_ylist, freedofs.cpu())
+        & (k_entries != 0)
+    )
     i = index_map[k_ylist][keep]
     j = index_map[k_xlist][keep]
 
@@ -278,9 +287,7 @@ def torch_scatter1d(nonzero_values, nonzero_indices, array_len):
     an output and ordering for the original array
     """
     all_indices = torch.arange(array_len)
-    zero_indices = set_diff_1d(
-        all_indices, nonzero_indices, assume_unique=True
-    )
+    zero_indices = set_diff_1d(all_indices, nonzero_indices, assume_unique=True)
     index_map = torch.argsort(torch.cat((nonzero_indices, zero_indices)))
     values = torch.cat((nonzero_values, torch.zeros(len(zero_indices))))
     return values[index_map]
@@ -335,29 +342,70 @@ def get_devices():
     return device
 
 
-def build_trial_loss_plot(problem_name, trials, neptune_logging):
+def build_loss_plots(problem_name, trials_dict, neptune_logging):
     """
-    Build the plots for all of the different trials
+    Build the plots for all of the different trials. We will
+    also build and compare the median and mean losses
+    for google vs pygranso
     """
-    # Gather all of the losses from the different trials
-    losses = [loss for _, loss, _, _ in trials]
+    # Gather the pygranso losses
+    pygranso_losses = trials_dict["pygranso_losses"]
+    google_losses = trials_dict["google_losses"]
 
-    # Concat all of the losses
-    restart_losses = pd.concat(losses, axis=1)
-    restart_losses.columns = [f"trial-{i}" for i in range(restart_losses.shape[1])]
+    # Concat all of the losses for pygranso
+    all_pygranso_losses_df = pd.concat(pygranso_losses, axis=1)
+    all_pygranso_losses_df.columns = [
+        f"pygranso-trial-{i}" for i in range(all_pygranso_losses_df.shape[1])
+    ]
 
-    # Build the loss plots
-    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-    restart_losses.apply(np.log1p).cummin(axis=0).ffill(axis=0).plot(
-        legend=False, ax=ax
-    )
-    ax.set_title(f"Log-Compliance Score - MBB Beam - {len(trials)} Trials")
-    ax.set_xlabel("Iteration")
-    ax.set_ylabel("Log-Compliance")
+    # Concat all of the losses for google
+    all_google_losses_df = pd.concat(google_losses, axis=1)
+    all_google_losses_df.columns = [
+        f"google-trial-{i}" for i in range(all_google_losses_df.shape[1])
+    ]
+
+    # Build the loss plots for pygranso
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    all_pygranso_losses_df.ffill().plot(legend=False, ax=ax, lw=2)
+    ax.set_title(f"Training loss PyGranso - {problem_name}")
+    ax.set_xlabel("Optimization Step")
+    ax.set_ylabel("Compliance (loss)")
     ax.grid()
 
-    neptune_logging["losses_df"].upload(File.as_html(restart_losses))
-    neptune_logging["losses_image"].upload(fig)
+    neptune_logging["pygranso-losses-image"].upload(fig)
+
+    plt.close()
+
+    # Build the loss plots for google
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    all_google_losses_df.ffill().plot(legend=False, ax=ax, lw=2)
+    ax.set_title(f"Training loss Google - {problem_name}")
+    ax.set_xlabel("Optimization Step")
+    ax.set_ylabel("Compliance (loss)")
+    ax.grid()
+
+    neptune_logging["google-losses-image"].upload(fig)
+
+    plt.close()
+
+    # Calculate the mean and median values across all trials and compare
+    pygranso_median_df = all_pygranso_losses_df.median(axis=1)
+    google_median_df = all_google_losses_df.median(axis=1)
+    median_report_df = pd.concat([pygranso_median_df, google_median_df], axis=1)
+    median_report_df = median_report_df.cummin().ffill()
+    median_report_df.columns = ["pygranso-cnn", "google-cnn"]
+
+    # Plot the losses
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4))
+    median_report_df.plot(ax=ax, lw=2)
+    ax.set_title("Model Comparisons")
+    ax.set_xlabel("Optimization Step")
+    ax.set_ylabel("Compliance (loss)")
+    ax.grid()
+
+    neptune_logging["median-model-comparisons"].upload(fig)
+
+    plt.close()
 
 
 def build_final_design(problem_name, final_designs, compliance, figsize=(10, 6)):
