@@ -155,6 +155,113 @@ def pure_bending_moment(
     return Problem(normals, forces, density)
 
 
+def michell_centered_both(
+    width=32,
+    height=32,
+    density=0.5,
+    position=0.05,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A single force down at the center, with support from the side."""
+    # https://en.wikipedia.org/wiki/Michell_structures#Examples
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[round(position * width), round(height / 2), Y] = 1
+    normals[-1, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[-1, round(height / 2), Y] = -1
+
+    return Problem(normals, forces, density)
+
+
+def michell_centered_below(
+    width=32,
+    height=32,
+    density=0.5,
+    position=0.25,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A single force down at the center, with support from the side below."""
+    # https://en.wikipedia.org/wiki/Michell_structures#Examples
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[round(position * width), 0, Y] = 1
+    normals[-1, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[-1, 0, Y] = -1
+
+    return Problem(normals, forces, density)
+
+
+def ground_structure(
+    width=32,
+    height=32,
+    density=0.5,
+    force_position=0.5,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """An overhanging bridge like structure holding up two weights."""
+    # https://link.springer.com/content/pdf/10.1007%2Fs00158-010-0557-z.pdf
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, :, X] = 1
+    normals[0, -1, :] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[round(force_position * height), -1, Y] = -1
+
+    return Problem(normals, forces, density)
+
+
+def l_shape(
+    width=32,
+    height=32,
+    density=0.5,
+    aspect=0.4,
+    force_position=0.5,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """An L-shaped structure, with a limited design region."""
+    # Topology Optimization Benchmarks in 2D
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[: round(aspect * width), 0, :] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[-1, round((1 - aspect * force_position) * height), Y] = -1
+
+    mask = torch.ones((width, height)).to(device=device, dtype=dtype)
+    mask[round(height * aspect) :, : round(width * (1 - aspect))] = 0
+
+    return Problem(normals, forces, density, mask.T)
+
+
+def crane(
+    width=32,
+    height=32,
+    density=0.3,
+    aspect=0.5,
+    force_position=0.9,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A crane supporting a downward force, anchored on the left."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[:, -1, :] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[round(force_position * width), round(1 - aspect * height), Y] = -1
+
+    mask = torch.ones((width, height)).to(device=device, dtype=dtype)
+    # the extra +2 ensures that entire region in the vicinity of the force can be
+    # be designed; otherwise we get outrageously high values for the compliance.
+    mask[round(aspect * width) :, round(height * aspect) + 2 :] = 0
+
+    return Problem(normals, forces, density, mask.T)
+
+
 def multistory_building(
     width=32,
     height=32,
@@ -224,6 +331,41 @@ PROBLEMS_BY_CATEGORY = {
         pure_bending_moment(32, 64, density=0.15),
         pure_bending_moment(64, 128, density=0.125),
         pure_bending_moment(128, 256, density=0.1),
+    ],
+    "michell_centered_both": [
+        michell_centered_both(32, 64, density=0.12),
+        michell_centered_both(64, 128, density=0.12),
+        michell_centered_both(128, 256, density=0.12),
+        michell_centered_both(128, 256, density=0.06),
+    ],
+    "michell_centered_below": [
+        michell_centered_below(64, 64, density=0.12),
+        michell_centered_below(128, 128, density=0.12),
+        michell_centered_below(256, 256, density=0.12),
+        michell_centered_below(256, 256, density=0.06),
+    ],
+    "ground_structure": [
+        ground_structure(64, 64, density=0.12),
+        ground_structure(128, 128, density=0.1),
+        ground_structure(256, 256, density=0.07),
+        ground_structure(256, 256, density=0.05),
+    ],
+    # simple constrained designs
+    "l_shape_0.2": [
+        l_shape(64, 64, aspect=0.2, density=0.4),
+        l_shape(128, 128, aspect=0.2, density=0.3),
+        l_shape(256, 256, aspect=0.2, density=0.2),
+    ],
+    "l_shape_0.4": [
+        l_shape(64, 64, aspect=0.4, density=0.4),
+        l_shape(128, 128, aspect=0.4, density=0.3),
+        l_shape(256, 256, aspect=0.4, density=0.2),
+    ],
+    "crane": [
+        crane(64, 64, density=0.3),
+        crane(128, 128, density=0.2),
+        crane(256, 256, density=0.15),
+        crane(256, 256, density=0.1),
     ],
     "multistory_building": [
         multistory_building(32, 64, density=0.5),
