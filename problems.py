@@ -262,6 +262,94 @@ def crane(
     return Problem(normals, forces, density, mask.T)
 
 
+def tower(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+    """A rather boring structure supporting a single point from the ground."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[:, -1, Y] = 1
+    normals[0, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[0, 0, Y] = -1
+    return Problem(normals, forces, density)
+
+
+def center_support(
+    width=32, height=32, density=0.3, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+):
+    """Support downward forces from the top from the single point."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, -1, Y] = 1
+    normals[-1, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, 0, Y] = -1 / width
+    return Problem(normals, forces, density)
+
+
+def column(
+    width=32, height=32, density=0.3, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+):
+    """Support downward forces from the top across a finite width."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[:, -1, Y] = 1
+    normals[-1, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, 0, Y] = -1 / width
+    return Problem(normals, forces, density)
+
+
+def roof(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+    """Support downward forces from the top with a repeating structure."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[0, :, X] = 1
+    normals[-1, :, X] = 1
+    normals[:, -1, Y] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, 0, Y] = -1 / width
+    return Problem(normals, forces, density)
+
+
+def causeway_bridge(
+    width=60,
+    height=20,
+    density=0.3,
+    deck_level=1,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A bridge supported by columns at a regular interval."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, -1, Y] = 1
+    normals[-1, :, X] = 1
+    normals[0, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, round(height * (1 - deck_level)), Y] = -1 / width
+    return Problem(normals, forces, density)
+
+
+def two_level_bridge(
+    width=32,
+    height=32,
+    density=0.3,
+    deck_height=0.2,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A causeway bridge with two decks."""
+    normals = torch.zeros((width + 1, width + 1, 2)).to(device=device, dtype=dtype)
+    normals[0, -1, :] = 1
+    normals[0, :, X] = 1
+    normals[-1, :, X] = 1
+
+    forces = torch.zeros((width + 1, width + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, round(height * (1 - deck_height) / 2), :] = -1 / (2 * width)
+    forces[:, round(height * (1 + deck_height) / 2), :] = -1 / (2 * width)
+    return Problem(normals, forces, density)
+
+
 def multistory_building(
     width=32,
     height=32,
@@ -367,18 +455,62 @@ PROBLEMS_BY_CATEGORY = {
         crane(256, 256, density=0.15),
         crane(256, 256, density=0.1),
     ],
-    "multistory_building": [
-        multistory_building(32, 64, density=0.5),
-        multistory_building(64, 128, interval=32, density=0.4),
-        multistory_building(128, 256, interval=64, density=0.3),
-        multistory_building(128, 512, interval=64, density=0.25),
-        multistory_building(128, 512, interval=128, density=0.2),
+    # vertical support structures
+    "center_support": [
+        center_support(64, 64, density=0.15),
+        center_support(128, 128, density=0.1),
+        center_support(256, 256, density=0.1),
+        center_support(256, 256, density=0.05),
+    ],
+    "column": [
+        column(32, 128, density=0.3),
+        column(64, 256, density=0.3),
+        column(128, 512, density=0.1),
+        column(128, 512, density=0.3),
+        column(128, 512, density=0.5),
+    ],
+    "roof": [
+        roof(64, 64, density=0.2),
+        roof(128, 128, density=0.15),
+        roof(256, 256, density=0.4),
+        roof(256, 256, density=0.2),
+        roof(256, 256, density=0.1),
+    ],
+    # bridges
+    "causeway_bridge_top": [
+        causeway_bridge(64, 64, density=0.3),
+        causeway_bridge(128, 128, density=0.2),
+        causeway_bridge(256, 256, density=0.1),
+        causeway_bridge(128, 64, density=0.3),
+        causeway_bridge(256, 128, density=0.2),
+    ],
+    "causeway_bridge_middle": [
+        causeway_bridge(64, 64, density=0.12, deck_level=0.5),
+        causeway_bridge(128, 128, density=0.1, deck_level=0.5),
+        causeway_bridge(256, 256, density=0.08, deck_level=0.5),
+    ],
+    "causeway_bridge_low": [
+        causeway_bridge(64, 64, density=0.12, deck_level=0.3),
+        causeway_bridge(128, 128, density=0.1, deck_level=0.3),
+        causeway_bridge(256, 256, density=0.08, deck_level=0.3),
+    ],
+    "two_level_bridge": [
+        two_level_bridge(64, 64, density=0.2),
+        two_level_bridge(128, 128, density=0.16),
+        two_level_bridge(256, 256, density=0.12),
     ],
     "thin_support_bridge": [
         thin_support_bridge(64, 64, density=0.3),
         thin_support_bridge(128, 128, density=0.2),
         thin_support_bridge(256, 256, density=0.15),
         thin_support_bridge(256, 256, density=0.1),
+    ],
+    "multistory_building": [
+        multistory_building(32, 64, density=0.5),
+        multistory_building(64, 128, interval=32, density=0.4),
+        multistory_building(128, 256, interval=64, density=0.3),
+        multistory_building(128, 512, interval=64, density=0.25),
+        multistory_building(128, 512, interval=128, density=0.2),
     ],
 }
 
