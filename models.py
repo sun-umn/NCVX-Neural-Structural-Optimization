@@ -168,7 +168,7 @@ class CNNModel(nn.Module):
             output = Fun.interpolate(
                 output,
                 scale_factor=resize,
-                mode="nearest-exact",
+                mode="area",
             )
 
             # Apply the normalization
