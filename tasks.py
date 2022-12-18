@@ -15,17 +15,10 @@ import utils
 # Run the tasks
 @click.command()
 @click.option("--problem_name", default="mbb_beam", type=click.STRING)
-@click.option("--height", default=20)
-@click.option("--width", default=60)
-@click.option("--interval", default=16)
-@click.option("--density", default=0.5)
-@click.option("--alpha", default=5e3)
 @click.option("--num_trials", default=50)
 @click.option("--maxit", default=1500)
 @click.option("--resizes", is_flag=True, default=False)
-def structural_optimization_task(
-    problem_name, height, width, interval, density, alpha, num_trials, maxit, resizes
-):
+def structural_optimization_task(problem_name, num_trials, maxit, resizes):
     click.echo(problem_name)
     # Enable the neptune run
     # TODO: make the api token an environment variable
@@ -47,41 +40,16 @@ def structural_optimization_task(
         cnn_kwargs = None
     print(f"Resizes = {cnn_kwargs}")
 
-    # Initialize the problem to be solved
-    if problem_name == "mbb_beam":
-        # Set up the problem for pygranso
-        problem = problems.mbb_beam(
-            width=width, height=height, density=density, device=device
-        )
-        problem.name = f"mbb_beam_{width}x{height}_{density}"
+    # Build the problems by name with the correct device
+    PROBLEMS_BY_NAME = problems.build_problems_by_name(device=device)
+    GOOGLE_PROBLEMS_BY_NAME = google_problems.PROBLEMS_BY_NAME
 
-        # Set up the problem for google
-        google_problem = google_problems.mbb_beam(
-            width=width, height=height, density=density
-        )
-        google_problem.name = f"google-mbb_beam_{width}x{height}_{density}"
+    # Setup the problem
+    problem = PROBLEMS_BY_NAME.get(problem_name)
+    google_problem = GOOGLE_PROBLEMS_BY_NAME.get(problem_name)
 
-    elif problem_name == "multistory_building":
-        problem = problems.multistory_building(
-            width=width,
-            height=height,
-            density=density,
-            interval=interval,
-            device=device,
-        )
-        problem.name = f"multistory_building_{width}x{height}_{density}"
-
-    elif problem_name == "thin_support_bridge":
-        problem = problems.thin_support_bridge(
-            width=width,
-            height=height,
-            density=density,
-            device=device,
-        )
-        problem.name = f"thin_support_bridge_{width}x{height}_{density}"
-
-    else:
-        raise ValueError("Structure is not valid!")
+    if (problem.name is None) or (google_problem.name is None):
+        raise ValueError(f"{problem_name} is not an elgible structure")
 
     # Add a tag for each type of problem as well
     run["sys/tags"].add([problem.name])
@@ -99,7 +67,6 @@ def structural_optimization_task(
         "maxit": maxit,
         "cnn_kwargs": cnn_kwargs,
         "device": device,
-        "alpha": alpha,
     }
 
     # Run the trials
@@ -111,7 +78,6 @@ def structural_optimization_task(
         neptune_logging=run,
         num_trials=num_trials,
         maxit=maxit,
-        alpha=alpha,
     )
 
     # Define the best trial
@@ -160,7 +126,7 @@ def structural_optimization_task(
     )
     google_fig.subplots_adjust(hspace=0)
     google_fig.tight_layout()
-    run[f"google-test"].upload(google_fig)
+    run[f"google-best_trial-{problem.name}-final-design"].upload(google_fig)
 
     plt.close()
 
