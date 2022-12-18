@@ -31,7 +31,7 @@ import utils
 # constraint that we have been working on
 # Volume constrained function
 def volume_constrained_structural_optimization_function(
-    model, ke, alpha, args, designs, losses, device, dtype
+    model, ke, args, designs, losses, device, dtype
 ):
     """
     Combined function for PyGranso for the structural optimization
@@ -109,7 +109,6 @@ def train_pygranso(
     num_trials=50,
     mu=1.0,
     maxit=500,
-    alpha=5e3,
 ) -> tuple:
     """
     Function to train structural optimization pygranso
@@ -157,7 +156,6 @@ def train_pygranso(
         comb_fn = lambda model: pygranso_combined_function(  # noqa
             cnn_model,
             ke,
-            alpha,
             args,
             designs=designs,
             losses=losses,
@@ -186,8 +184,8 @@ def train_pygranso(
         opts.maxit = maxit
         opts.print_frequency = 10
         opts.stat_l2_model = False
-        opts.viol_eq_tol = 1e-6
-        opts.opt_tol = 1e-6
+        opts.viol_eq_tol = 1e-8
+        opts.opt_tol = 1e-8
 
         mHLF_obj = utils.HaltLog()
         halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)
@@ -479,7 +477,9 @@ def train_google(
             fig = utils.build_final_design(
                 problem.name, [design], final_loss, figsize=(10, 6)
             )
-            neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
+            neptune_logging[f"google-trial={index}-{problem.name}-final-design"].upload(
+                fig
+            )
             plt.close()
 
         # Append to the trials

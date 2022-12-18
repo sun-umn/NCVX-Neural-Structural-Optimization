@@ -18,6 +18,7 @@ import dataclasses
 from typing import Optional, Union
 
 import numpy as np
+import skimage
 import torch
 
 from utils import DEFAULT_DEVICE, DEFAULT_DTYPE
@@ -463,7 +464,8 @@ def hoop(width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT
     i, j, value = skimage.draw.circle_perimeter_aa(
         width, width, width, forces.shape[:2]
     )
-    forces[i, j, Y] = -value / (2 * torch.pi * width)
+    value = torch.tensor(value).to(device=device, dtype=dtype)
+    forces[i, j, Y] = -value / (2 * np.pi * width)
 
     return Problem(normals, forces, density)
 
@@ -493,8 +495,8 @@ def multipoint_circle(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     for position in range(num_points):
-        x = radius * c_x * torch.sin(2 * torch.pi * position / num_points)
-        y = radius * c_y * torch.cos(2 * torch.pi * position / num_points)
+        x = radius * c_x * np.sin(2 * np.pi * position / num_points)
+        y = radius * c_y * np.cos(2 * np.pi * position / num_points)
         i = int(round(c_x + x))
         j = int(round(c_y + y))
         forces[i, j, X] = +c1 * y + c2 * x + c3 * y + c4 * x + c_x0
@@ -537,7 +539,9 @@ def staircase(
         start_coordinates = (0, (story + parity) * height // num_stories)
         stop_coordiates = (width, (story + 1 - parity) * height // num_stories)
         i, j, value = skimage.draw.line_aa(*start_coordinates, *stop_coordiates)
-        forces[i, j, Y] = np.minimum(forces[i, j, Y], -value / (width * num_stories))
+
+        value = torch.tensor(value).to(device=device, dtype=dtype)
+        forces[i, j, Y] = torch.minimum(forces[i, j, Y], -value / (width * num_stories))
 
     return Problem(normals, forces, density)
 
