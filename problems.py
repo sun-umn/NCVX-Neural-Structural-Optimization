@@ -581,7 +581,7 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             mbb_beam(384, 64, density=0.4, device=device),
         ],
         "cantilever_beam_full": [
-            cantilever_beam_full(96, 32, density=0.5, device=device),
+            cantilever_beam_full(96, 32, density=0.4, device=device),
             cantilever_beam_full(192, 64, density=0.3, device=device),
             cantilever_beam_full(384, 128, density=0.2, device=device),
             cantilever_beam_full(384, 128, density=0.15, device=device),
