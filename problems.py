@@ -350,6 +350,47 @@ def two_level_bridge(
     return Problem(normals, forces, density)
 
 
+def suspended_bridge(
+    width=60,
+    height=20,
+    density=0.3,
+    span_position=0.2,
+    anchored=False,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A bridge above the ground, with supports at lower corners."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, :, X] = 1
+    normals[: round(span_position * width), -1, Y] = 1
+    if anchored:
+        normals[: round(span_position * width), -1, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, -1, Y] = -1 / width
+    return Problem(normals, forces, density)
+
+
+def canyon_bridge(
+    width=60,
+    height=20,
+    density=0.3,
+    deck_level=1,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A bridge embedded in a canyon, without side supports."""
+    deck_height = round(height * (1 - deck_level))
+
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, deck_height:, :] = 1
+    normals[0, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, deck_height, Y] = -1 / width
+    return Problem(normals, forces, density)
+
+
 def multistory_building(
     width=32,
     height=32,
@@ -393,6 +434,37 @@ def thin_support_bridge(
     ] = 0  # noqa
 
     return Problem(normals, forces, density, mask)
+
+
+def drawbridge(
+    width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+):
+    """A bridge supported from above on the left."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[0, :, :] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[:, -1, Y] = -1 / width
+
+    return Problem(normals, forces, density)
+
+
+def hoop(width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+    """Downward forces in a circle, supported from the ground."""
+    if 2 * width != height:
+        raise ValueError("hoop must be circular")
+
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, :, X] = 1
+    normals[:, -1, Y] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    i, j, value = skimage.draw.circle_perimeter_aa(
+        width, width, width, forces.shape[:2]
+    )
+    forces[i, j, Y] = -value / (2 * np.pi * width)
+
+    return Problem(normals, forces, density)
 
 
 # Problems Category
@@ -501,11 +573,40 @@ PROBLEMS_BY_CATEGORY = {
         two_level_bridge(128, 128, density=0.16),
         two_level_bridge(256, 256, density=0.12),
     ],
+    "free_suspended_bridge": [
+        suspended_bridge(64, 64, density=0.15, anchored=False),
+        suspended_bridge(128, 128, density=0.1, anchored=False),
+        suspended_bridge(256, 256, density=0.075, anchored=False),
+        suspended_bridge(256, 256, density=0.05, anchored=False),
+    ],
+    "anchored_suspended_bridge": [
+        suspended_bridge(64, 64, density=0.15, span_position=0.1, anchored=True),
+        suspended_bridge(128, 128, density=0.1, span_position=0.1, anchored=True),
+        suspended_bridge(256, 256, density=0.075, span_position=0.1, anchored=True),
+        suspended_bridge(256, 256, density=0.05, span_position=0.1, anchored=True),
+    ],
+    "canyon_bridge": [
+        canyon_bridge(64, 64, density=0.16),
+        canyon_bridge(128, 128, density=0.12),
+        canyon_bridge(256, 256, density=0.1),
+        canyon_bridge(256, 256, density=0.05),
+    ],
     "thin_support_bridge": [
         thin_support_bridge(64, 64, density=0.3),
         thin_support_bridge(128, 128, density=0.2),
         thin_support_bridge(256, 256, density=0.15),
         thin_support_bridge(256, 256, density=0.1),
+    ],
+    "drawbridge": [
+        drawbridge(64, 64, density=0.2),
+        drawbridge(128, 128, density=0.15),
+        drawbridge(256, 256, density=0.1),
+    ],
+    # more complex design problems
+    "hoop": [
+        hoop(32, 64, density=0.25),
+        hoop(64, 128, density=0.2),
+        hoop(128, 256, density=0.15),
     ],
     "multistory_building": [
         multistory_building(32, 64, density=0.5),
