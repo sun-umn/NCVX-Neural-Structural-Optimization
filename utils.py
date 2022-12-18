@@ -366,7 +366,7 @@ def build_loss_plots(problem_name, trials_dict, neptune_logging):
 
     # Build the loss plots for pygranso
     fig, ax = plt.subplots(1, 1, figsize=(10, 4))
-    all_pygranso_losses_df.cummin().ffill().plot(legend=False, ax=ax, lw=2)
+    all_pygranso_losses_df.ffill().plot(legend=False, ax=ax, lw=2)
     ax.set_title(f"Training loss PyGranso - {problem_name}")
     ax.set_xlabel("Optimization Step")
     ax.set_ylabel("Compliance (loss)")
@@ -378,7 +378,7 @@ def build_loss_plots(problem_name, trials_dict, neptune_logging):
 
     # Build the loss plots for google
     fig, ax = plt.subplots(1, 1, figsize=(10, 4))
-    all_google_losses_df.cummin().ffill().plot(legend=False, ax=ax, lw=2)
+    all_google_losses_df.ffill().plot(legend=False, ax=ax, lw=2)
     ax.set_title(f"Training loss Google - {problem_name}")
     ax.set_xlabel("Optimization Step")
     ax.set_ylabel("Compliance (loss)")

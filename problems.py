@@ -130,6 +130,31 @@ def cantilever_beam_two_point(
     return Problem(normals, forces, density)
 
 
+def pure_bending_moment(
+    width=60,
+    height=60,
+    density=0.5,
+    support_position=0.45,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """Pure bending forces on a beam."""
+    # Figure 28 from
+    # http://naca.central.cranfield.ac.uk/reports/arc/rm/3303.pdf
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, :, X] = 1
+
+    # for numerical stability, fix y forces here at 0
+    normals[0, round(height * (1 - support_position)), Y] = 1
+    normals[0, round(height * support_position), Y] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[0, round(height * (1 - support_position)), X] = 1
+    forces[0, round(height * support_position), X] = -1
+
+    return Problem(normals, forces, density)
+
+
 def multistory_building(
     width=32,
     height=32,
@@ -194,6 +219,11 @@ PROBLEMS_BY_CATEGORY = {
         cantilever_beam_two_point(128, 96, density=0.3),
         cantilever_beam_two_point(256, 192, density=0.2),
         cantilever_beam_two_point(256, 192, density=0.15),
+    ],
+    "pure_bending_moment": [
+        pure_bending_moment(32, 64, density=0.15),
+        pure_bending_moment(64, 128, density=0.125),
+        pure_bending_moment(128, 256, density=0.1),
     ],
     "multistory_building": [
         multistory_building(32, 64, density=0.5),

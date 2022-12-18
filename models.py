@@ -45,12 +45,12 @@ class AddOffset(nn.Module):
         self.height = height
         self.width = width
         self.bias = nn.Parameter(
-            torch.zeros(1, self.conv_channels, self.height, self.width) * self.scale,
+            torch.zeros(1, self.conv_channels, self.height, self.width),
             requires_grad=True,
         )
 
     def forward(self, x):  # noqa
-        return x + self.bias
+        return x + (self.scale * self.bias)
 
 
 class CNNModel(nn.Module):
@@ -66,9 +66,9 @@ class CNNModel(nn.Module):
         dense_channels=32,
         resizes=(1, 2, 2, 2, 1),
         conv_filters=(128, 64, 32, 16, 1),
-        offset_scale=10,
+        offset_scale=10.0,
         kernel_size=(5, 5),
-        latent_scale=1.0,
+        latent_scale=10.0,
         dense_init_scale=1.0,
         train_u_matrix=False,
     ):
@@ -132,7 +132,7 @@ class CNNModel(nn.Module):
                 kernel_size=self.kernel_size,
                 padding="same",
             )
-            torch.nn.init.xavier_uniform_(convolution_layer.weight)
+            torch.nn.init.xavier_normal_(convolution_layer.weight)
             self.conv.append(convolution_layer)
             self.global_normalization.append(GlobalNormalization())
 
@@ -147,7 +147,7 @@ class CNNModel(nn.Module):
             )
             self.add_offset.append(offset_layer)
 
-        # # Set up x here otherwise it is not part of the leaf tensors
+        # # Set up z here otherwise it is not part of the leaf tensors
         self.z = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
         self.z = nn.Parameter(self.z)
 
@@ -159,14 +159,16 @@ class CNNModel(nn.Module):
 
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
-            output = nn.ReLU()(output)
+            output = torch.tanh(output)
 
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
             # function to use here
             output = Fun.interpolate(
-                output, scale_factor=resize, mode="bilinear", align_corners=False
+                output,
+                scale_factor=resize,
+                mode="nearest-exact",
             )
 
             # Apply the normalization
