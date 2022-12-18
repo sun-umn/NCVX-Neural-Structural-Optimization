@@ -125,7 +125,7 @@ def cantilever_beam_two_point(
     normals[0, round(height * (1 - support_position)), :] = 1
     normals[0, round(height * support_position), :] = 1
 
-    forces = torch.zeros((width + 1, height + 1, 2))
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, round((1 - force_position) * height), Y] = -1
 
     return Problem(normals, forces, density)
