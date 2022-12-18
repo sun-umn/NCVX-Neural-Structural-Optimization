@@ -46,15 +46,15 @@ class Problem:
     mirror_right: should the design be mirrored to the right when displayed?
     """
 
-    normals: torch.Tensor
-    forces: torch.Tensor
-    density: float
-    mask: Union[torch.Tensor, float] = 1
-    name: Optional[str] = None
-    width: int = dataclasses.field(init=False)
-    height: int = dataclasses.field(init=False)
-    mirror_left: bool = dataclasses.field(init=False)
-    mirror_right: bool = dataclasses.field(init=False)
+    normals: torch.Tensor  # noqa
+    forces: torch.Tensor  # noqa
+    density: float  # noqa
+    mask: Union[torch.Tensor, float] = 1  # noqa
+    name: Optional[str] = None  # noqa
+    width: int = dataclasses.field(init=False)  # noqa
+    height: int = dataclasses.field(init=False)  # noqa
+    mirror_left: bool = dataclasses.field(init=False)  # noqa
+    mirror_right: bool = dataclasses.field(init=False)  # noqa
 
     def __post_init__(self):  # noqa
         self.width = self.normals.shape[0] - 1
@@ -233,7 +233,7 @@ def l_shape(
     forces[-1, round((1 - aspect * force_position) * height), Y] = -1
 
     mask = torch.ones((width, height)).to(device=device, dtype=dtype)
-    mask[round(height * aspect) :, : round(width * (1 - aspect))] = 0
+    mask[round(height * aspect) :, : round(width * (1 - aspect))] = 0  # noqa
 
     return Problem(normals, forces, density, mask.T)
 
@@ -257,7 +257,7 @@ def crane(
     mask = torch.ones((width, height)).to(device=device, dtype=dtype)
     # the extra +2 ensures that entire region in the vicinity of the force can be
     # be designed; otherwise we get outrageously high values for the compliance.
-    mask[round(aspect * width) :, round(height * aspect) + 2 :] = 0
+    mask[round(aspect * width) :, round(height * aspect) + 2 :] = 0  # noqa
 
     return Problem(normals, forces, density, mask.T)
 
@@ -430,7 +430,8 @@ def thin_support_bridge(
 
     mask = torch.ones((width, height)).to(device=device, dtype=dtype)
     mask[
-        -round(width * (1 - design_width)) :, : round(height * (1 - design_width))
+        -round(width * (1 - design_width)) :,
+        : round(height * (1 - design_width)),  # noqa
     ] = 0  # noqa
 
     return Problem(normals, forces, density, mask)
@@ -462,8 +463,105 @@ def hoop(width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT
     i, j, value = skimage.draw.circle_perimeter_aa(
         width, width, width, forces.shape[:2]
     )
-    forces[i, j, Y] = -value / (2 * np.pi * width)
+    forces[i, j, Y] = -value / (2 * torch.pi * width)
 
+    return Problem(normals, forces, density)
+
+
+def multipoint_circle(
+    width=140,
+    height=140,
+    density=0.333,
+    radius=6 / 7,
+    weights=(1, 0, 0, 0, 0, 0),
+    num_points=12,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """Various load scenarios at regular points in a circle points."""
+    # From: http://www2.mae.ufl.edu/mdo/Papers/5219.pdf
+    # Note: currently unused in our test suite only because the optimization
+    # problems from the paper are defined based on optimizing for compliance
+    # averaged over multiple force scenarios.
+    c_x = width // 2
+    c_y = height // 2
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[c_x - 1 : c_x + 2, c_y - 1 : c_y + 2, :] = 1  # noqa
+    assert normals.sum() == 18
+
+    c1, c2, c3, c4, c_x0, c_y0 = weights
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    for position in range(num_points):
+        x = radius * c_x * torch.sin(2 * torch.pi * position / num_points)
+        y = radius * c_y * torch.cos(2 * torch.pi * position / num_points)
+        i = int(round(c_x + x))
+        j = int(round(c_y + y))
+        forces[i, j, X] = +c1 * y + c2 * x + c3 * y + c4 * x + c_x0
+        forces[i, j, Y] = -c1 * x + c2 * y + c3 * x - c4 * y + c_y0
+
+    return Problem(normals, forces, density)
+
+
+def dam(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+    """Support horizitonal forces, proportional to depth."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[:, -1, X] = 1
+    normals[:, -1, Y] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[0, :, X] = 2 * torch.arange(1, height + 2) / height**2
+    return Problem(normals, forces, density)
+
+
+def ramp(width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+    """Support downward forces on a ramp."""
+    return staircase(width, height, density, num_stories=1)
+
+
+def staircase(
+    width=32,
+    height=32,
+    density=0.25,
+    num_stories=2,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A ramp that zig-zags upward, supported from the ground."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[:, -1, :] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    for story in range(num_stories):
+        parity = story % 2
+        start_coordinates = (0, (story + parity) * height // num_stories)
+        stop_coordiates = (width, (story + 1 - parity) * height // num_stories)
+        i, j, value = skimage.draw.line_aa(*start_coordinates, *stop_coordiates)
+        forces[i, j, Y] = np.minimum(forces[i, j, Y], -value / (width * num_stories))
+
+    return Problem(normals, forces, density)
+
+
+def staggered_points(
+    width=32,
+    height=32,
+    density=0.3,
+    interval=16,
+    break_symmetry=False,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A staggered grid of points with downward forces, supported from below."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[:, -1, Y] = 1
+    normals[0, :, X] = 1
+    normals[-1, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    f = interval**2 / (width * height)
+    # intentionally break horizontal symmetry?
+    forces[interval // 2 + int(break_symmetry) :: interval, ::interval, Y] = -f  # noqa
+    forces[int(break_symmetry) :: interval, interval // 2 :: interval, Y] = -f  # noqa
     return Problem(normals, forces, density)
 
 
@@ -607,6 +705,37 @@ PROBLEMS_BY_CATEGORY = {
         hoop(32, 64, density=0.25),
         hoop(64, 128, density=0.2),
         hoop(128, 256, density=0.15),
+    ],
+    "dam": [
+        dam(64, 64, density=0.2),
+        dam(128, 128, density=0.15),
+        dam(256, 256, density=0.05),
+        dam(256, 256, density=0.1),
+        dam(256, 256, density=0.2),
+    ],
+    "ramp": [
+        ramp(64, 64, density=0.3),
+        ramp(128, 128, density=0.2),
+        ramp(256, 256, density=0.2),
+        ramp(256, 256, density=0.1),
+    ],
+    "staircase": [
+        staircase(64, 64, density=0.3, num_stories=3),
+        staircase(128, 128, density=0.2, num_stories=3),
+        staircase(256, 256, density=0.15, num_stories=3),
+        staircase(128, 512, density=0.15, num_stories=6),
+    ],
+    "staggered_points": [
+        staggered_points(64, 64, density=0.3),
+        staggered_points(128, 128, density=0.3),
+        staggered_points(256, 256, density=0.3),
+        staggered_points(256, 256, density=0.5),
+        staggered_points(64, 128, density=0.3),
+        staggered_points(128, 256, density=0.3),
+        staggered_points(32, 128, density=0.3),
+        staggered_points(64, 256, density=0.3),
+        staggered_points(128, 512, density=0.3),
+        staggered_points(128, 512, interval=32, density=0.15),
     ],
     "multistory_building": [
         multistory_building(32, 64, density=0.5),
