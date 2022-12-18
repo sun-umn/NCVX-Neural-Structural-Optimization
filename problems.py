@@ -388,7 +388,9 @@ def thin_support_bridge(
     forces[:, 0, Y] = -1 / width
 
     mask = torch.ones((width, height)).to(device=device, dtype=dtype)
-    mask[-round(width * (1 - design_width)) :, : round(height * (1 - design_width))] = 0
+    mask[
+        -round(width * (1 - design_width)) :, : round(height * (1 - design_width))
+    ] = 0  # noqa
 
     return Problem(normals, forces, density, mask)
 
