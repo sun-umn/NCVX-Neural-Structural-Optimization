@@ -26,7 +26,7 @@ class GlobalNormalization(nn.Module):
         self.epsilon = epsilon
 
     def forward(self, x):  # noqa
-        mean, var = x.mean(), x.var()
+        var, mean = torch.var_mean(x, unbiased=False)
         net = x
         net = net - mean
         net = net * torch.rsqrt(var + self.epsilon)
@@ -109,7 +109,6 @@ class CNNModel(nn.Module):
         self.dense = nn.Linear(latent_size, filters)
 
         # Create the gain for the initializer
-        # gain = torch.nn.init.calculate_gain('tanh')
         gain = self.dense_init_scale * np.sqrt(max(filters / latent_size, 1.0))
         nn.init.orthogonal_(self.dense.weight, gain=gain)
 
@@ -139,8 +138,15 @@ class CNNModel(nn.Module):
                 kernel_size=self.kernel_size,
                 padding="same",
             )
-            # gain = torch.nn.init.calculate_gain('tanh')
-            torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
+
+            # fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(convolution_layer.weight)
+            # stddev = np.sqrt((1.0 / fan_in))
+            # torch.nn.init.trunc_normal_(convolution_layer.weight, mean=0.0, std=stddev)
+            torch.nn.init.kaiming_normal_(
+                convolution_layer.weight, mode="fan_in", nonlinearity="linear"
+            )
+
+            # torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
             self.conv.append(convolution_layer)
             self.global_normalization.append(GlobalNormalization())
 
@@ -176,7 +182,7 @@ class CNNModel(nn.Module):
                 output,
                 scale_factor=resize,
                 mode="bilinear",
-                align_corners=True,
+                align_corners=False,
             )
 
             # Apply the normalization
@@ -184,15 +190,12 @@ class CNNModel(nn.Module):
 
             # Apply the 2D convolution
             output = self.conv[idx](output)
-            # output = torch.tanh(output)
 
             if self.offset_scale != 0:
                 output = self.add_offset[idx](output)
 
         # Squeeze the result in the first axis just like in the
         # tensorflow code
-        # output = self.final_conv_layer(output)
-        # output = torch.tanh(output)
         output = torch.squeeze(output)
 
         return output
