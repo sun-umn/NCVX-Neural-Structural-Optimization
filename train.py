@@ -86,7 +86,7 @@ def volume_constrained_structural_optimization_function(
     # and see what type of coefficients have the best results
     ce = pygransoStruct()
     scale = torch.sqrt(args["nelx"] * args["nely"])
-    ce.c1 = scale * ((torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0)
+    ce.c1 = 2.0 * scale * ((torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0)
 
     # Append updated physical density designs
     designs.append(x_phys.detach().cpu().numpy().astype(np.float16))  # noqa
