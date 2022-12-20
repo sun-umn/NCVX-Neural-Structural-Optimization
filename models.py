@@ -130,7 +130,7 @@ class CNNModel(nn.Module):
         offset_filters_tuple = conv_filters[:-1]
         offset_filters = dense_channels_tuple + offset_filters_tuple
 
-        for resize, in_channels, out_channels, gain in zip(
+        for resize, in_channels, out_channels in zip(
             self.resizes, offset_filters, conv_filters
         ):
             convolution_layer = nn.Conv2d(
