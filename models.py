@@ -67,7 +67,7 @@ class CNNModel(nn.Module):
         latent_size=128,
         dense_channels=32,
         resizes=(1, 2, 2, 2, 1),
-        conv_filters=(128, 64, 32, 8, 1),
+        conv_filters=(128, 64, 32, 16, 1),
         offset_scale=10.0,
         kernel_size=(5, 5),
         latent_scale=1.0,
@@ -139,9 +139,9 @@ class CNNModel(nn.Module):
                 padding="same",
             )
 
-            # fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(convolution_layer.weight)
+            # fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(convolution_layer.weight)  # noqa
             # stddev = np.sqrt((1.0 / fan_in))
-            # torch.nn.init.trunc_normal_(convolution_layer.weight, mean=0.0, std=stddev)
+            # torch.nn.init.trunc_normal_(convolution_layer.weight, mean=0.0, std=stddev)  # noqa
             torch.nn.init.kaiming_normal_(
                 convolution_layer.weight, mode="fan_in", nonlinearity="linear"
             )
