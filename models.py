@@ -143,7 +143,7 @@ class CNNModel(nn.Module):
             # stddev = np.sqrt((1.0 / fan_in))
             # torch.nn.init.trunc_normal_(convolution_layer.weight, mean=0.0, std=stddev)  # noqa
             torch.nn.init.kaiming_normal_(
-                convolution_layer.weight, mode="fan_in", nonlinearity="linear"
+                convolution_layer.weight, mode="fan_in", nonlinearity="relu"
             )
 
             # torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
@@ -165,6 +165,9 @@ class CNNModel(nn.Module):
         self.z = torch.normal(mean=0.0, std=1.0, size=(1, latent_size))
         self.z = nn.Parameter(self.z)
 
+        # STE function
+        # self.ste = STEFunction
+
     def forward(self, x=None):  # noqa
 
         # Create the model
@@ -173,7 +176,8 @@ class CNNModel(nn.Module):
 
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
-            output = torch.tanh(output)
+            # output = torch.tanh(output)
+            output = nn.ReLU()(output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
@@ -197,6 +201,7 @@ class CNNModel(nn.Module):
         # Squeeze the result in the first axis just like in the
         # tensorflow code
         output = torch.squeeze(output)
+        # output = self.ste.apply(output)
 
         return output
 
