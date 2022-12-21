@@ -110,7 +110,7 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
     )
     print("Finished training")
 
-    print(google_trails[:3])
+    print(google_trials[:3])
 
     # Google best trial
     google_best_trial = sorted(google_trials)[0]
