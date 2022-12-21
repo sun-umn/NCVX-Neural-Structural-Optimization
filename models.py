@@ -26,9 +26,11 @@ class GlobalNormalization(nn.Module):
         self.epsilon = epsilon
 
     def forward(self, x):  # noqa
-        x = x - x.mean()
-        x = x * torch.rsqrt(x.var() + self.epsilon)
-        return x
+        var, mean = torch.var_mean(x, unbiased=False)
+        net = x
+        net = net - mean
+        net = net * torch.rsqrt(var + self.epsilon)
+        return net
 
 
 # Create a layer to add offsets
@@ -68,7 +70,7 @@ class CNNModel(nn.Module):
         conv_filters=(128, 64, 32, 16, 1),
         offset_scale=10.0,
         kernel_size=(5, 5),
-        latent_scale=10.0,
+        latent_scale=1.0,
         dense_init_scale=1.0,
         train_u_matrix=False,
     ):
@@ -107,7 +109,7 @@ class CNNModel(nn.Module):
         self.dense = nn.Linear(latent_size, filters)
 
         # Create the gain for the initializer
-        gain = self.dense_init_scale * np.sqrt(max(filters / latent_size, 1))
+        gain = self.dense_init_scale * np.sqrt(max(filters / latent_size, 1.0))
         nn.init.orthogonal_(self.dense.weight, gain=gain)
 
         # Create the convoluational layers that will be used
@@ -122,7 +124,11 @@ class CNNModel(nn.Module):
         # Add the convolutional layers to the module list
         height = self.h
         width = self.w
-        offset_filters = (dense_channels, 128, 64, 32, 16)
+
+        dense_channels_tuple = (dense_channels,)
+        offset_filters_tuple = conv_filters[:-1]
+        offset_filters = dense_channels_tuple + offset_filters_tuple
+
         for resize, in_channels, out_channels in zip(
             self.resizes, offset_filters, conv_filters
         ):
@@ -132,7 +138,15 @@ class CNNModel(nn.Module):
                 kernel_size=self.kernel_size,
                 padding="same",
             )
-            torch.nn.init.xavier_normal_(convolution_layer.weight)
+
+            # fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(convolution_layer.weight)  # noqa
+            # stddev = np.sqrt((1.0 / fan_in))
+            # torch.nn.init.trunc_normal_(convolution_layer.weight, mean=0.0, std=stddev)  # noqa
+            torch.nn.init.kaiming_normal_(
+                convolution_layer.weight, mode="fan_in", nonlinearity="relu"
+            )
+
+            # torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
             self.conv.append(convolution_layer)
             self.global_normalization.append(GlobalNormalization())
 
@@ -147,9 +161,12 @@ class CNNModel(nn.Module):
             )
             self.add_offset.append(offset_layer)
 
-        # # Set up z here otherwise it is not part of the leaf tensors
-        self.z = torch.normal(mean=torch.zeros((1, 128)), std=torch.ones((1, 128)))
+        # Set up z here otherwise it is not part of the leaf tensors
+        self.z = torch.normal(mean=0.0, std=1.0, size=(1, latent_size))
         self.z = nn.Parameter(self.z)
+
+        # STE function
+        # self.ste = STEFunction
 
     def forward(self, x=None):  # noqa
 
@@ -159,8 +176,8 @@ class CNNModel(nn.Module):
 
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
-            output = torch.tanh(output)
-
+            # output = torch.tanh(output)
+            output = nn.ReLU()(output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
@@ -168,7 +185,8 @@ class CNNModel(nn.Module):
             output = Fun.interpolate(
                 output,
                 scale_factor=resize,
-                mode="area",
+                mode="bilinear",
+                align_corners=False,
             )
 
             # Apply the normalization
@@ -180,9 +198,10 @@ class CNNModel(nn.Module):
             if self.offset_scale != 0:
                 output = self.add_offset[idx](output)
 
-        # Squeeze the result in the last axis just like in the
+        # Squeeze the result in the first axis just like in the
         # tensorflow code
         output = torch.squeeze(output)
+        # output = self.ste.apply(output)
 
         return output
 

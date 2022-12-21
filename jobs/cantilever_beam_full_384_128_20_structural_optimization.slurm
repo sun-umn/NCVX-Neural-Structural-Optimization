@@ -9,4 +9,4 @@
 #SBATCH --gres=gpu:a100:1
 /home/jusun/dever120/NCVX-Neural-Structural-Optimization
 export PATH=/home/jusun/dever120/miniconda3/envs/rydevera/bin:$PATH
-python tasks.py --height=64 --width=192 --density=0.4 --alpha=5e3 --num_trials=50 --maxit=1500
+python tasks.py --problem_name "cantilever_beam_full_384x128_0.2" --num_trials=50 --maxit=1500

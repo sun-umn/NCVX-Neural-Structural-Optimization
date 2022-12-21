@@ -81,12 +81,15 @@ def volume_constrained_structural_optimization_function(
     # Run this problem with no inequality constraints
     ci = None
 
-    # Run this problem with no equality constraints
-    # TODO: We may also want a way to use different coefficients
-    # and see what type of coefficients have the best results
     ce = pygransoStruct()
-    scale = torch.sqrt(args["nelx"] * args["nely"])
-    ce.c1 = scale * ((torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0)
+    scale = 2 * args["nelx"] * args["nely"] * args["volfrac"]
+    ce.c1 = scale * torch.abs(
+        (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0
+    )  # noqa
+
+    # Second constraint
+    pixel_total = args["nelx"] * args["nely"] * args["volfrac"]
+    ce.c2 = torch.abs((x_phys[mask].sum() / pixel_total) - 1.0)
 
     # Append updated physical density designs
     designs.append(x_phys.detach().cpu().numpy().astype(np.float16))  # noqa
@@ -184,8 +187,8 @@ def train_pygranso(
         opts.maxit = maxit
         opts.print_frequency = 10
         opts.stat_l2_model = False
-        opts.viol_eq_tol = 1e-8
-        opts.opt_tol = 1e-8
+        opts.viol_eq_tol = 1e-6
+        opts.opt_tol = 1e-6
 
         mHLF_obj = utils.HaltLog()
         halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)
