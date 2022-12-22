@@ -81,7 +81,7 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
     )
 
     # Define the best trial
-    best_trial = sorted(trials)[0]
+    best_trial = sorted(trials, key=lambda x: x[0])[0]
 
     # Save the best final design
     best_final_design = best_trial[2]
@@ -110,10 +110,8 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
     )
     print("Finished training")
 
-    print(google_trials[:3])
-
     # Google best trial
-    google_best_trial = sorted(google_trials)[0]
+    google_best_trial = sorted(google_trials, key=lambda x: x[0])[0]
 
     # Get the losses
     google_best_score = np.round(google_best_trial[0], 2)
