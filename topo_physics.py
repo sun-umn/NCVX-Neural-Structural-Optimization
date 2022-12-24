@@ -325,15 +325,6 @@ def sparse_displace(
 
     # Build the sparse matrix
     K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size]).double()
-    # K = K.to_dense()
-    # K = ((K + K.t()) / 2.0).to_sparse_coo()
-
-    # # Use a Jacobi preconditioner
-    # M = torch.diag(K)
-    # M = (1.0 / M).double()
-    # M = torch.diag(M)
-    # K = (M @ K).to_sparse_coo()
-    # freedofs_forces = M @ freedofs_forces
 
     # Symmetric indices
     keep_k_entries = K.coalesce().values()
@@ -353,6 +344,41 @@ def sparse_displace(
     u_values = u_values[index_map].to(device=device, dtype=dtype)
 
     return u_values
+
+
+def calculate_compliance(model, ke, args, device, dtype):
+    """
+    Function to calculate the final compliance
+    """
+    logits = model(None)
+
+    # kwargs for displacement
+    kwargs = dict(
+        penal=args["penal"],
+        e_min=args["young_min"],
+        e_0=args["young"],
+        base="MATLAB",
+        device=device,
+        dtype=dtype,
+    )
+    x_phys = torch.sigmoid(logits)
+    mask = torch.broadcast_to(args["mask"], x_phys.shape) > 0
+    mask = mask.requires_grad_(False)
+    x_phys = x_phys * mask.int()
+
+    # Calculate the forces
+    forces = calculate_forces(x_phys, args)
+
+    # Calculate the u_matrix
+    u_matrix = sparse_displace(
+        x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
+    )
+
+    # Calculate the compliance output
+    compliance_output, _, _ = compliance(x_phys, u_matrix, ke, args, **kwargs)
+
+    # The loss is the sum of the compliance
+    return torch.sum(compliance_output), x_phys, mask
 
 
 def build_K_matrix(x_phys, args, base="MATLAB"):

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import neptune.new as neptune
 import neural_structural_optimization.problems as google_problems
 import numpy as np
+import torch
 
 # first party
 import problems
@@ -29,6 +30,7 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
 
     # Get the available device
     device = utils.get_devices()
+    # device = torch.device('cpu')
 
     # PyGranso Volume Function
     comb_fn = train.volume_constrained_structural_optimization_function
@@ -118,7 +120,7 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
 
     # Next extract the final image
     google_design = google_best_trial[2]
-    google_design = [google_design]
+    google_design = np.squeeze(google_design)
 
     # Plot the google image
     google_fig = utils.build_final_design(

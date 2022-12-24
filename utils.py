@@ -1,4 +1,5 @@
 # stdlib
+import gc
 import os
 import warnings
 
@@ -51,20 +52,17 @@ class SparseSolver(Function):
         dtype=utils.DEFAULT_DTYPE,
     ):  # noqa
         # Set the inputs
-        ctx.a_entries = a_entries
-        ctx.a_indices = a_indices
-        ctx.b = b.data.cpu().numpy()
         ctx.sym_pos = sym_pos
         ctx.device = device
         ctx.dtype = dtype
 
         # Gather the result
-        a_entries = a_entries.detach().cpu().numpy()
-        all_indices = a_indices.detach().cpu().numpy()
-        col = all_indices.T[:, 1]
-        row = all_indices.T[:, 0]
+        a_entries_numpy = a_entries.detach().cpu().numpy()
+        all_indices_numpy = a_indices.detach().cpu().numpy()
+        col = all_indices_numpy.T[:, 1]
+        row = all_indices_numpy.T[:, 0]
         a = scipy.sparse.csc_matrix(
-            (a_entries, (row, col)),
+            (a_entries_numpy, (row, col)),
             shape=(b.detach().cpu().numpy().size,) * 2,
         ).astype(np.float64)
 
@@ -86,7 +84,21 @@ class SparseSolver(Function):
         if b.is_cuda:
             result = result.to(device=device, dtype=dtype)
 
-        ctx.result = result
+        ctx.save_for_backward(a_entries, a_indices, result)
+
+        del (
+            a_entries,
+            a_indices,
+            a_entries_numpy,
+            all_indices_numpy,
+            row,
+            col,
+            solver,
+            b_np,
+        )
+        gc.collect()
+        torch.cuda.empty_cache()
+
         return result
 
     @staticmethod
@@ -94,19 +106,26 @@ class SparseSolver(Function):
         """
         Gather the values from the saved context
         """
-        a_entries = ctx.a_entries
-        a_indices = ctx.a_indices
-        b = ctx.b
+        a_entries, a_indices, result = ctx.saved_tensors
         sym_pos = ctx.sym_pos
         device = ctx.device
         dtype = ctx.dtype
-        result = ctx.result
 
         # Calculate the gradient
-        lambda_ = SparseSolver.apply(a_entries, a_indices, grad, False, device, dtype)
+        lambda_ = SparseSolver.apply(a_entries, a_indices, grad, sym_pos, device, dtype)
         i, j = a_indices
         i, j = i.long(), j.long()
         output = -lambda_[i] * result[j]
+
+        del (
+            a_entries,
+            a_indices,
+            result,
+            i,
+            j,
+        )
+        gc.collect()
+        torch.cuda.empty_cache()
 
         return output, None, lambda_, None, None, None
 
@@ -116,7 +135,8 @@ def solve_coo(a_entries, a_indices, b, sym_pos, device, dtype):
     Wrapper around the SparseSolver class for building
     a large sparse matrix gradient
     """
-    return SparseSolver.apply(a_entries, a_indices, b, sym_pos, device, dtype)
+    x = SparseSolver.apply(a_entries, a_indices, b, sym_pos, device, dtype)
+    return x
 
 
 # Implement a find root extension for pytorch
@@ -408,13 +428,11 @@ def build_loss_plots(problem_name, trials_dict, neptune_logging):
     plt.close()
 
 
-def build_final_design(problem_name, final_designs, compliance, figsize=(10, 6)):
+def build_final_design(problem_name, final_design, compliance, figsize=(10, 6)):
     """
     Function to build and display the stages of the final structure.
     For this plot we consider only the best structure that was found
     """
-    # Get the final design
-    final_design = final_designs[-1]
 
     # Set up the final design for the bridge
     # TODO: Depending on how many sturctures we want there may
@@ -429,16 +447,13 @@ def build_final_design(problem_name, final_designs, compliance, figsize=(10, 6))
     # Setup the figure
     fig, axes = plt.subplots(1, 1, figsize=figsize)
 
-    axes.imshow(final_design, cmap="Greys")
+    im = axes.imshow(final_design)
     axes.set_xlabel("x")
     axes.set_ylabel("y")
     axes.set_title(f"{problem_name} / Comp={compliance}")
 
-    # # Get the images path to save
-    # images_path = "./images"
-    # timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %X")
-    # images_file = f"{timestamp}_{problem_name}_final_designs.png"
-    # plt.savefig(os.path.join(images_path, images_file))
+    fig.tight_layout()
+    fig.colorbar(im, orientation="horizontal", pad=0.1)
 
     return fig
 
@@ -467,7 +482,7 @@ def build_structure_design(problem_name, trials, display="vertical", figsize=(10
     structures = np.array_split(indexes, 5)
     for index, step in enumerate(structures):
         step = int(step[-1])
-        axes[index].imshow(final_designs[step], cmap="Greys")
+        axes[index].imshow(final_designs[step])
         axes[index].set_xlabel("x")
         axes[index].set_ylabel("y")
         axes[index].set_title(f"iteration={step}")
