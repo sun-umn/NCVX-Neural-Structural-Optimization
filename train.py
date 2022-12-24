@@ -122,8 +122,8 @@ def train_pygranso(
         initial_compliance, x_phys, _ = topo_physics.calculate_compliance(
             cnn_model, ke, args, device, utils.DEFAULT_DTYPE
         )
-        initial_compliance = torch.ceil(
-            initial_compliance.to(torch.float64).detach() + 1.0
+        initial_compliance = (
+            torch.ceil(initial_compliance.to(torch.float64).detach()) + 1.0
         )
 
         # Combined function

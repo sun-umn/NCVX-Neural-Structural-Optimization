@@ -138,12 +138,8 @@ class CNNModel(nn.Module):
                 kernel_size=self.kernel_size,
                 padding="same",
             )
-
-            # fan_in, fan_out = torch.nn.init._calculate_fan_in_and_fan_out(convolution_layer.weight)  # noqa
-            # stddev = np.sqrt((1.0 / fan_in))
-            # torch.nn.init.trunc_normal_(convolution_layer.weight, mean=0.0, std=stddev)  # noqa
             torch.nn.init.kaiming_normal_(
-                convolution_layer.weight, mode="fan_in", nonlinearity="relu"
+                convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
             )
 
             # torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
@@ -177,7 +173,8 @@ class CNNModel(nn.Module):
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
             # output = torch.tanh(output)
-            output = nn.ReLU()(output)
+            output = nn.LeakyReLU()(output)
+            # output = nn.ReLU()(output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
