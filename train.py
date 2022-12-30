@@ -211,7 +211,9 @@ def train_pygranso(
 
         # trials
         trials_designs[index, :, :] = final_design
-        trials_losses[: len(log_f), index] = log_f.values
+        trials_losses[: len(log_f), index] = (
+            log_f.values * initial_compliance.cpu().numpy()
+        )  # noqa
 
         # Remove all variables for the next round
         del (
