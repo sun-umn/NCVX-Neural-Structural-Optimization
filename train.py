@@ -80,6 +80,10 @@ def train_pygranso(
     """
     Function to train structural optimization pygranso
     """
+    # Set up the dtypes
+    dtype32 = torch.float32
+    default_dtype = utils.DEFAULT_DTYPE
+
     # Get the problem args
     args = topo_api.specified_task(problem, device=device)
 
@@ -91,7 +95,9 @@ def train_pygranso(
     )
 
     # Trials
-    trials = []
+    trials_designs = np.zeros((num_trials, args["nely"], args["nelx"]))
+    trials_losses = np.zeros((maxit + 1, num_trials))
+    trials_initial_volumes = []
 
     for index, seed in enumerate(range(0, num_trials)):
         np.random.seed(seed)
@@ -103,28 +109,26 @@ def train_pygranso(
         # Initialize the CNN Model
         if cnn_kwargs is not None:
             cnn_model = models.CNNModel(args, **cnn_kwargs).to(
-                device=device, dtype=utils.DEFAULT_DTYPE
+                device=device, dtype=dtype32
             )
         else:
-            cnn_model = models.CNNModel(args).to(
-                device=device, dtype=utils.DEFAULT_DTYPE
-            )
+            cnn_model = models.CNNModel(args).to(device=device, dtype=dtype32)
 
         # Put the cnn model in training mode
         cnn_model.train()
 
         # Create the combined function and structural optimization
         # setup
-        # Save the physical density designs & the losses
-        losses = []
 
         # Calculate initial compliance
         initial_compliance, x_phys, _ = topo_physics.calculate_compliance(
-            cnn_model, ke, args, device, utils.DEFAULT_DTYPE
+            cnn_model, ke, args, device, default_dtype
         )
         initial_compliance = (
             torch.ceil(initial_compliance.to(torch.float64).detach()) + 1.0
         )
+        initial_volume = torch.mean(x_phys)
+        trials_initial_volumes.append(initial_volume.detach().cpu().numpy())
 
         # Combined function
         comb_fn = lambda model: pygranso_combined_function(  # noqa
@@ -133,7 +137,7 @@ def train_pygranso(
             ke,
             args,
             device=device,
-            dtype=utils.DEFAULT_DTYPE,
+            dtype=default_dtype,
         )
 
         # Initalize the pygranso options
@@ -148,10 +152,10 @@ def train_pygranso(
             torch.nn.utils.parameters_to_vector(cnn_model.parameters())
             .detach()
             .reshape(nvar, 1)
-        ).to(device=device, dtype=utils.DEFAULT_DTYPE)
+        ).to(device=device, dtype=dtype32)
 
         # Additional pygranso options
-        opts.limited_mem_size = 10
+        opts.limited_mem_size = 20
         opts.torch_device = device
         opts.double_precision = True
         opts.mu0 = mu
@@ -184,7 +188,7 @@ def train_pygranso(
         cnn_model.eval()
         with torch.no_grad():
             _, final_design, _ = topo_physics.calculate_compliance(
-                cnn_model, ke, args, device, utils.DEFAULT_DTYPE
+                cnn_model, ke, args, device, default_dtype
             )
             final_design = final_design.detach().cpu().numpy()
 
@@ -206,7 +210,8 @@ def train_pygranso(
             plt.close()
 
         # trials
-        trials.append((final_f, log_f, final_design, wall_time))
+        trials_designs[index, :, :] = final_design
+        trials_losses[: len(log_f), index] = log_f.values
 
         # Remove all variables for the next round
         del (
@@ -226,7 +231,14 @@ def train_pygranso(
         gc.collect()
         torch.cuda.empty_cache()
 
-    return trials
+    outputs = {
+        "designs": trials_designs,
+        "losses": trials_losses,
+        # Convert to numpy array
+        "trials_initial_volumes": np.array(trials_initial_volumes),
+    }
+
+    return outputs
 
 
 def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
