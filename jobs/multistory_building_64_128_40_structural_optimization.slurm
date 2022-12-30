@@ -9,4 +9,4 @@
 #SBATCH --gres=gpu:a100:1
 /home/jusun/dever120/NCVX-Neural-Structural-Optimization
 export PATH=/home/jusun/dever120/miniconda3/envs/rydevera/bin:$PATH
-python tasks.py --problem_name "multistory_building_64x128_0.4" --num_trials=50 --maxit=1500
+python tasks.py --problem_name "multistory_building_64x128_0.4" --num_trials=50 --maxit=1500 --requires_flip
