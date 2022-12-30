@@ -428,7 +428,14 @@ def build_loss_plots(problem_name, trials_dict, neptune_logging):
     plt.close()
 
 
-def build_final_design(problem_name, final_design, compliance, figsize=(10, 6)):
+def build_final_design(
+    problem_name,
+    final_design,
+    compliance,
+    requires_flip=False,
+    total_frames=1,
+    figsize=(10, 6),
+):
     """
     Function to build and display the stages of the final structure.
     For this plot we consider only the best structure that was found
@@ -437,12 +444,12 @@ def build_final_design(problem_name, final_design, compliance, figsize=(10, 6)):
     # Set up the final design for the bridge
     # TODO: Depending on how many sturctures we want there may
     # be more modification
-    if "bridge" in problem_name:
+    if requires_flip:
         final_frame = final_design
         revered_final_frame = final_frame[:, ::-1]
 
         # We stack the frames and replicate for the bridge
-        final_design = np.hstack([final_frame, revered_final_frame] * 2)
+        final_design = np.hstack([final_frame, revered_final_frame] * total_frames)
 
     # Setup the figure
     fig, axes = plt.subplots(1, 1, figsize=figsize)

@@ -70,6 +70,8 @@ def train_pygranso(
     problem,
     pygranso_combined_function,
     device,
+    requires_flip,
+    total_frames,
     cnn_kwargs=None,
     neptune_logging=None,
     *,
@@ -96,7 +98,7 @@ def train_pygranso(
 
     # Trials
     trials_designs = np.zeros((num_trials, args["nely"], args["nelx"]))
-    trials_losses = np.zeros((maxit + 1, num_trials))
+    trials_losses = np.full((maxit + 1, num_trials), np.nan)
     trials_initial_volumes = []
 
     for index, seed in enumerate(range(0, num_trials)):
@@ -204,16 +206,19 @@ def train_pygranso(
 
             best_score = np.round(final_f, 2)
             fig = utils.build_final_design(
-                problem.name, final_design, best_score, figsize=(10, 6)
+                problem.name,
+                final_design,
+                best_score,
+                requires_flip,
+                total_frames,
+                figsize=(10, 6),
             )
             neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
             plt.close()
 
         # trials
         trials_designs[index, :, :] = final_design
-        trials_losses[: len(log_f), index] = (
-            log_f.values * initial_compliance.cpu().numpy()
-        )  # noqa
+        trials_losses[: len(log_f), index] = log_f.values  # noqa
 
         # Remove all variables for the next round
         del (

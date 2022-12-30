@@ -19,8 +19,12 @@ import utils
 @click.option("--problem_name", default="mbb_beam", type=click.STRING)
 @click.option("--num_trials", default=50)
 @click.option("--maxit", default=1500)
+@click.option("--requires_flip", is_flag=True, default=False)
+@click.option("--total_frames", default=1)
 @click.option("--resizes", is_flag=True, default=False)
-def structural_optimization_task(problem_name, num_trials, maxit, resizes):
+def structural_optimization_task(
+    problem_name, num_trials, maxit, requires_flip, total_frames, resizes
+):
     click.echo(problem_name)
     # Enable the neptune run
     # TODO: make the api token an environment variable
@@ -77,6 +81,8 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
         problem=problem,
         device=device,
         pygranso_combined_function=comb_fn,
+        requires_flip=requires_flip,
+        total_frames=total_frames,
         cnn_kwargs=cnn_kwargs,
         neptune_logging=run,
         num_trials=num_trials,
@@ -102,7 +108,7 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
     # TODO: Will need a special implmentation for some of the final
     # designs
     fig = utils.build_final_design(
-        problem.name, best_final_design, best_score, figsize=(10, 6)
+        problem.name, best_final_design, best_score, requires_flip, figsize=(10, 6)
     )
     fig.subplots_adjust(hspace=0)
     fig.tight_layout()
@@ -155,6 +161,7 @@ def structural_optimization_task(problem_name, num_trials, maxit, resizes):
     run["mean-compliance"].log(losses_mean)
     plt.close()
 
+    # TODO: Fix this soon - another memory leak here
     # # Train the google problem
     # print(f"Training Google - {google_problem.name}")
     # google_trials = train.train_google(
