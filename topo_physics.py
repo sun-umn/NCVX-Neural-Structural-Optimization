@@ -271,7 +271,7 @@ def sparse_displace(
         keep_k_entries,
         indices,
         freedofs_forces,
-        sym_pos=True,
+        sym_pos=False,
         device=device,
         dtype=dtype,
     )

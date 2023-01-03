@@ -29,7 +29,7 @@ def structural_optimization_task(
     # Enable the neptune run
     # TODO: make the api token an environment variable
     run = neptune.init_run(
-        project="dever120/CNN-Structural-Optimization-Prod",
+        project="dever120/CNN-Structural-Optimization-Pytorch-Dev",
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",
     )
 

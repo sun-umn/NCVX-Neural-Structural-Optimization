@@ -115,6 +115,7 @@ def train_pygranso(
             )
         else:
             cnn_model = models.CNNModel(args).to(device=device, dtype=dtype32)
+        # cnn_model = models.UnetModel(args).to(device=device, dtype=torch.double)
 
         # Put the cnn model in training mode
         cnn_model.train()

@@ -4,13 +4,13 @@ import torch.nn as nn
 import torch.nn.functional as Fun
 
 
-class STEFunction(torch.autograd.Function):
+class STEFunction(torch.autograd.Function):  # noqa
     @staticmethod
-    def forward(ctx, input):
+    def forward(ctx, input):  # noqa
         return (input > 0).float()
 
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output):  # noqa
         return Fun.hardtanh(grad_output)
 
 
@@ -233,7 +233,7 @@ class ModelDown(nn.Module):
     architecture
     """
 
-    def __init__(self, in_channels, out_channels, resize):
+    def __init__(self, in_channels, out_channels, resize):  # noqa
         super(ModelDown, self).__init__()
         # Resize
         self.in_channels = in_channels
@@ -250,6 +250,11 @@ class ModelDown(nn.Module):
             kernel_size=(5, 5),
             stride=resize,
         )
+        torch.nn.init.kaiming_normal_(
+            self.conv1_layer.weight,
+            mode="fan_in",
+            nonlinearity="leaky_relu",  # noqa
+        )
 
         # Second convoluational layer
         self.conv2_layer = nn.Conv2d(
@@ -258,6 +263,11 @@ class ModelDown(nn.Module):
             kernel_size=(5, 5),
             stride=(1, 1),
         )
+        torch.nn.init.kaiming_normal_(
+            self.conv2_layer.weight,
+            mode="fan_in",
+            nonlinearity="leaky_relu",  # noqa
+        )
 
         # Create the instance normalization layer
         self.instance_norm = nn.InstanceNorm2d(num_features=out_channels)
@@ -265,7 +275,7 @@ class ModelDown(nn.Module):
         # LeakyRely layer
         self.activation = nn.LeakyReLU()
 
-    def forward(self, x):
+    def forward(self, x):  # noqa
         # First small block
         x = self.padding(x)
         x = self.conv1_layer(x)
@@ -286,7 +296,7 @@ class ModelUp(nn.Module):
     Class that performs the upsample block of the Unet architecture
     """
 
-    def __init__(self, in_channels, out_channels, resize):
+    def __init__(self, in_channels, out_channels, resize):  # noqa
         super(ModelUp, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -305,6 +315,11 @@ class ModelUp(nn.Module):
             kernel_size=(5, 5),
             stride=(1, 1),
         )
+        torch.nn.init.kaiming_normal_(
+            self.conv1_layer.weight,
+            mode="fan_in",
+            nonlinearity="leaky_relu",  # noqa
+        )
 
         # Second convoluational layer
         self.conv2_layer = nn.Conv2d(
@@ -312,6 +327,11 @@ class ModelUp(nn.Module):
             out_channels=out_channels,
             kernel_size=(1, 1),
             stride=(1, 1),
+        )
+        torch.nn.init.kaiming_normal_(
+            self.conv2_layer.weight,
+            mode="fan_in",
+            nonlinearity="leaky_relu",  # noqa
         )
 
         # LeakyReLU
@@ -345,7 +365,9 @@ class UnetModel(nn.Module):  # noqa
     supplemental material
     """
 
-    def __init__(self, args, filters, resizes):  # noqa
+    def __init__(  # noqa
+        self, args, filters=(1, 8, 16, 32, 64, 128), resizes=(1, 2, 2, 2, 1)
+    ):  # noqa
         super(UnetModel, self).__init__()
         self.args = args
         self.filters = filters
@@ -357,31 +379,28 @@ class UnetModel(nn.Module):  # noqa
         self.model_up = nn.ModuleList()
 
         # The Model down piece of the Unet
-        for index, (filters, resize) in enumerate(
-            zip(self.filters, self.resizes)
-        ):  # noqa
+        for index, resize in enumerate(self.resizes):  # noqa
             self.model_down.append(
                 ModelDown(
-                    in_channels=filters[index],
-                    out_channels=filters[index + 1],
+                    in_channels=self.filters[index],
+                    out_channels=self.filters[index + 1],
                     resize=resize,
                 )
             )
 
         # The Model up piece of the Unet
-        for index, (filters, resize) in enumerate(
-            zip(self.reverse_filters, self.resizes)
-        ):
+        for index, resize in enumerate(self.resizes):
             self.model_up.append(
                 ModelUp(
-                    in_channels=filters[index],
-                    out_channels=filters[index + 1],
+                    in_channels=self.reverse_filters[index],
+                    out_channels=self.reverse_filters[index + 1],
                     resize=resize,
                 )
             )
 
         # Random variable z
         self.z = torch.randn(1, 1, self.args["nely"], self.args["nelx"])
+        self.z = nn.Parameter(self.z)
 
     def forward(self, z=None):  # noqa
         # Iterate over the model down module list
