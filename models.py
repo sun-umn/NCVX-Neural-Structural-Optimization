@@ -139,7 +139,9 @@ class CNNModel(nn.Module):
                 padding="same",
             )
             torch.nn.init.kaiming_normal_(
-                convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
+                convolution_layer.weight,
+                mode="fan_in",
+                nonlinearity="leaky_relu",  # noqa
             )
 
             # torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
@@ -223,3 +225,175 @@ class UMatrixModel(nn.Module):
 
     def forward(self, x=None):  # noqa
         return self.u_matrix
+
+
+class ModelDown(nn.Module):
+    """
+    Perform the downsampling block for the deep image prior
+    architecture
+    """
+
+    def __init__(self, in_channels, out_channels, resize):
+        super(ModelDown, self).__init__()
+        # Resize
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.resize = resize
+
+        # Set up the padding layer
+        self.padding = nn.ReflectionPad2d(2)
+
+        # Set up the convolutional layers
+        self.conv1_layer = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=(5, 5),
+            stride=resize,
+        )
+
+        # Second convoluational layer
+        self.conv2_layer = nn.Conv2d(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=(5, 5),
+            stride=(1, 1),
+        )
+
+        # Create the instance normalization layer
+        self.instance_norm = nn.InstanceNorm2d(num_features=out_channels)
+
+        # LeakyRely layer
+        self.activation = nn.LeakyReLU()
+
+    def forward(self, x):
+        # First small block
+        x = self.padding(x)
+        x = self.conv1_layer(x)
+        x = self.instance_norm(x)
+        x = self.activation(x)
+
+        # Second block
+        x = self.padding(x)
+        x = self.conv2_layer(x)
+        x = self.instance_norm(x)
+        output = self.activation(x)
+
+        return output
+
+
+class ModelUp(nn.Module):
+    """
+    Class that performs the upsample block of the Unet architecture
+    """
+
+    def __init__(self, in_channels, out_channels, resize):
+        super(ModelUp, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.resize = resize
+
+        # Need to add the correct padding
+        self.padding = nn.ReflectionPad2d(2)
+
+        # Set up instance normalization layer
+        self.instance_norm = nn.InstanceNorm2d(num_features=in_channels)
+
+        # First convoluational layer
+        self.conv1_layer = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=(5, 5),
+            stride=(1, 1),
+        )
+
+        # Second convoluational layer
+        self.conv2_layer = nn.Conv2d(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+        )
+
+        # LeakyReLU
+        self.activation = nn.LeakyReLU()
+
+    def forward(self, x):  # noqa
+        # First block
+        x = self.instance_norm(x)
+        x = self.padding(x)
+        x = self.conv1_layer(x)
+        x = self.instance_norm(x)
+        x = self.activation(x)
+
+        # Second block
+        x = self.conv2_layer(x)
+        x = self.instance_norm(x)
+        x = self.activation(x)
+        output = Fun.interpolate(
+            x,
+            scale_factor=self.resize,
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        return output
+
+
+class UnetModel(nn.Module):  # noqa
+    """
+    Full Unet model that we have seen in the DIP paper and the
+    supplemental material
+    """
+
+    def __init__(self, args, filters, resizes):  # noqa
+        super(UnetModel, self).__init__()
+        self.args = args
+        self.filters = filters
+        self.reverse_filters = filters[::-1]
+        self.resizes = resizes
+
+        # Model down module list
+        self.model_down = nn.ModuleList()
+        self.model_up = nn.ModuleList()
+
+        # The Model down piece of the Unet
+        for index, (filters, resize) in enumerate(
+            zip(self.filters, self.resizes)
+        ):  # noqa
+            self.model_down.append(
+                ModelDown(
+                    in_channels=filters[index],
+                    out_channels=filters[index + 1],
+                    resize=resize,
+                )
+            )
+
+        # The Model up piece of the Unet
+        for index, (filters, resize) in enumerate(
+            zip(self.reverse_filters, self.resizes)
+        ):
+            self.model_up.append(
+                ModelUp(
+                    in_channels=filters[index],
+                    out_channels=filters[index + 1],
+                    resize=resize,
+                )
+            )
+
+        # Random variable z
+        self.z = torch.randn(1, 1, self.args["nely"], self.args["nelx"])
+
+    def forward(self, z=None):  # noqa
+        # Iterate over the model down module list
+        x = self.z
+
+        # Model down!
+        for down_layer in self.model_down:
+            x = down_layer(x)
+
+        for up_layer in self.model_up:
+            x = up_layer(x)
+
+        # Squeeze the final output
+        output = torch.squeeze(x)
+        return output
