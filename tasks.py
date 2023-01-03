@@ -108,7 +108,12 @@ def structural_optimization_task(
     # TODO: Will need a special implmentation for some of the final
     # designs
     fig = utils.build_final_design(
-        problem.name, best_final_design, best_score, requires_flip, figsize=(10, 6)
+        problem.name,
+        best_final_design,
+        best_score,
+        requires_flip,
+        total_frames=total_frames,
+        figsize=(10, 6),
     )
     fig.subplots_adjust(hspace=0)
     fig.tight_layout()

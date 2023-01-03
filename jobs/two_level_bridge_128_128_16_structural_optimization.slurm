@@ -9,4 +9,4 @@
 #SBATCH --gres=gpu:a100:1
 /home/jusun/dever120/NCVX-Neural-Structural-Optimization
 export PATH=/home/jusun/dever120/miniconda3/envs/rydevera/bin:$PATH
-python tasks.py --problem_name "center_support_256x256_0.05" --num_trials=50 --maxit=1500 --requires_flip
+python tasks.py --problem_name "two_level_bridge_128x128_0.16" --num_trials=100 --maxit=1500 --requires_flip --total_frames=2
