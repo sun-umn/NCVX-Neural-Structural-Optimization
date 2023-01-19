@@ -8,11 +8,13 @@ import utils
 
 
 # Calculate the young modulus
-def young_modulus(x, e_0, e_min, p=3):
+def young_modulus(
+    x, e_0, e_min, p=3, device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
+):
     """
     Function that calculates the young modulus
     """
-    return (e_min + x**p * (e_0 - e_min)).double()
+    return (e_min + x**p * (e_0 - e_min)).to(device=device, dtype=dtype)
 
 
 # Define the physical density with torch
@@ -75,36 +77,6 @@ def get_stiffness_matrix(
     # What are e & nu?
     e, nu = young, poisson
 
-    # k = torch.tensor(
-    #     [
-    #         1 / 2 - nu / 6,
-    #         1 / 8 + nu / 8,
-    #         -1 / 4 - nu / 12,
-    #         -1 / 8 + 3 * nu / 8,
-    #         -1 / 4 + nu / 12,
-    #         -1 / 8 - nu / 8,
-    #         nu / 6,
-    #         1 / 8 - 3 * nu / 8,
-    #     ]
-    # ).double()
-
-    # ke = (
-    #     e
-    #     / (1 - nu**2)
-    #     * torch.tensor(
-    #         [
-    #             [k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]],
-    #             [k[1], k[0], k[7], k[6], k[5], k[4], k[3], k[2]],
-    #             [k[2], k[7], k[0], k[5], k[6], k[3], k[4], k[1]],
-    #             [k[3], k[6], k[5], k[0], k[7], k[2], k[1], k[4]],
-    #             [k[4], k[5], k[6], k[7], k[0], k[1], k[2], k[3]],
-    #             [k[5], k[4], k[3], k[2], k[1], k[0], k[7], k[6]],
-    #             [k[6], k[3], k[4], k[1], k[2], k[7], k[0], k[5]],
-    #             [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]],
-    #         ]
-    #     ).to(device=device, dtype=dtype)
-    # )
-
     A11 = torch.tensor(
         [[12, 3, -6, -3], [3, 12, 3, 0], [-6, 3, 12, -3], [-3, 0, -3, 12]]
     ).to(device=device, dtype=dtype)
@@ -147,50 +119,15 @@ def compliance(
     """
     nely, nelx = args["nely"], args["nelx"]
 
-    # # Compute the torch based meshgrid
-    # ely, elx = torch.meshgrid(torch.arange(nely), torch.arange(nelx))
-    # ely, elx = ely.transpose(1, 0), elx.transpose(1, 0)
-
-    # # Calculate nodes - reflects the MATLAB code
-    # if base == "MATLAB":
-    #     n1 = (nely + 1) * (elx + 0) + (ely + 1)
-    #     n2 = (nely + 1) * (elx + 1) + (ely + 1)
-    #     n3 = (nely + 1) * (elx + 1) + (ely + 0)
-    #     n4 = (nely + 1) * (elx + 0) + (ely + 0)
-
-    # elif base == "Google":
-    #     # Google implementation
-    #     n1 = (nely + 1) * (elx + 0) + (ely + 0)
-    #     n2 = (nely + 1) * (elx + 1) + (ely + 0)
-    #     n3 = (nely + 1) * (elx + 1) + (ely + 1)
-    #     n4 = (nely + 1) * (elx + 0) + (ely + 1)
-
-    # else:
-    #     raise ValueError("Only options are MATLAB and Google!")
-
-    # # The shape of this matrix results in
-    # # (8, nelx, nely)
-    # all_ixs = torch.stack(
-    #     [2 * n1, 2 * n1 + 1, 2 * n2, 2 * n2 + 1, 2 * n3, 2 * n3 + 1, 2 * n4, 2 * n4 + 1]
-    # )
-
-    # # The selected u and now needs to be multiplied by K
-    # u_selected = u[all_ixs].squeeze()
-
-    # # Set ke to have double
-    # ke = ke.double()
-
-    # # Run the compliance calculation
-    # ke_u = torch.einsum("ij,jkl->ikl", ke, u_selected)
-    # ce = torch.einsum("ijk,ijk->jk", u_selected, ke_u)
-
     # Updated code
     edof, x_list, y_list = build_nodes_data(args, base=base)
     ce = (u[edof] @ ke) * u[edof]
     ce = torch.sum(ce, 1)
     ce = ce.reshape(nelx, nely)
 
-    young_x_phys = young_modulus(x_phys, e_0, e_min, p=penal)
+    young_x_phys = young_modulus(
+        x_phys, e_0, e_min, p=penal, device=device, dtype=dtype
+    )
 
     return young_x_phys * ce.t(), None, None
 
@@ -207,9 +144,6 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
     nely, nelx = args["nely"], args["nelx"]
 
     edof, x_list, y_list = build_nodes_data(args, base=base)
-
-    # kd = stiffness.T.reshape(nely * nelx, 1, 1)
-    # value_list = (kd * ke.tile(kd.shape)).flatten()
 
     # stiffness flattened
     stiffness_flat = stiffness.t().flatten()
@@ -298,7 +232,7 @@ def sparse_displace(
     """
     Function that displaces the load x using finite element techniques.
     """
-    stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
+    stiffness = young_modulus(x_phys, e_0, e_min, p=penal, device=device, dtype=dtype)
 
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k_data(stiffness, ke, args, base=base)
@@ -324,16 +258,9 @@ def sparse_displace(
     keep_k_entries = k_entries[keep]
 
     # Build the sparse matrix
-    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size]).double()
-    # K = K.to_dense()
-    # K = ((K + K.t()) / 2.0).to_sparse_coo()
-
-    # # Use a Jacobi preconditioner
-    # M = torch.diag(K)
-    # M = (1.0 / M).double()
-    # M = torch.diag(M)
-    # K = (M @ K).to_sparse_coo()
-    # freedofs_forces = M @ freedofs_forces
+    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size]).to(
+        device=device, dtype=dtype
+    )
 
     # Symmetric indices
     keep_k_entries = K.coalesce().values()
@@ -353,6 +280,42 @@ def sparse_displace(
     u_values = u_values[index_map].to(device=device, dtype=dtype)
 
     return u_values
+
+
+def calculate_compliance(model, ke, args, device, dtype):
+    """
+    Function to calculate the final compliance
+    """
+    logits = model(None)
+    logits = logits.to(dtype=dtype)
+
+    # kwargs for displacement
+    kwargs = dict(
+        penal=args["penal"],
+        e_min=args["young_min"],
+        e_0=args["young"],
+        base="MATLAB",
+        device=device,
+        dtype=dtype,
+    )
+    x_phys = torch.sigmoid(logits)
+    mask = torch.broadcast_to(args["mask"], x_phys.shape) > 0
+    mask = mask.requires_grad_(False)
+    x_phys = x_phys * mask.int()
+
+    # Calculate the forces
+    forces = calculate_forces(x_phys, args)
+
+    # Calculate the u_matrix
+    u_matrix = sparse_displace(
+        x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
+    )
+
+    # Calculate the compliance output
+    compliance_output, _, _ = compliance(x_phys, u_matrix, ke, args, **kwargs)
+
+    # The loss is the sum of the compliance
+    return torch.sum(compliance_output), x_phys, mask
 
 
 def build_K_matrix(x_phys, args, base="MATLAB"):

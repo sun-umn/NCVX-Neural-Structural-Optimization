@@ -31,7 +31,7 @@ import utils
 # constraint that we have been working on
 # Volume constrained function
 def volume_constrained_structural_optimization_function(
-    model, ke, args, designs, losses, device, dtype
+    model, initial_compliance, ke, args, device, dtype
 ):
     """
     Combined function for PyGranso for the structural optimization
@@ -46,56 +46,20 @@ def volume_constrained_structural_optimization_function(
     # In my version of the model it follows the similar behavior of the
     # tensorflow repository and only needs None to initialize and output
     # a first value of x
-    logits = model(None)
 
-    # kwargs for displacement
-    kwargs = dict(
-        penal=args["penal"],
-        e_min=args["young_min"],
-        e_0=args["young"],
-        base="MATLAB",
-        device=device,
-        dtype=dtype,
+    unscaled_compliance, x_phys, mask = topo_physics.calculate_compliance(
+        model, ke, args, device, dtype
     )
-    x_phys = torch.sigmoid(logits)
-    mask = torch.broadcast_to(args["mask"], x_phys.shape) > 0
-    mask = mask.requires_grad_(False)
-    x_phys = x_phys * mask.int()
-
-    # Calculate the forces
-    forces = topo_physics.calculate_forces(x_phys, args)
-
-    # Calculate the u_matrix
-    u_matrix = topo_physics.sparse_displace(
-        x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
-    )
-
-    # Calculate the compliance output
-    compliance_output, _, _ = topo_physics.compliance(
-        x_phys, u_matrix, ke, args, **kwargs
-    )
-
-    # The loss is the sum of the compliance
-    f = torch.sum(compliance_output)
+    f = 1.0 / initial_compliance * unscaled_compliance
 
     # Run this problem with no inequality constraints
     ci = None
 
     ce = pygransoStruct()
-    scale = 2 * args["nelx"] * args["nely"] * args["volfrac"]
-    ce.c1 = scale * torch.abs(
-        (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0
-    )  # noqa
+    ce.c1 = torch.abs((torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0)  # noqa
 
-    # Second constraint
-    pixel_total = args["nelx"] * args["nely"] * args["volfrac"]
-    ce.c2 = torch.abs((x_phys[mask].sum() / pixel_total) - 1.0)
-
-    # Append updated physical density designs
-    designs.append(x_phys.detach().cpu().numpy().astype(np.float16))  # noqa
-
-    # Let's try and clear as much stuff as we can to preserve memory
-    del logits, x_phys, forces, u_matrix, compliance_output
+    # # Let's try and clear as much stuff as we can to preserve memory
+    del x_phys, mask, ke
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -106,6 +70,8 @@ def train_pygranso(
     problem,
     pygranso_combined_function,
     device,
+    requires_flip,
+    total_frames,
     cnn_kwargs=None,
     neptune_logging=None,
     *,
@@ -116,6 +82,10 @@ def train_pygranso(
     """
     Function to train structural optimization pygranso
     """
+    # Set up the dtypes
+    dtype32 = torch.float32
+    default_dtype = utils.DEFAULT_DTYPE
+
     # Get the problem args
     args = topo_api.specified_task(problem, device=device)
 
@@ -127,7 +97,9 @@ def train_pygranso(
     )
 
     # Trials
-    trials = []
+    trials_designs = np.zeros((num_trials, args["nely"], args["nelx"]))
+    trials_losses = np.full((maxit + 1, num_trials), np.nan)
+    trials_initial_volumes = []
 
     for index, seed in enumerate(range(0, num_trials)):
         np.random.seed(seed)
@@ -139,31 +111,35 @@ def train_pygranso(
         # Initialize the CNN Model
         if cnn_kwargs is not None:
             cnn_model = models.CNNModel(args, **cnn_kwargs).to(
-                device=device, dtype=utils.DEFAULT_DTYPE
+                device=device, dtype=dtype32
             )
         else:
-            cnn_model = models.CNNModel(args).to(
-                device=device, dtype=utils.DEFAULT_DTYPE
-            )
+            cnn_model = models.CNNModel(args).to(device=device, dtype=dtype32)
 
         # Put the cnn model in training mode
         cnn_model.train()
 
         # Create the combined function and structural optimization
         # setup
-        # Save the physical density designs & the losses
-        designs = []
-        losses = []
+
+        # Calculate initial compliance
+        initial_compliance, x_phys, _ = topo_physics.calculate_compliance(
+            cnn_model, ke, args, device, default_dtype
+        )
+        initial_compliance = (
+            torch.ceil(initial_compliance.to(torch.float64).detach()) + 1.0
+        )
+        initial_volume = torch.mean(x_phys)
+        trials_initial_volumes.append(initial_volume.detach().cpu().numpy())
 
         # Combined function
         comb_fn = lambda model: pygranso_combined_function(  # noqa
             cnn_model,
+            initial_compliance,
             ke,
             args,
-            designs=designs,
-            losses=losses,
             device=device,
-            dtype=utils.DEFAULT_DTYPE,
+            dtype=default_dtype,
         )
 
         # Initalize the pygranso options
@@ -178,14 +154,15 @@ def train_pygranso(
             torch.nn.utils.parameters_to_vector(cnn_model.parameters())
             .detach()
             .reshape(nvar, 1)
-        ).to(device=device, dtype=utils.DEFAULT_DTYPE)
+        ).to(device=device, dtype=dtype32)
 
         # Additional pygranso options
-        opts.limited_mem_size = 10
+        opts.limited_mem_size = 20
+        opts.torch_device = device
         opts.double_precision = True
         opts.mu0 = mu
         opts.maxit = maxit
-        opts.print_frequency = 10
+        opts.print_frequency = 1
         opts.stat_l2_model = False
         opts.viol_eq_tol = 1e-6
         opts.opt_tol = 1e-6
@@ -207,29 +184,45 @@ def train_pygranso(
         # obtained by calling get_log_fn()
         log = get_log_fn()
 
-        # Final structure
-        designs_indexes = (pd.Series(log.fn_evals).cumsum() - 1).values.tolist()
-        final_designs = [designs[i] for i in designs_indexes]
+        # # Final structure
+        # indexes = (pd.Series(log.fn_evals).cumsum() - 1).values.tolist()
+
+        cnn_model.eval()
+        with torch.no_grad():
+            _, final_design, _ = topo_physics.calculate_compliance(
+                cnn_model, ke, args, device, default_dtype
+            )
+            final_design = final_design.detach().cpu().numpy()
+
+        # Put back metrics on original scale
+        final_f = soln.final.f * initial_compliance.cpu().numpy()
+        log_f = pd.Series(log.f) * initial_compliance.cpu().numpy()
 
         # Save the data from each trial
+        fig = None
         if neptune_logging is not None:
             for f_value in log.f:
                 neptune_logging[f"trial = {index} / loss"].log(f_value)
 
-            best_score = np.round(log.f[-1], 2)
+            best_score = np.round(final_f, 2)
             fig = utils.build_final_design(
-                problem.name, final_designs, best_score, figsize=(10, 6)
+                problem.name,
+                final_design,
+                best_score,
+                requires_flip,
+                total_frames,
+                figsize=(10, 6),
             )
             neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
             plt.close()
 
-        trials.append((soln.final.f, pd.Series(log.f), final_designs, wall_time))
+        # trials
+        trials_designs[index, :, :] = final_design
+        trials_losses[: len(log_f), index] = log_f.values  # noqa
 
         # Remove all variables for the next round
         del (
             cnn_model,
-            designs,
-            losses,
             comb_fn,
             opts,
             mHLF_obj,
@@ -237,14 +230,22 @@ def train_pygranso(
             get_log_fn,
             soln,
             log,
-            designs_indexes,
-            final_designs,
+            final_design,
             fig,
+            final_f,
+            log_f,
         )
         gc.collect()
         torch.cuda.empty_cache()
 
-    return trials
+    outputs = {
+        "designs": trials_designs,
+        "losses": trials_losses,
+        # Convert to numpy array
+        "trials_initial_volumes": np.array(trials_initial_volumes),
+    }
+
+    return outputs
 
 
 def train_adam(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
@@ -478,7 +479,7 @@ def train_google(
 
         if neptune_logging is not None:
             fig = utils.build_final_design(
-                problem.name, [design], final_loss, figsize=(10, 6)
+                problem.name, design, final_loss, figsize=(10, 6)
             )
             neptune_logging[f"google-trial={index}-{problem.name}-final-design"].upload(
                 fig
