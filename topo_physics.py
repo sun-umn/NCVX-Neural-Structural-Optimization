@@ -619,7 +619,7 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
         dtype=dtype,
     )
     softmax = torch.nn.Softmax()
-    x_phys = softmax(logits)
+    x_phys = softmax(logits) + 1e-4
 
     # Calculate the forces
     forces = calculate_forces(x_phys, args)
