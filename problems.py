@@ -569,6 +569,24 @@ def staggered_points(
     return Problem(normals, forces, density)
 
 
+def multi_material_tip_cantilever(
+    width, height, density, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+):
+    """
+    Function to build the tip cantilever multi-material problem
+    """
+    # There will be no normal forces for this problem
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[0, :, X] = 1
+    normals[0, :, Y] = 1
+
+    # forces
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[-1, 1, Y] = -1
+
+    return Problem(normals, forces, density)
+
+
 def build_problems_by_name(device=DEFAULT_DEVICE):
     # Problems Category
     PROBLEMS_BY_CATEGORY = {
