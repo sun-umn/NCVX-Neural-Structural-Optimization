@@ -61,17 +61,17 @@ class SparseSolver(Function):
         all_indices_numpy = a_indices.detach().cpu().numpy()
         col = all_indices_numpy.T[:, 1]
         row = all_indices_numpy.T[:, 0]
-        a = scipy.sparse.csc_matrix(
+        test = scipy.sparse.csc_matrix(
             (a_entries_numpy, (row, col)),
             shape=(b.detach().cpu().numpy().size,) * 2,
         ).astype(np.float64)
 
         if sym_pos and HAS_CHOLMOD:
-            solver = sksparse.cholmod.cholesky(a).solve_A
+            solver = sksparse.cholmod.cholesky(test).solve_A
         else:
             # could also use scikits.umfpack.splu
             # should be about twice as slow as the cholesky
-            solver = scipy.sparse.linalg.splu(a).solve
+            solver = scipy.sparse.linalg.splu(test).solve
 
         b_np = b.data.cpu().numpy().astype(np.float64)
         result = torch.from_numpy(solver(b_np).astype(np.float64))
@@ -675,7 +675,10 @@ def compute_mass_constraint(x_phys, args):
     """
     aggregation = args["aggregation"]
     total_mass = (
-        args["combined_volfrac"] * args["nelx"] * args["nely"] * np.max(args["volfrac"])
+        args["combined_volfrac"]
+        * args["nelx"]
+        * args["nely"]
+        * torch.max(args["volfrac"])
     )
 
     # The 0 index is the void material
@@ -703,6 +706,6 @@ def compute_mass_constraint(x_phys, args):
     else:
         raise ValueError("No aggregation method!")
 
-    constraint_value = torch.abs((torch.sum(x_phys_mass) / denominator) - 1.0)  # noqa
+    constraint_value = torch.sum(x_phys_mass) / denominator - 1.0  # noqa
 
     return constraint_value

@@ -9,17 +9,14 @@ import cvxopt
 import cvxopt.cholmod
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.matlib
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from matplotlib import cm, colors
-from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import colors
 from pygranso.private.getNvar import getNvarTorch
 from pygranso.pygranso import pygranso
 from pygranso.pygransoStruct import pygransoStruct
 from scipy.sparse import coo_matrix
-from scipy.sparse.linalg import spsolve
 
 # first party
 import models
@@ -55,7 +52,7 @@ def multi_material_volume_constrained_structural_optimization_function(
     ce = pygransoStruct()
     mass_constraint_value = utils.compute_mass_constraint(full_x_phys, args)
 
-    ce.c1 = mass_constraint_value / initial_mass  # noqa
+    ce.c1 = torch.abs(mass_constraint_value / initial_mass)  # noqa
 
     # # Let's try and clear as much stuff as we can to preserve memory
     del full_x_phys, ke
@@ -104,9 +101,7 @@ def train_mass_constrained_multi_material(
     args["penal"] = penal
 
     # Get the stiffness matrix
-    ke = topo_physics.get_stiffness_matrix(
-        young=args["young"],
-        poisson=args["poisson"],
+    ke = topo_physics.get_stiffness_matrix_multi_material(
         device=device,
     ).to(dtype=torch.double)
 
@@ -132,14 +127,13 @@ def train_mass_constrained_multi_material(
             args["num_materials"],
             symXAxis=False,
             symYAxis=False,
+            reshape=True,
+            optimizer="pygranso",
             seed=seed,
         ).to(device=device, dtype=torch.double)
 
     else:
         raise ValueError("There is no such model!")
-
-    # Put the model in training mode
-    model.train()
 
     # Calculate the inital compliance
     initial_compliance, x_phys = topo_physics.calculate_multi_material_compliance(
@@ -150,6 +144,9 @@ def train_mass_constrained_multi_material(
     # If we can get the initial compliance then we can also get the intial
     # mass constraint
     initial_mass_constraint = utils.compute_mass_constraint(x_phys, args)
+
+    # Put the model in training mode
+    model.train()
 
     # Combined function
     comb_fn = lambda model: multi_material_volume_constrained_structural_optimization_function(  # noqa
@@ -186,7 +183,7 @@ def train_mass_constrained_multi_material(
     opts.stat_l2_model = False
     opts.viol_eq_tol = 1e-4
     opts.opt_tol = 1e-4
-    opts.init_step_size = 1e-1
+    # opts.init_step_size = 1e-1
 
     # Main algorithm with logging enabled.
     soln = pygranso(var_spec=model, combined_fn=comb_fn, user_opts=opts)
@@ -472,7 +469,7 @@ class TopologyOptimizer:
                     ):
                         nonDesignIdx.append(ctr)
                 ctr += 1
-        xy = torch.tensor(xy, requires_grad=False).float().view(-1, 2).to(self.device)
+        xy = torch.tensor(xy, requires_grad=True).float().view(-1, 2).to(self.device)
         return xy, nonDesignIdx
 
     def initializeOptimizer(
@@ -484,6 +481,8 @@ class TopologyOptimizer:
         massDensityMaterials,
         symXAxis=False,
         symYAxis=False,
+        reshape=False,
+        seed=0,
     ):
         self.desiredMassFraction = desiredMassFraction
         self.desiredMass = (
@@ -498,9 +497,11 @@ class TopologyOptimizer:
         self.density[:, np.argmax(self.massDensityMaterials)] = 1.0
         self.lossFunction = TopOptLoss()
         self.model_type = model_type
+        self.reshape = reshape
+        self.seed = seed
 
         if self.model_type == "mlp":
-            self.topNet = models.TopNet(
+            self.topNet = models.TopNetPyGranso(
                 numLayers,
                 numNeuronsPerLyr,
                 self.FE.nelx,
@@ -508,6 +509,8 @@ class TopologyOptimizer:
                 self.FE.numMaterials,
                 symXAxis,
                 symYAxis,
+                reshape=reshape,
+                seed=seed,
             ).to(self.device)
 
         elif self.model_type == "cnn":
@@ -587,12 +590,13 @@ class TopologyOptimizer:
 
             self.density = nnPred_np
             u, Jelem = self.FE.solve88(nnPred_np)
+
             self.phiElem = []
             for i in range(self.FE.numMaterials):
                 self.phiElem.append(
                     torch.tensor(
                         self.FE.EMaterials[i]
-                        * nnPred_np[:, i] ** (2 * self.FE.penal)
+                        * nnPred_np[:, i] ** (2.0 * self.FE.penal)
                         * Jelem
                         * self.elemArea
                     )
@@ -610,6 +614,9 @@ class TopologyOptimizer:
                 self.FE.numMaterials,
             )
             self.objective = torch.sum(objective) / self.obj0
+            import pdb
+
+            pdb.set_trace()
             loss = self.objective + alpha * torch.pow(massConstraint, 2)
 
             loss.backward(retain_graph=True)
@@ -632,7 +639,7 @@ class TopologyOptimizer:
                     / nnPred_np.shape[0]
                 )
                 relGreyElements /= nnPred_np.shape[1]
-            self.FE.penal = min(4.0, self.FE.penal + 0.01)
+            self.FE.penal = min(2.0, self.FE.penal + 0.01)
             # continuation scheme
             lossHistory.append(
                 [
@@ -1010,7 +1017,7 @@ def runExample(model_type):
     plt.close("all")
     minEpochs = 50
     maxEpochs = 2000
-    penal = 1.0
+    penal = 2.0
     useSavedNet = False
     device = "cpu"
     # 'cpu' or 'gpu'
@@ -1040,5 +1047,8 @@ def runExample(model_type):
     )
     # topOpt.setDesiredMass(450);
     lossHist = topOpt.train(maxEpochs, minEpochs, useSavedNet)
+    import pdb
+
+    pdb.set_trace()
 
     print("Time taken: {:.2F}".format(time.perf_counter() - start))

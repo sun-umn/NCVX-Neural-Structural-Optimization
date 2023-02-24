@@ -367,7 +367,9 @@ class TopNetPyGranso(nn.Module):
         numMaterials,
         symXAxis,
         symYAxis,
-        seed,
+        reshape=False,
+        optimizer="langrangian",
+        seed=0,
     ):
         self.inputDim = 2
         # x and y coordn of the point
@@ -382,6 +384,8 @@ class TopNetPyGranso(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList()
         current_dim = self.inputDim
+        self.reshape = reshape
+        self.optimizer = optimizer
         set_seed(seed)
 
         for lyr in range(numLayers):
@@ -397,7 +401,7 @@ class TopNetPyGranso(nn.Module):
             self.bnLayer.append(nn.BatchNorm1d(numNeuronsPerLyr))
 
         xy, self.nonDesignIdx = self.generatePoints(nelx, nely, 1, None)
-        self.xy = nn.Parameter(xy)
+        self.xy = nn.Parameter(xy, requires_grad=True)
 
     def generatePoints(
         self, nx, ny, resolution=1, nonDesignRegion=None
@@ -421,8 +425,13 @@ class TopNetPyGranso(nn.Module):
         xy = torch.tensor(xy).view(-1, 2)
         return xy, nonDesignIdx
 
-    def forward(self, x=None, fixedIdx=None):
-        x = self.xy
+    def forward(self, x, fixedIdx=None):
+        if self.optimizer == "langrangian":
+            x = x
+
+        else:
+            x = self.xy
+
         m = nn.ReLU6()
         #
         ctr = 0
@@ -448,11 +457,8 @@ class TopNetPyGranso(nn.Module):
 
         # Reshaping the last layer to have the same outputs as the
         # multi-material paper
-        out = (
-            out.reshape(self.nely, self.nelx, self.outputDim)
-            .transpose(0, 2)
-            .transpose(1, 2)
-        )
+        if self.reshape:
+            out = out.T.reshape(self.outputDim, self.nely, self.nelx)
         return out
 
 

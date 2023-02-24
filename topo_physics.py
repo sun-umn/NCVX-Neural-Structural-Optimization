@@ -29,11 +29,11 @@ def multi_material_young_modulus(
     Function that will calculate youngs modulus for multi-material designs
     """
     # x will now be multi-dimension along axis=0
-    youngs_modulus = torch.zeros(len(e_materials), x.shape[1], x.shape[2])
+    youngs_modulus = torch.zeros(x.shape[1], x.shape[2], dtype=torch.double)
     for index, e_material in enumerate(e_materials):
-        youngs_modulus[index, :, :] = e_min + x[index, :, :] ** p * (e_material - e_min)
+        youngs_modulus += e_min + (x[index + 1, :, :] ** p) * (e_material - e_min)
 
-    return torch.sum(youngs_modulus, axis=0)
+    return youngs_modulus.to(device=device, dtype=torch.double)
 
 
 # Define the physical density with torch
@@ -117,6 +117,40 @@ def get_stiffness_matrix(
     return ke
 
 
+def get_stiffness_matrix_multi_material(device):
+    E = 1
+    nu = 0.3
+    k = torch.tensor(
+        [
+            1 / 2 - nu / 6,
+            1 / 8 + nu / 8,
+            -1 / 4 - nu / 12,
+            -1 / 8 + 3 * nu / 8,
+            -1 / 4 + nu / 12,
+            -1 / 8 - nu / 8,
+            nu / 6,
+            1 / 8 - 3 * nu / 8,
+        ]
+    )
+    KE = (
+        E
+        / (1 - nu**2)
+        * torch.tensor(
+            [
+                [k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]],
+                [k[1], k[0], k[7], k[6], k[5], k[4], k[3], k[2]],
+                [k[2], k[7], k[0], k[5], k[6], k[3], k[4], k[1]],
+                [k[3], k[6], k[5], k[0], k[7], k[2], k[1], k[4]],
+                [k[4], k[5], k[6], k[7], k[0], k[1], k[2], k[3]],
+                [k[5], k[4], k[3], k[2], k[1], k[0], k[7], k[6]],
+                [k[6], k[3], k[4], k[1], k[2], k[7], k[0], k[5]],
+                [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]],
+            ]
+        )
+    ).to(device)
+    return KE
+
+
 # Compliance
 def compliance(
     x_phys,
@@ -165,7 +199,9 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
     edof, x_list, y_list = build_nodes_data(args, base=base)
 
     # stiffness flattened
-    stiffness_flat = stiffness.t().flatten()
+    # TODO: Changing for testing
+    # stiffness_flat = stiffness.t().flatten()
+    stiffness_flat = stiffness.flatten()
     stiffness_flat = stiffness_flat.reshape(1, len(stiffness_flat))
 
     # ke flattened
@@ -506,12 +542,11 @@ def multi_material_sparse_displace(
     x_phys,
     ke,
     args,
-    e_materials,
+    stiffness,
     forces,
     freedofs,
     fixdofs,
     *,
-    penal=3,
     base="Google",
     device=utils.DEFAULT_DEVICE,
     dtype=utils.DEFAULT_DTYPE,
@@ -519,10 +554,6 @@ def multi_material_sparse_displace(
     """
     Function that displaces the load x using finite element techniques.
     """
-    stiffness = multi_material_young_modulus(
-        x_phys, e_materials, p=penal, device=device, dtype=dtype
-    ).double()
-
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k_data(stiffness, ke, args, base=base)
     k_ylist = k_ylist.to(device=device, dtype=dtype)
@@ -576,9 +607,8 @@ def multi_material_compliance(
     u,
     ke,
     args,
-    e_materials,
+    stiffness,
     *,
-    penal=3,
     base="Google",
     device=utils.DEFAULT_DEVICE,
     dtype=utils.DEFAULT_DTYPE,
@@ -589,18 +619,18 @@ def multi_material_compliance(
     and will both be torch tensors.
     """
     nely, nelx = args["nely"], args["nelx"]
+    e_min = args["young_min"]
 
     # Updated code
     edof, x_list, y_list = build_nodes_data(args, base=base)
     ce = (u[edof] @ ke) * u[edof]
-    ce = torch.sum(ce, 1)
-    ce = ce.reshape(nelx, nely)
+    ce = torch.sum(ce, axis=1)
+    ce = ce.reshape(nely, nelx)
 
-    young_x_phys = multi_material_young_modulus(
-        x_phys, e_materials, p=penal, device=device, dtype=dtype
-    )
+    # compute the element wise compliance
+    compliance_elements = stiffness * ce
 
-    return young_x_phys * ce.t(), None, None
+    return compliance_elements, None, None
 
 
 def calculate_multi_material_compliance(model, ke, args, device, dtype):
@@ -608,31 +638,34 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
     Function to calculate the final compliance
     """
     logits = model(None)
-    logits = logits.to(dtype=dtype)
-    # x_phys = logits.reshape(args['num_materials'] + 1, args['nely'], args['nelx'])
+    x_phys = logits.to(dtype=dtype)
 
     # kwargs for displacement
     kwargs = dict(
-        penal=args["penal"],
         base="MATLAB",
         device=device,
         dtype=dtype,
     )
-    softmax = torch.nn.Softmax()
-    x_phys = softmax(logits) + 1e-4
+    # softmax = torch.nn.Softmax()
+    # x_phys = softmax(logits) + 1e-4
+    # Calculate the effective modulus of elasticity
+    # Extract e_materials
+    e_materials = args["e_materials"]
+    penal = args["penal"]
+
+    stiffness = multi_material_young_modulus(
+        x_phys, e_materials, p=penal, device=device, dtype=dtype
+    ).double()
 
     # Calculate the forces
     forces = calculate_forces(x_phys, args)
-
-    # Extract e_materials
-    e_materials = args["e_materials"]
 
     # Calculate the u_matrix
     u_matrix = multi_material_sparse_displace(
         x_phys[1:, :, :],
         ke,
         args,
-        e_materials,
+        stiffness,
         forces,
         args["freedofs"],
         args["fixdofs"],
@@ -645,7 +678,7 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
         u_matrix,
         ke,
         args,
-        e_materials,
+        stiffness,
         **kwargs,
     )
 
