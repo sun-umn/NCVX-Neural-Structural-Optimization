@@ -18,6 +18,19 @@ def young_modulus(
     return (e_min + x**p * (e_0 - e_min)).to(device=device, dtype=dtype)
 
 
+def young_modulus_multi_material(
+    x, e_materials, e_min, p=3, device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
+):
+    """
+    Function that will compute the young's modulus for multiple materials
+    """
+    num_materials = len(e_materials)
+    penalized_materials = x**p + e_min
+    e_materials = e_materials.reshape(num_materials, 1).T - e_min
+    young_modulus = (e_materials @ penalized_materials.T).flatten()
+    return young_modulus.to(device=device, dtype=dtype)
+
+
 # Define the physical density with torch
 def physical_density(x, args, volume_constraint=True, filtering=False):
     """
@@ -297,17 +310,18 @@ def calculate_compliance(model, ke, args, device, dtype):
     softmax = nn.Softmax(dim=0)
     logits = softmax(logits)
 
-    # # Create an empty array
-    # x_phys = torch.zeros(args["nelx"] * args["nely"], 2)
-    # for i in range(2):
-    #     x_phys[:, i] = logits[i, :, :].T.flatten()
-
-    x_phys = logits.transpose(0, 2).reshape(args["nelx"] * args["nely"], 2)
+    # Compute x_phys
+    material_channels = len(args["e_materials"])
+    x_phys = torch.zeros(
+        args["nelx"] * args["nely"], material_channels + 1, dtype=torch.double
+    )
+    for i in range(material_channels + 1):
+        x_phys[:, i] = logits[i, :, :].T.flatten()
 
     # Calculate the stiffness
-    stiffness = young_modulus(
-        x_phys[:, 1],
-        e_0=args["young"],
+    stiffness = young_modulus_multi_material(
+        x_phys[:, 1:],
+        e_materials=args["e_materials"],
         e_min=args["young_min"],
         p=args["penal"],
         device=device,
