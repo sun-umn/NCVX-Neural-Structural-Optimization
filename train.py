@@ -56,7 +56,7 @@ def volume_constrained_structural_optimization_function(
     ci = None
 
     ce = pygransoStruct()
-    ce.c1 = torch.abs((torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0)  # noqa
+    ce.c1 = torch.abs((torch.mean(x_phys[:, 1]) / args["volfrac"]) - 1.0)  # noqa
 
     # # Let's try and clear as much stuff as we can to preserve memory
     del x_phys, mask, ke
@@ -193,6 +193,7 @@ def train_pygranso(
                 cnn_model, ke, args, device, default_dtype
             )
             final_design = final_design.detach().cpu().numpy()
+            final_design = final_design.reshape(args["nelx"], args["nely"]).T
 
         # Put back metrics on original scale
         final_f = soln.final.f * initial_compliance.cpu().numpy()

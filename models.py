@@ -67,7 +67,7 @@ class CNNModel(nn.Module):
         latent_size=128,
         dense_channels=32,
         resizes=(1, 2, 2, 2, 1),
-        conv_filters=(128, 64, 32, 16, 1),
+        conv_filters=(128, 64, 32, 16, 2),
         offset_scale=10.0,
         kernel_size=(5, 5),
         latent_scale=1.0,
@@ -198,7 +198,6 @@ class CNNModel(nn.Module):
         # Squeeze the result in the first axis just like in the
         # tensorflow code
         output = torch.squeeze(output)
-        # output = self.ste.apply(output)
 
         return output
 
