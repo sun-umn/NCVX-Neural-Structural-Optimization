@@ -297,12 +297,12 @@ def calculate_compliance(model, ke, args, device, dtype):
     softmax = nn.Softmax(dim=0)
     logits = softmax(logits)
 
-    # Create an empty array
-    x_phys = torch.zeros(args["nelx"] * args["nely"], 2)
-    for i in range(2):
-        x_phys[:, i] = logits[i, :, :].T.flatten()
+    # # Create an empty array
+    # x_phys = torch.zeros(args["nelx"] * args["nely"], 2)
+    # for i in range(2):
+    #     x_phys[:, i] = logits[i, :, :].T.flatten()
 
-    # x_phys = x_phys.transpose(0, 2).reshape(args['nelx'] * args['nely'], 2)
+    x_phys = logits.transpose(0, 2).reshape(args["nelx"] * args["nely"], 2)
 
     # Calculate the stiffness
     stiffness = young_modulus(
