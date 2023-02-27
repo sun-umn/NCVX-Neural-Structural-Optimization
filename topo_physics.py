@@ -2,7 +2,6 @@
 import numpy as np
 import scipy
 import torch
-import torch.nn as nn
 
 # first party
 import utils
@@ -16,19 +15,6 @@ def young_modulus(
     Function that calculates the young modulus
     """
     return (e_min + x**p * (e_0 - e_min)).to(device=device, dtype=dtype)
-
-
-def young_modulus_multi_material(
-    x, e_materials, e_min, p=3, device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
-):
-    """
-    Function that will compute the young's modulus for multiple materials
-    """
-    num_materials = len(e_materials)
-    penalized_materials = x**p + e_min
-    e_materials = e_materials.reshape(num_materials, 1).T - e_min
-    young_modulus = (e_materials @ penalized_materials.T).flatten()
-    return young_modulus.to(device=device, dtype=dtype)
 
 
 # Define the physical density with torch
@@ -114,7 +100,7 @@ def get_stiffness_matrix(
 
 # Compliance
 def compliance(
-    stiffness,
+    x_phys,
     u,
     ke,
     args,
@@ -136,9 +122,14 @@ def compliance(
     # Updated code
     edof, x_list, y_list = build_nodes_data(args, base=base)
     ce = (u[edof] @ ke) * u[edof]
-    ce = torch.sum(ce, axis=1)
+    ce = torch.sum(ce, 1)
+    ce = ce.reshape(nelx, nely)
 
-    return stiffness * ce, None, None
+    young_x_phys = young_modulus(
+        x_phys, e_0, e_min, p=penal, device=device, dtype=dtype
+    )
+
+    return young_x_phys * ce.t(), None, None
 
 
 def get_k_data(stiffness, ke, args, base="MATLAB"):
@@ -155,7 +146,7 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
     edof, x_list, y_list = build_nodes_data(args, base=base)
 
     # stiffness flattened
-    stiffness_flat = stiffness
+    stiffness_flat = stiffness.t().flatten()
     stiffness_flat = stiffness_flat.reshape(1, len(stiffness_flat))
 
     # ke flattened
@@ -224,7 +215,7 @@ def displace(
 
 
 def sparse_displace(
-    stiffness,
+    x_phys,
     ke,
     args,
     forces,
@@ -241,7 +232,7 @@ def sparse_displace(
     """
     Function that displaces the load x using finite element techniques.
     """
-    # stiffness = young_modulus(x_phys, e_0, e_min, p=penal, device=device, dtype=dtype)
+    stiffness = young_modulus(x_phys, e_0, e_min, p=penal, device=device, dtype=dtype)
 
     # Get the K values
     k_entries, k_ylist, k_xlist = get_k_data(stiffness, ke, args, base=base)
@@ -265,6 +256,15 @@ def sparse_displace(
 
     # Calculate u_nonzero
     keep_k_entries = k_entries[keep]
+
+    # Build the sparse matrix
+    K = torch.sparse_coo_tensor(indices, keep_k_entries, [size, size]).to(
+        device=device, dtype=dtype
+    )
+
+    # Symmetric indices
+    keep_k_entries = K.coalesce().values()
+    indices = K.coalesce().indices()
 
     # Compute the u_matrix values
     u_nonzero = utils.solve_coo(
@@ -298,46 +298,21 @@ def calculate_compliance(model, ke, args, device, dtype):
         device=device,
         dtype=dtype,
     )
-    # x_phys = torch.sigmoid(logits)
-    # mask = torch.broadcast_to(args["mask"], x_phys.shape) > 0
-    # mask = mask.requires_grad_(False)
-    mask = None
-
-    # TODO: For now we will not worry about the mask
-    # x_phys = x_phys * mask.int()
-
-    # Take softmax across the material dimension
-    softmax = nn.Softmax(dim=0)
-    logits = softmax(logits)
-
-    # Compute x_phys
-    material_channels = len(args["e_materials"])
-    x_phys = torch.zeros(
-        args["nelx"] * args["nely"], material_channels + 1, dtype=torch.double
-    )
-    for i in range(material_channels + 1):
-        x_phys[:, i] = logits[i, :, :].T.flatten()
-
-    # Calculate the stiffness
-    stiffness = young_modulus_multi_material(
-        x_phys[:, 1:],
-        e_materials=args["e_materials"],
-        e_min=args["young_min"],
-        p=args["penal"],
-        device=device,
-        dtype=dtype,
-    )
+    x_phys = torch.sigmoid(logits)
+    mask = torch.broadcast_to(args["mask"], x_phys.shape) > 0
+    mask = mask.requires_grad_(False)
+    x_phys = x_phys * mask.int()
 
     # Calculate the forces
     forces = calculate_forces(x_phys, args)
 
     # Calculate the u_matrix
     u_matrix = sparse_displace(
-        stiffness, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
+        x_phys, ke, args, forces, args["freedofs"], args["fixdofs"], **kwargs
     )
 
     # Calculate the compliance output
-    compliance_output, _, _ = compliance(stiffness, u_matrix, ke, args, **kwargs)
+    compliance_output, _, _ = compliance(x_phys, u_matrix, ke, args, **kwargs)
 
     # The loss is the sum of the compliance
     return torch.sum(compliance_output), x_phys, mask
