@@ -665,3 +665,44 @@ class HaltLog:
         #                       be halted at the current iterate.  This can be
         #                       used to create a custom termination condition,
         return halt_log_fn, get_log_fn
+
+
+# Multi-material utilities
+def compute_mass_constraint(x_phys, args):
+    """
+    Function used to compute the mass constraint. We will set
+    up two methods one for the sum and one for the mean
+    """
+    aggregation = args["aggregation"]
+    total_mass = (
+        args["combined_volfrac"] * args["nelx"] * args["nely"] * np.max(args["volfrac"])
+    )
+
+    # The 0 index is the void material
+    x_phys = x_phys[1:, :, :]
+
+    # Set up the material design
+    x_phys_mass = torch.zeros(len(args["volfrac"]))
+    for index, density in enumerate(args["volfrac"]):
+
+        if aggregation == "sum":
+            x_phys_mass[index] = density * torch.sum(x_phys[index, :, :])
+
+        elif aggregation == "mean":
+            x_phys_mass[index] = density * torch.mean(x_phys[index, :, :])
+
+        else:
+            raise ValueError("No aggregation method!")
+
+    if aggregation == "sum":
+        denominator = total_mass
+
+    elif aggregation == "mean":
+        denominator = args["combined_volfrac"]
+
+    else:
+        raise ValueError("No aggregation method!")
+
+    constraint_value = torch.abs((torch.sum(x_phys_mass) / denominator) - 1.0)  # noqa
+
+    return constraint_value
