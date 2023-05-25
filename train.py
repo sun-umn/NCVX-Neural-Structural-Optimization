@@ -75,7 +75,7 @@ def volume_constrained_structural_optimization_function(
     ce.c2 = torch.mean(binary_constraint) - tolerance
 
     # We need to save the information from the trials about volume
-    volume_value = np.round(float(torch.mean(x_phys[mask]).detach().numpy()), 2)
+    volume_value = np.round(float(torch.mean(x_phys[mask]).detach().cpu().numpy()), 2)
     volume_constraint.append(volume_value)
 
     # Update the counter by one
