@@ -3,7 +3,8 @@
 import click
 import matplotlib.pyplot as plt
 import neptune.new as neptune
-import neural_structural_optimization.problems as google_problems
+
+# import neural_structural_optimization.problems as google_problems
 import numpy as np
 import pandas as pd
 import torch
@@ -22,8 +23,9 @@ import utils
 @click.option("--requires_flip", is_flag=True, default=False)
 @click.option("--total_frames", default=1)
 @click.option("--resizes", is_flag=True, default=False)
+@click.option("--note", default="original", type=click.STRING)
 def structural_optimization_task(
-    problem_name, num_trials, maxit, requires_flip, total_frames, resizes
+    problem_name, num_trials, maxit, requires_flip, total_frames, resizes, note
 ):
     click.echo(problem_name)
     # Enable the neptune run
@@ -49,13 +51,13 @@ def structural_optimization_task(
 
     # Build the problems by name with the correct device
     PROBLEMS_BY_NAME = problems.build_problems_by_name(device=device)
-    GOOGLE_PROBLEMS_BY_NAME = google_problems.PROBLEMS_BY_NAME
+    # GOOGLE_PROBLEMS_BY_NAME = google_problems.PROBLEMS_BY_NAME
 
     # Setup the problem
     problem = PROBLEMS_BY_NAME.get(problem_name)
-    google_problem = GOOGLE_PROBLEMS_BY_NAME.get(problem_name)
+    # google_problem = GOOGLE_PROBLEMS_BY_NAME.get(problem_name)
 
-    if (problem.name is None) or (google_problem.name is None):
+    if problem.name is None:  # or (google_problem.name is None):
         raise ValueError(f"{problem_name} is not an elgible structure")
 
     # Add a tag for each type of problem as well
@@ -74,6 +76,7 @@ def structural_optimization_task(
         "maxit": maxit,
         "cnn_kwargs": cnn_kwargs,
         "device": device,
+        "note": note,
     }
 
     # Run the trials
@@ -90,20 +93,22 @@ def structural_optimization_task(
     )
 
     # Set up the loss dataframe
-    losses_df = pd.DataFrame(outputs["losses"]).ffill()
+    losses_df = pd.DataFrame(outputs["losses"])
+    volumes_df = pd.DataFrame(outputs["volumes"])
 
     # Get all of the final losses
-    final_losses = losses_df.iloc[-1, :].values
+    losses = np.min(losses_df.ffill(), axis=0).values
 
-    # Argsort losses - largest to smallest
-    losses_indexes = np.argsort(final_losses)[::-1]
-    final_losses = final_losses[losses_indexes]
+    # Argsort losses - smallest to largest
+    losses_indexes = np.argsort(losses)
+    losses_df = losses_df.iloc[:, losses_indexes]
+    volumes_df = volumes_df.iloc[:, losses_indexes]
     final_designs = outputs["designs"][losses_indexes, :, :]
     initial_volumes = outputs["trials_initial_volumes"][losses_indexes]
 
     # Save the best final design
-    best_final_design = final_designs[-1, :, :]
-    best_score = np.round(final_losses[-1], 2)
+    best_final_design = final_designs[0, :, :]
+    best_score = np.round(losses_df.ffill().iloc[-1, 0], 2)
 
     # TODO: Will need a special implmentation for some of the final
     # designs
@@ -119,13 +124,51 @@ def structural_optimization_task(
     fig.tight_layout()
     run[f"best_trial-{problem.name}-final-design"].upload(fig)
 
+    # Write a histogram as well
+    fig, ax = plt.subplots(1, 1)
+    hist_values = pd.Series(best_final_design.flatten())
+    hist_values.hist(bins=20, density=True, color="blue", ax=ax)
+    run[f"best-trial-{problem.name}-final-design-histogram"].upload(fig)
+
+    # Create a figure with the volumes and compliance values from
+    # the best seed
+    best_trial_losses = losses_df.iloc[:, 0]
+    best_trial_losses.name = "compliance"
+
+    best_trial_volume_constr = volumes_df.iloc[:, 0]
+    best_trial_volume_constr.name = "volume"
+
+    # Let's build the plot
+    fig, ax1 = plt.subplots(1, 1, figsize=(10, 5))
+
+    # Set up the second axis
+    ax2 = ax1.twinx()
+
+    # Plot the data
+    # Plot the compliance
+    best_trial_losses.plot(color="red", lw=2, marker="*", ax=ax1, label="compliance")
+    ax1.set_ylabel("Compliance")
+
+    # Plot the volume constraint
+    best_trial_volume_constr.plot(
+        color="blue", lw=2, marker="o", ax=ax2, label="volume"
+    )
+    ax2.set_ylabel("Volume / $V_t$")
+
+    # Set xlabel
+    ax1.set_xlabel("Iteration")
+    ax1.set_title("Compliance & Volume @ t")
+    ax1.grid()
+
+    run[f"best-trial-{problem.name}-compliance-&-volume"].upload(fig)
+
     # Close the figure
     plt.close()
 
     # Create a histogram of losses and scatter plot of volumes
     meta_df = pd.DataFrame(
         {
-            "final_losses": final_losses,
+            "final_losses": losses,
             "initial_volumes": initial_volumes,
         }
     )
@@ -145,7 +188,7 @@ def structural_optimization_task(
 
     # Plot the histogram of the final losses
     ax2 = axes[1]
-    meta_df["final_losses"].hist(density=True, ax=ax2)
+    meta_df["final_losses"].hist(density=True, ax=ax2, bins=20)
     ax2.set_title("Histogram of Final Compliances")
     ax2.set_xlabel("Compliance")
     ax2.set_ylabel("Probability")

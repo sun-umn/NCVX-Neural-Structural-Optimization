@@ -4,9 +4,10 @@ import time
 
 # third party
 import matplotlib.pyplot as plt
-import neural_structural_optimization.models as google_models
-import neural_structural_optimization.topo_api as google_api
-import neural_structural_optimization.train as google_train
+
+# import neural_structural_optimization.models as google_models
+# import neural_structural_optimization.topo_api as google_api
+# import neural_structural_optimization.train as google_train
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -31,7 +32,15 @@ import utils
 # constraint that we have been working on
 # Volume constrained function
 def volume_constrained_structural_optimization_function(
-    model, initial_compliance, ke, args, device, dtype
+    model,
+    initial_compliance,
+    ke,
+    args,
+    volume_constraint,
+    iter_counter,
+    trial_index,
+    device,
+    dtype,
 ):
     """
     Combined function for PyGranso for the structural optimization
@@ -51,12 +60,26 @@ def volume_constrained_structural_optimization_function(
         model, ke, args, device, dtype
     )
     f = 1.0 / initial_compliance * unscaled_compliance
+    print(initial_compliance, unscaled_compliance)
 
     # Run this problem with no inequality constraints
     ci = None
 
     ce = pygransoStruct()
-    ce.c1 = torch.abs((torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0)  # noqa
+    # Directly handle the binary contraint
+    ce.c1 = (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0  # noqa
+
+    # Directly handle the volume constraint
+    tolerance = 1e-2
+    binary_constraint = x_phys[mask] * (1 - x_phys[mask])
+    ce.c2 = torch.mean(binary_constraint) - tolerance
+
+    # We need to save the information from the trials about volume
+    volume_value = np.round(float(torch.mean(x_phys[mask]).detach().numpy()), 2)
+    volume_constraint.append(volume_value)
+
+    # Update the counter by one
+    iter_counter += 1
 
     # # Let's try and clear as much stuff as we can to preserve memory
     del x_phys, mask, ke
@@ -83,7 +106,7 @@ def train_pygranso(
     Function to train structural optimization pygranso
     """
     # Set up the dtypes
-    dtype32 = torch.float32
+    dtype32 = torch.double
     default_dtype = utils.DEFAULT_DTYPE
 
     # Get the problem args
@@ -99,45 +122,56 @@ def train_pygranso(
     # Trials
     trials_designs = np.zeros((num_trials, args["nely"], args["nelx"]))
     trials_losses = np.full((maxit + 1, num_trials), np.nan)
+    trials_volumes = np.full((maxit + 1, num_trials), np.nan)
     trials_initial_volumes = []
 
     for index, seed in enumerate(range(0, num_trials)):
-        np.random.seed(seed)
-        torch.random.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+        counter = 0
+        # np.random.seed(seed)
+        # torch.random.manual_seed(seed)
+        # torch.cuda.manual_seed(seed)
+        # torch.backends.cudnn.deterministic = True
+        # torch.backends.cudnn.benchmark = False
 
         # Initialize the CNN Model
         if cnn_kwargs is not None:
-            cnn_model = models.CNNModel(args, **cnn_kwargs).to(
+            cnn_model = models.CNNModel(args, random_seed=seed, **cnn_kwargs).to(
                 device=device, dtype=dtype32
             )
         else:
-            cnn_model = models.CNNModel(args).to(device=device, dtype=dtype32)
-
-        # Put the cnn model in training mode
-        cnn_model.train()
+            cnn_model = models.CNNModel(args, random_seed=seed).to(
+                device=device, dtype=dtype32
+            )
 
         # Create the combined function and structural optimization
         # setup
 
         # Calculate initial compliance
-        initial_compliance, x_phys, _ = topo_physics.calculate_compliance(
-            cnn_model, ke, args, device, default_dtype
-        )
+        cnn_model.eval()
+        with torch.no_grad():
+            initial_compliance, x_phys, _ = topo_physics.calculate_compliance(
+                cnn_model, ke, args, device, default_dtype
+            )
+
         initial_compliance = (
-            torch.ceil(initial_compliance.to(torch.float64).detach()) + 1.0
+            torch.ceil(initial_compliance.to(torch.float64).detach()) + 1e-2
         )
         initial_volume = torch.mean(x_phys)
         trials_initial_volumes.append(initial_volume.detach().cpu().numpy())
 
+        # Put the cnn model in training mode
+        cnn_model.train()
+
         # Combined function
+        volume_constraint = []
         comb_fn = lambda model: pygranso_combined_function(  # noqa
             cnn_model,
             initial_compliance,
             ke,
             args,
+            volume_constraint=volume_constraint,
+            iter_counter=counter,
+            trial_index=index,
             device=device,
             dtype=default_dtype,
         )
@@ -157,15 +191,15 @@ def train_pygranso(
         ).to(device=device, dtype=dtype32)
 
         # Additional pygranso options
-        opts.limited_mem_size = 20
+        opts.limited_mem_size = 25
         opts.torch_device = device
         opts.double_precision = True
         opts.mu0 = mu
         opts.maxit = maxit
         opts.print_frequency = 1
         opts.stat_l2_model = False
-        opts.viol_eq_tol = 1e-6
-        opts.opt_tol = 1e-6
+        opts.viol_eq_tol = 1e-4
+        opts.opt_tol = 1e-4
 
         mHLF_obj = utils.HaltLog()
         halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)
@@ -184,17 +218,17 @@ def train_pygranso(
         # obtained by calling get_log_fn()
         log = get_log_fn()
 
-        # # Final structure
-        # indexes = (pd.Series(log.fn_evals).cumsum() - 1).values.tolist()
+        # Final structure
+        indexes = (pd.Series(log.fn_evals).cumsum() - 1).values.tolist()
 
         cnn_model.eval()
         with torch.no_grad():
-            _, final_design, _ = topo_physics.calculate_compliance(
+            final_compliance, final_design, _ = topo_physics.calculate_compliance(
                 cnn_model, ke, args, device, default_dtype
             )
             final_design = final_design.detach().cpu().numpy()
 
-        # Put back metrics on original scale
+        # Calculate metrics on original scale
         final_f = soln.final.f * initial_compliance.cpu().numpy()
         log_f = pd.Series(log.f) * initial_compliance.cpu().numpy()
 
@@ -220,6 +254,9 @@ def train_pygranso(
         trials_designs[index, :, :] = final_design
         trials_losses[: len(log_f), index] = log_f.values  # noqa
 
+        volume_constraint = np.asarray(volume_constraint)
+        trials_volumes[: len(log_f), index] = volume_constraint[indexes]
+
         # Remove all variables for the next round
         del (
             cnn_model,
@@ -234,6 +271,7 @@ def train_pygranso(
             fig,
             final_f,
             log_f,
+            volume_constraint,
         )
         gc.collect()
         torch.cuda.empty_cache()
@@ -241,6 +279,7 @@ def train_pygranso(
     outputs = {
         "designs": trials_designs,
         "losses": trials_losses,
+        "volumes": trials_volumes,
         # Convert to numpy array
         "trials_initial_volumes": np.array(trials_initial_volumes),
     }
@@ -440,59 +479,59 @@ def train_lbfgs(problem, cnn_kwargs=None, lr=4e-4, iterations=500):
     return render, losses
 
 
-def train_google(
-    problem, max_iterations=1000, cnn_kwargs=None, num_trials=50, neptune_logging=None
-):
-    """
-    Replica of the google neural structural optimization training
-    function in google colab
-    """
-    args = google_api.specified_task(problem)
-    if cnn_kwargs is None:
-        cnn_kwargs = {}
+# def train_google(
+#     problem, max_iterations=1000, cnn_kwargs=None, num_trials=50, neptune_logging=None
+# ):
+#     """
+#     Replica of the google neural structural optimization training
+#     function in google colab
+#     """
+#     args = google_api.specified_task(problem)
+#     if cnn_kwargs is None:
+#         cnn_kwargs = {}
 
-    trials = []
-    for index, seed in enumerate(range(0, num_trials)):
-        print(f"Google training trial {index + 1}")
-        # Set seeds for this training
-        np.random.seed(seed)
-        tf.random.set_seed(seed)
+#     trials = []
+#     for index, seed in enumerate(range(0, num_trials)):
+#         print(f"Google training trial {index + 1}")
+#         # Set seeds for this training
+#         np.random.seed(seed)
+#         tf.random.set_seed(seed)
 
-        # Set up the model
-        model = google_models.CNNModel(args=args, **cnn_kwargs)
-        ds_cnn = google_train.train_lbfgs(model, max_iterations)
+#         # Set up the model
+#         model = google_models.CNNModel(args=args, **cnn_kwargs)
+#         ds_cnn = google_train.train_lbfgs(model, max_iterations)
 
-        dims = pd.Index(["google-cnn-lbfgs"], name="model")
-        ds = xarray.concat([ds_cnn], dim=dims)
+#         dims = pd.Index(["google-cnn-lbfgs"], name="model")
+#         ds = xarray.concat([ds_cnn], dim=dims)
 
-        # Extract the loss
-        loss_df = ds.loss.transpose().to_pandas().cummin()
-        loss_df = loss_df.reset_index(drop=True)
-        loss_df = loss_df.rename_axis(index=None, columns=None)
+#         # Extract the loss
+#         loss_df = ds.loss.transpose().to_pandas().cummin()
+#         loss_df = loss_df.reset_index(drop=True)
+#         loss_df = loss_df.rename_axis(index=None, columns=None)
 
-        # Final loss
-        final_loss = np.round(loss_df.min().values[0], 2)
+#         # Final loss
+#         final_loss = np.round(loss_df.min().values[0], 2)
 
-        # Extract the image
-        design = ds.design.sel(step=max_iterations, method="nearest").data.squeeze()
-        design = design.astype(np.float16)
+#         # Extract the image
+#         design = ds.design.sel(step=max_iterations, method="nearest").data.squeeze()
+#         design = design.astype(np.float16)
 
-        if neptune_logging is not None:
-            fig = utils.build_final_design(
-                problem.name, design, final_loss, figsize=(10, 6)
-            )
-            neptune_logging[f"google-trial={index}-{problem.name}-final-design"].upload(
-                fig
-            )
-            plt.close()
+#         if neptune_logging is not None:
+#             fig = utils.build_final_design(
+#                 problem.name, design, final_loss, figsize=(10, 6)
+#             )
+#             neptune_logging[f"google-trial={index}-{problem.name}-final-design"].upload(
+#                 fig
+#             )
+#             plt.close()
 
-        # Append to the trials
-        trials.append((final_loss, loss_df, design, None))
+#         # Append to the trials
+#         trials.append((final_loss, loss_df, design, None))
 
-        del model, ds_cnn, dims, ds, loss_df, design
-        gc.collect()
+#         del model, ds_cnn, dims, ds, loss_df, design
+#         gc.collect()
 
-    return trials
+#     return trials
 
 
 def unconstrained_structural_optimization_function(model, ke, args, designs, losses):
