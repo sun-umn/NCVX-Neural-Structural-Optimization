@@ -159,7 +159,7 @@ def structural_optimization_task(
     ax1.set_xlabel("Iteration")
     ax1.set_title("Compliance & Volume @ t")
     ax1.grid()
-    fig.legend()
+    fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
 
     run[f"best-trial-{problem.name}-compliance-&-volume"].upload(fig)
 
