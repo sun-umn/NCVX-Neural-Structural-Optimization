@@ -191,15 +191,15 @@ def train_pygranso(
         ).to(device=device, dtype=dtype32)
 
         # Additional pygranso options
-        opts.limited_mem_size = 25
+        opts.limited_mem_size = 20
         opts.torch_device = device
         opts.double_precision = True
         opts.mu0 = mu
         opts.maxit = maxit
         opts.print_frequency = 1
         opts.stat_l2_model = False
-        opts.viol_eq_tol = 1e-4
-        opts.opt_tol = 1e-4
+        opts.viol_eq_tol = 1e-6
+        opts.opt_tol = 1e-6
 
         mHLF_obj = utils.HaltLog()
         halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)
