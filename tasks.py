@@ -160,6 +160,7 @@ def structural_optimization_task(
     ax1.set_title("Compliance & Volume @ t")
     ax1.grid()
     ax1.legend()
+    ax2.legend()
 
     run[f"best-trial-{problem.name}-compliance-&-volume"].upload(fig)
 
