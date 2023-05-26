@@ -127,7 +127,7 @@ def structural_optimization_task(
     # Write a histogram as well
     fig, ax = plt.subplots(1, 1)
     hist_values = pd.Series(best_final_design.flatten())
-    hist_values.hist(bins=20, density=True, color="blue", ax=ax)
+    hist_values.hist(bins=50, density=True, color="blue", ax=ax)
     run[f"best-trial-{problem.name}-final-design-histogram"].upload(fig)
 
     # Create a figure with the volumes and compliance values from
