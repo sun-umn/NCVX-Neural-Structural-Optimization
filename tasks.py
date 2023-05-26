@@ -125,9 +125,10 @@ def structural_optimization_task(
     run[f"best_trial-{problem.name}-final-design"].upload(fig)
 
     # Write a histogram as well
-    fig, ax = plt.subplots(1, 1)
+    fig, ax = plt.subplots(1, 1, figsize=(9, 4))
     hist_values = pd.Series(best_final_design.flatten())
     hist_values.hist(bins=50, density=True, color="blue", ax=ax)
+    ax.set_title('$x$ Material Distribution (Binary Constraint)')
     run[f"best-trial-{problem.name}-final-design-histogram"].upload(fig)
 
     # Create a figure with the volumes and compliance values from
