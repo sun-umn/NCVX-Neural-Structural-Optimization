@@ -130,6 +130,7 @@ def structural_optimization_task(
     hist_values.hist(bins=50, density=True, color="blue", ax=ax)
     ax.set_title('$x$ Material Distribution (Binary Constraint)')
     run[f"best-trial-{problem.name}-final-design-histogram"].upload(fig)
+    plt.close()
 
     # Create a figure with the volumes and compliance values from
     # the best seed
@@ -160,7 +161,7 @@ def structural_optimization_task(
     ax1.set_xlabel("Iteration")
     ax1.set_title("Compliance & Volume @ t")
     ax1.grid()
-    fig.legend(loc="upper right", bbox_to_anchor=(1, 1))
+    fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
 
     run[f"best-trial-{problem.name}-compliance-&-volume"].upload(fig)
 
