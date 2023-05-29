@@ -37,6 +37,7 @@ def volume_constrained_structural_optimization_function(
     ke,
     args,
     volume_constraint,
+    binary_constraint,
     iter_counter,
     trial_index,
     device,
@@ -77,6 +78,11 @@ def volume_constrained_structural_optimization_function(
     # We need to save the information from the trials about volume
     volume_value = np.round(float(torch.mean(x_phys[mask]).detach().cpu().numpy()), 2)
     volume_constraint.append(volume_value)
+
+    # Binary constraint
+    binary_constraint_value = float(torch.mean(binary_constraint) - tolerance)
+    binary_constraint_value = binary_constraint_value.detach().cpu().numpy()
+    binary_constraint.append(binary_constraint_value)
 
     # Update the counter by one
     iter_counter += 1
@@ -123,6 +129,7 @@ def train_pygranso(
     trials_designs = np.zeros((num_trials, args["nely"], args["nelx"]))
     trials_losses = np.full((maxit + 1, num_trials), np.nan)
     trials_volumes = np.full((maxit + 1, num_trials), np.nan)
+    trials_binary_constraint = np.full((maxit + 1, num_trials), np.nan)
     trials_initial_volumes = []
 
     for index, seed in enumerate(range(0, num_trials)):
@@ -149,14 +156,21 @@ def train_pygranso(
         # Calculate initial compliance
         cnn_model.eval()
         with torch.no_grad():
-            initial_compliance, x_phys, _ = topo_physics.calculate_compliance(
+            (
+                initial_compliance,
+                init_x_phys,
+                init_mask,
+            ) = topo_physics.calculate_compliance(
                 cnn_model, ke, args, device, default_dtype
             )
 
+        # Get the initial compliance
         initial_compliance = (
             torch.ceil(initial_compliance.to(torch.float64).detach()) + 1e-2
         )
-        initial_volume = torch.mean(x_phys)
+
+        # Get the initial volume
+        initial_volume = torch.mean(x_phys[init_mask])
         trials_initial_volumes.append(initial_volume.detach().cpu().numpy())
 
         # Put the cnn model in training mode
@@ -164,12 +178,14 @@ def train_pygranso(
 
         # Combined function
         volume_constraint = []
+        binary_constraint = []
         comb_fn = lambda model: pygranso_combined_function(  # noqa
             cnn_model,
             initial_compliance,
             ke,
             args,
             volume_constraint=volume_constraint,
+            binary_constraint=binary_constraint,
             iter_counter=counter,
             trial_index=index,
             device=device,
@@ -198,8 +214,8 @@ def train_pygranso(
         opts.maxit = maxit
         opts.print_frequency = 1
         opts.stat_l2_model = False
-        opts.viol_eq_tol = 1e-6
-        opts.opt_tol = 1e-6
+        opts.viol_eq_tol = 1e-5
+        opts.opt_tol = 1e-5
 
         mHLF_obj = utils.HaltLog()
         halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)
@@ -257,6 +273,9 @@ def train_pygranso(
         volume_constraint = np.asarray(volume_constraint)
         trials_volumes[: len(log_f), index] = volume_constraint[indexes]
 
+        binary_constraint = np.asarray(binary_constraint)
+        trials_binary_constraint[: len(log_f), index] = binary_constraint[indexes]
+
         # Remove all variables for the next round
         del (
             cnn_model,
@@ -272,6 +291,7 @@ def train_pygranso(
             final_f,
             log_f,
             volume_constraint,
+            binary_constraint,
         )
         gc.collect()
         torch.cuda.empty_cache()
@@ -280,6 +300,7 @@ def train_pygranso(
         "designs": trials_designs,
         "losses": trials_losses,
         "volumes": trials_volumes,
+        "binary_constraint": trials_binary_constraint,
         # Convert to numpy array
         "trials_initial_volumes": np.array(trials_initial_volumes),
     }

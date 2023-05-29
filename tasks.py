@@ -95,6 +95,7 @@ def structural_optimization_task(
     # Set up the loss dataframe
     losses_df = pd.DataFrame(outputs["losses"])
     volumes_df = pd.DataFrame(outputs["volumes"])
+    binary_constraint_df = pd.DataFrame(outputs["binary_constraint"])
 
     # Get all of the final losses
     losses = np.min(losses_df.ffill(), axis=0).values
@@ -103,6 +104,7 @@ def structural_optimization_task(
     losses_indexes = np.argsort(losses)
     losses_df = losses_df.iloc[:, losses_indexes]
     volumes_df = volumes_df.iloc[:, losses_indexes]
+    binary_constraint_df = binary_constraint_df.iloc[:, losses_indexes]
     final_designs = outputs["designs"][losses_indexes, :, :]
     initial_volumes = outputs["trials_initial_volumes"][losses_indexes]
 
@@ -128,7 +130,7 @@ def structural_optimization_task(
     fig, ax = plt.subplots(1, 1, figsize=(9, 4))
     hist_values = pd.Series(best_final_design.flatten())
     hist_values.hist(bins=50, density=True, color="blue", ax=ax)
-    ax.set_title('$x$ Material Distribution (Binary Constraint)')
+    ax.set_title("$x$ Material Distribution (Binary Constraint)")
     run[f"best-trial-{problem.name}-final-design-histogram"].upload(fig)
     plt.close()
 
@@ -164,6 +166,38 @@ def structural_optimization_task(
     fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
 
     run[f"best-trial-{problem.name}-compliance-&-volume"].upload(fig)
+
+    # Close the figure
+    plt.close()
+
+    # Create a plot for binary constraints also
+    best_trial_bc_constr = binary_constraint_df.iloc[:, 0]
+    best_trial_bc_constr.name = "binary constraint"
+
+    # Let's build the plot
+    fig, ax1 = plt.subplots(1, 1, figsize=(10, 5))
+
+    # Set up the second axis
+    ax2 = ax1.twinx()
+
+    # Plot the data
+    # Plot the compliance
+    best_trial_losses.plot(color="red", lw=2, marker="*", ax=ax1, label="compliance")
+    ax1.set_ylabel("Compliance")
+
+    # Plot the volume constraint
+    best_trial_bc_constr.plot(
+        color="blue", lw=2, marker="o", ax=ax2, label="binary constraint"
+    )
+    ax2.set_ylabel("Binary Constraint: $x \in [0, 1]$")
+
+    # Set xlabel
+    ax1.set_xlabel("Iteration")
+    ax1.set_title("Compliance & Binary Constraint @ t")
+    ax1.grid()
+    fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
+
+    run[f"best-trial-{problem.name}-compliance-&-binary-constraint"].upload(fig)
 
     # Close the figure
     plt.close()
