@@ -71,7 +71,7 @@ def volume_constrained_structural_optimization_function(
     ce.c1 = (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0  # noqa
 
     # Directly handle the volume constraint
-    tolerance = 7.5e-3
+    tolerance = 1e-3
     binary_constraint = x_phys[mask] * (1 - x_phys[mask])
     ce.c2 = torch.mean(binary_constraint) - tolerance
 
