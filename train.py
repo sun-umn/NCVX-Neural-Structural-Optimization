@@ -36,8 +36,8 @@ def volume_constrained_structural_optimization_function(
     initial_compliance,
     ke,
     args,
-    volume_constraint,
-    binary_constraint,
+    volume_constraint_list,
+    binary_constraint_list,
     iter_counter,
     trial_index,
     device,
@@ -77,12 +77,12 @@ def volume_constrained_structural_optimization_function(
 
     # We need to save the information from the trials about volume
     volume_value = np.round(float(torch.mean(x_phys[mask]).detach().cpu().numpy()), 2)
-    volume_constraint.append(volume_value)
+    volume_constraint_list.append(volume_value)
 
     # Binary constraint
     binary_constraint_value = torch.mean(binary_constraint) - tolerance
     binary_constraint_value = float(binary_constraint_value.detach().cpu().numpy())
-    binary_constraint.append(binary_constraint_value)
+    binary_constraint_list.append(binary_constraint_value)
 
     # Update the counter by one
     iter_counter += 1
@@ -184,8 +184,8 @@ def train_pygranso(
             initial_compliance,
             ke,
             args,
-            volume_constraint=volume_constraint,
-            binary_constraint=binary_constraint,
+            volume_constraint_list=volume_constraint,
+            binary_constraint_list=binary_constraint,
             iter_counter=counter,
             trial_index=index,
             device=device,
