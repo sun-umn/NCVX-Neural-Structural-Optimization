@@ -210,41 +210,41 @@ def structural_optimization_task(
         }
     )
 
-    # plot new information
-    fig, axes = plt.subplots(1, 2, figsize=(7, 4))
+    # # plot new information
+    # fig, axes = plt.subplots(1, 2, figsize=(7, 4))
 
-    # plot the initial volumes vs the final losses
-    axes = axes.flatten()
-    ax1 = axes[0]
-    meta_df.plot.scatter(x="final_losses", y="initial_volumes", ax=ax1)
-    ax1.axhline(problem.density, color="r")
-    ax1.set_title("Final Compliance vs. Initial Volumes")
-    ax1.set_xlabel("Compliance")
-    ax1.set_ylabel("Initial Volume")
-    ax1.grid()
+    # # plot the initial volumes vs the final losses
+    # axes = axes.flatten()
+    # ax1 = axes[0]
+    # meta_df.plot.scatter(x="final_losses", y="initial_volumes", ax=ax1)
+    # ax1.axhline(problem.density, color="r")
+    # ax1.set_title("Final Compliance vs. Initial Volumes")
+    # ax1.set_xlabel("Compliance")
+    # ax1.set_ylabel("Initial Volume")
+    # ax1.grid()
 
-    # Plot the histogram of the final losses
-    ax2 = axes[1]
-    meta_df["final_losses"].hist(density=True, ax=ax2, bins=20)
-    ax2.set_title("Histogram of Final Compliances")
-    ax2.set_xlabel("Compliance")
-    ax2.set_ylabel("Probability")
+    # # Plot the histogram of the final losses
+    # ax2 = axes[1]
+    # meta_df["final_losses"].hist(density=True, ax=ax2, bins=20)
+    # ax2.set_title("Histogram of Final Compliances")
+    # ax2.set_xlabel("Compliance")
+    # ax2.set_ylabel("Probability")
 
-    # Plot the median
-    losses_median = meta_df["final_losses"].median()
-    losses_mean = meta_df["final_losses"].mean()
-    ax2.axvline(losses_median, color="green", label="median")
-    ax2.axvline(losses_mean, color="orange", label="mean")
-    ax2.legend()
-    ax2.grid()
+    # # Plot the median
+    # losses_median = meta_df["final_losses"].median()
+    # losses_mean = meta_df["final_losses"].mean()
+    # ax2.axvline(losses_median, color="green", label="median")
+    # ax2.axvline(losses_mean, color="orange", label="mean")
+    # ax2.legend()
+    # ax2.grid()
 
-    fig.tight_layout()
+    # fig.tight_layout()
 
-    # push to neptune
-    run[f"statistics-and-comparisons"].upload(fig)
-    run["median-compliance"].log(losses_median)
-    run["mean-compliance"].log(losses_mean)
-    plt.close()
+    # # push to neptune
+    # run[f"statistics-and-comparisons"].upload(fig)
+    # run["median-compliance"].log(losses_median)
+    # run["mean-compliance"].log(losses_mean)
+    # plt.close()
 
     # TODO: Fix this soon - another memory leak here
     # # Train the google problem
