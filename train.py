@@ -80,8 +80,8 @@ def volume_constrained_structural_optimization_function(
     volume_constraint.append(volume_value)
 
     # Binary constraint
-    binary_constraint_value = float(torch.mean(binary_constraint) - tolerance)
-    binary_constraint_value = binary_constraint_value.detach().cpu().numpy()
+    binary_constraint_value = torch.mean(binary_constraint) - tolerance
+    binary_constraint_value = float(binary_constraint_value.detach().cpu().numpy())
     binary_constraint.append(binary_constraint_value)
 
     # Update the counter by one
