@@ -61,7 +61,7 @@ def volume_constrained_structural_optimization_function(
         model, ke, args, device, dtype
     )
     f = 1.0 / initial_compliance * unscaled_compliance
-    print(initial_compliance, unscaled_compliance)
+    # print(initial_compliance, unscaled_compliance)
 
     # Run this problem with no inequality constraints
     ci = None
@@ -71,16 +71,16 @@ def volume_constrained_structural_optimization_function(
     ce.c1 = (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0  # noqa
 
     # Directly handle the volume constraint
-    tolerance = 7.5e-3
+    epsilon = args["epsilon"]
     binary_constraint = x_phys[mask] * (1 - x_phys[mask])
-    ce.c2 = torch.mean(binary_constraint) - tolerance
+    ce.c2 = torch.mean(binary_constraint) - epsilon
 
     # We need to save the information from the trials about volume
     volume_value = np.round(float(torch.mean(x_phys[mask]).detach().cpu().numpy()), 2)
     volume_constraint_list.append(volume_value)
 
     # Binary constraint
-    binary_constraint_value = torch.mean(binary_constraint) - tolerance
+    binary_constraint_value = torch.mean(binary_constraint) - epsilon
     binary_constraint_value = float(binary_constraint_value.detach().cpu().numpy())
     binary_constraint_list.append(binary_constraint_value)
 
@@ -107,6 +107,7 @@ def train_pygranso(
     num_trials=50,
     mu=1.0,
     maxit=500,
+    epsilon=1e-3,
 ) -> tuple:
     """
     Function to train structural optimization pygranso
@@ -214,8 +215,8 @@ def train_pygranso(
         opts.maxit = maxit
         opts.print_frequency = 1
         opts.stat_l2_model = False
-        opts.viol_eq_tol = 1e-5
-        opts.opt_tol = 1e-5
+        opts.viol_eq_tol = 1e-4
+        opts.opt_tol = 1e-4
 
         mHLF_obj = utils.HaltLog()
         halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)

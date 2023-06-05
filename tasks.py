@@ -1,18 +1,164 @@
 #!/usr/bin/python
+
 # third party
 import click
 import matplotlib.pyplot as plt
 import neptune.new as neptune
-
-# import neural_structural_optimization.problems as google_problems
 import numpy as np
 import pandas as pd
 import torch
+import xarray
+from matplotlib.offsetbox import AnchoredText
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from neural_structural_optimization import models as google_models
+from neural_structural_optimization import pipeline_utils
+from neural_structural_optimization import problems as google_problems
+from neural_structural_optimization import topo_api as google_topo_api
+from neural_structural_optimization import train as google_train
 
 # first party
 import problems
+import topo_api
 import train
 import utils
+
+
+def calculate_binary_constraint(design, epsilon):
+    """
+    Function to compute the binary constraint
+    """
+    return np.round(np.mean(design * (1 - design)) - epsilon, 4)
+
+
+def calculate_volume_constraint(design, volume):
+    """
+    Function that computes the volume constraint
+    """
+    return np.round(np.mean(design) / volume - 1.0, 4)
+
+
+def build_outputs(problem_name, outputs, volume, requires_flip, epsilon=1e-3):
+    """
+    From each of the methods we will have an outputs
+    based on the number of trials. This function
+    will put together the outputs of the best trial.
+
+    Outputs is a Dict object and should have keys:
+    1. designs
+    2. losses
+    3. volumes
+    4. binary_constraint
+    5. trials_initial_volumnes
+    """
+    # Get the losses and sort from lowest to highest
+    losses_df = pd.DataFrame(outputs["losses"])
+    losses_df = losses_df.ffill()
+
+    # Sort the final losses by index
+    losses = np.min(losses_df, axis=0).values
+    losses_indexes = np.argsort(losses)
+
+    # Reorder outputs
+    # losses
+    losses_df = losses_df.iloc[:, losses_indexes]
+
+    # final designs
+    final_designs = outputs["designs"]
+    final_designs = final_designs[losses_indexes, :, :]
+
+    # Get all final objects
+    best_final_design = final_designs[0, :, :]
+    if requires_flip:
+        if ("mbb" in problem_name) or ("thin" in problem_name):
+            best_final_design = np.hstack(
+                [best_final_design[:, ::-1], best_final_design]
+            )
+
+        elif "multistory" in problem_name:
+            best_final_design = np.hstack(
+                [best_final_design, best_final_design[:, ::-1]] * 2
+            )
+
+    # last row, first column (-1, 0)
+    best_score = np.round(losses_df.iloc[-1, 0], 2)
+
+    # Compute the binary and volume constraints
+    binary_constraint = calculate_binary_constraint(
+        design=best_final_design,
+        epsilon=epsilon,
+    )
+
+    # volume constraint
+    volume_constraint = calculate_volume_constraint(
+        design=best_final_design,
+        volume=volume,
+    )
+
+    return best_final_design, best_score, binary_constraint, volume_constraint
+
+
+def build_google_outputs(problem_name, ds, volume, requires_flip, epsilon=1e-3):
+    """
+    Build the google outputs.
+    TODO: I think I will want to extend this for multiple
+    trials but will leave as a single trial for now
+    """
+    # Get the minimum loss for the benchmark methods
+    losses = ds.loss.transpose().to_pandas().cummin().ffill()
+    cnn_loss = np.round(losses["cnn-lbfgs"].min(), 2)
+    mma_loss = np.round(losses["mma"].min(), 2)
+
+    # Select the final step from the xarray
+    final_designs = ds.design.sel(step=200, method="nearest").data
+
+    # CNN final design
+    cnn_final_design = final_designs[0, :, :]
+    cnn_binary_constraint = calculate_binary_constraint(
+        design=cnn_final_design, epsilon=epsilon
+    )
+    cnn_volume_constraint = calculate_volume_constraint(
+        design=cnn_final_design,
+        volume=volume,
+    )
+
+    # MMA final design
+    mma_final_design = final_designs[1, :, :]
+    mma_binary_constraint = calculate_binary_constraint(
+        design=mma_final_design,
+        epsilon=epsilon,
+    )
+    mma_volume_constraint = calculate_volume_constraint(
+        design=mma_final_design,
+        volume=volume,
+    )
+
+    if requires_flip:
+        if ("mbb" in problem_name) or ("thin" in problem_name):
+            cnn_final_design = np.hstack([cnn_final_design[:, ::-1], cnn_final_design])
+            mma_final_design = np.hstack([mma_final_design[:, ::-1], mma_final_design])
+
+        if "multistory" in problem_name:
+            cnn_final_design = np.hstack(
+                [cnn_final_design, cnn_final_design[:, ::-1]] * 2
+            )
+            mma_final_design = np.hstack(
+                [mma_final_design, mma_final_design[:, ::-1]] * 2
+            )
+
+    return {
+        "google-cnn": (
+            cnn_final_design,
+            cnn_loss,
+            cnn_binary_constraint,
+            cnn_volume_constraint,
+        ),
+        "mma": (
+            mma_final_design,
+            mma_loss,
+            mma_binary_constraint,
+            mma_volume_constraint,
+        ),
+    }
 
 
 # Run the tasks
@@ -210,84 +356,177 @@ def structural_optimization_task(
         }
     )
 
-    # # plot new information
-    # fig, axes = plt.subplots(1, 2, figsize=(7, 4))
-
-    # # plot the initial volumes vs the final losses
-    # axes = axes.flatten()
-    # ax1 = axes[0]
-    # meta_df.plot.scatter(x="final_losses", y="initial_volumes", ax=ax1)
-    # ax1.axhline(problem.density, color="r")
-    # ax1.set_title("Final Compliance vs. Initial Volumes")
-    # ax1.set_xlabel("Compliance")
-    # ax1.set_ylabel("Initial Volume")
-    # ax1.grid()
-
-    # # Plot the histogram of the final losses
-    # ax2 = axes[1]
-    # meta_df["final_losses"].hist(density=True, ax=ax2, bins=20)
-    # ax2.set_title("Histogram of Final Compliances")
-    # ax2.set_xlabel("Compliance")
-    # ax2.set_ylabel("Probability")
-
-    # # Plot the median
-    # losses_median = meta_df["final_losses"].median()
-    # losses_mean = meta_df["final_losses"].mean()
-    # ax2.axvline(losses_median, color="green", label="median")
-    # ax2.axvline(losses_mean, color="orange", label="mean")
-    # ax2.legend()
-    # ax2.grid()
-
-    # fig.tight_layout()
-
-    # # push to neptune
-    # run[f"statistics-and-comparisons"].upload(fig)
-    # run["median-compliance"].log(losses_median)
-    # run["mean-compliance"].log(losses_mean)
-    # plt.close()
-
-    # TODO: Fix this soon - another memory leak here
-    # # Train the google problem
-    # print(f"Training Google - {google_problem.name}")
-    # google_trials = train.train_google(
-    #     google_problem,
-    #     maxit,
-    #     cnn_kwargs=cnn_kwargs,
-    #     num_trials=num_trials,
-    #     neptune_logging=run,
-    # )
-    # print("Finished training")
-
-    # # Google best trial
-    # google_best_trial = sorted(google_trials, key=lambda x: x[0])[0]
-
-    # # Get the losses
-    # google_best_score = np.round(google_best_trial[0], 2)
-
-    # # Next extract the final image
-    # google_design = google_best_trial[2]
-    # google_design = np.squeeze(google_design)
-
-    # # Plot the google image
-    # google_fig = utils.build_final_design(
-    #     google_problem.name, google_design, google_best_score, figsize=(10, 6)
-    # )
-    # google_fig.subplots_adjust(hspace=0)
-    # google_fig.tight_layout()
-    # run[f"google-best_trial-{problem.name}-final-design"].upload(google_fig)
-
-    # plt.close()
-
-    # # Get the losses for pygranso and google
-    # pygranso_losses = [losses for _, losses, _, _ in trials]
-    # google_losses = [losses for _, losses, _, _ in google_trials]
-
-    # trials_dict = {"pygranso_losses": pygranso_losses, "google_losses": google_losses}
-
-    # # Build and save the losses data for this run
-    # utils.build_loss_plots(problem.name, trials_dict, run)
-
     run.stop()
+
+
+def train_all(problem, max_iterations, cnn_kwargs=None):
+    """
+    Function that will compute the MMA and google cnn
+    structure optimization.
+    """
+    args = google_topo_api.specified_task(problem)
+    if cnn_kwargs is None:
+        cnn_kwargs = {}
+
+    model = google_models.PixelModel(args=args)
+    ds_mma = google_train.method_of_moving_asymptotes(model, max_iterations)
+
+    model = google_models.CNNModel(args=args, **cnn_kwargs)
+    ds_cnn = google_train.train_lbfgs(model, max_iterations)
+
+    dims = pd.Index(["cnn-lbfgs", "mma"], name="model")
+    return xarray.concat([ds_cnn, ds_mma], dim=dims)
+
+
+def run_multi_structure_pipeline():
+    """
+    Task that will build out multiple structures and compare
+    performance against known benchmarks.
+    """
+    # Get the device to be used
+    device = utils.get_devices()
+    num_trials = 1
+    maxit = 500
+
+    # Set up the problem names
+    problem_config = [
+        ("mbb_beam_96x32_0.5", True, 1, 66),
+        ("multistory_building_64x128_0.4", True, 2, 30),
+        ("thin_support_bridge_128x128_0.2", True, 1, 30),
+        ("l shape_0.2_128x128_0.3", False, 1, 30),
+        ("l_shape_0.4_128x128_0.3", False, 1, 30),
+    ]
+
+    # PyGranso function
+    comb_fn = train.volume_constrained_structural_optimization_function
+
+    # Build the problems for pygranso and google
+    PYGRANSO_PROBLEMS_BY_NAME = problems.build_problems_by_name(device=device)
+
+    # For running this we only want one trial
+    # with maximum iterations 1000
+    structure_outputs = []
+    for (problem_name, requires_flip, total_frames, cax_size) in problem_config:
+        print(f"Building structure: {problem_name}")
+        pygranso_problem = PYGRANSO_PROBLEMS_BY_NAME.get(problem_name)
+
+        # Get volume assignment
+        args = topo_api.specified_task(pygranso_problem, device=device)
+        volume = args["volfrac"]
+
+        # Build the structure with pygranso
+        outputs = train.train_pygranso(
+            problem=pygranso_problem,
+            device=device,
+            pygranso_combined_function=comb_fn,
+            requires_flip=requires_flip,
+            total_frames=total_frames,
+            cnn_kwargs=None,
+            neptune_logging=None,
+            num_trials=num_trials,
+            maxit=maxit,
+        )
+
+        # Build the outputs
+        pygranso_outputs = build_outputs(
+            problem_name=problem_name,
+            outputs=outputs,
+            volume=volume,
+            requires_flip=requires_flip,
+        )
+
+        # Build google results
+        google_problem = google_problems.PROBLEMS_BY_NAME[problem_name]
+        max_iterations = 200
+        ds = train_all(google_problem, max_iterations)
+
+        # Get google outputs
+        benchmark_outputs = build_google_outputs(
+            problem_name=problem_name, ds=ds, volume=volume, requires_flip=requires_flip
+        )
+
+        # Zip the results together to create a dataframe
+        google_cnn_outputs = benchmark_outputs["google-cnn"]
+        mma_outputs = benchmark_outputs["mma"]
+
+        # All outputs
+        outputs = pd.DataFrame(
+            zip(
+                pygranso_outputs,
+                google_cnn_outputs,
+                mma_outputs,
+            ),
+        )
+        outputs = outputs.transpose()
+        outputs.columns = ["designs", "loss", "binary_constraint", "volume_constraint"]
+        outputs["problem_name"] = problem_name
+
+        # Create the color map
+        color_map = {
+            0: ("yellow", "black"),
+            1: ("orange", "black"),
+            2: ("mediumblue", "white"),
+        }
+
+        # Get the best to worst
+        outputs["formatting"] = outputs.groupby("problem_name", group_keys=False)[
+            "loss"
+        ].apply(lambda x: np.argsort(x))
+        outputs["formatting"] = outputs["formatting"].map(color_map)
+
+        # Add titles
+        titles = ["PyGranso-CNN", f"{problem_name} \n Google-CNN", "MMA"]
+        outputs["titles"] = titles
+        outputs["cax_size"] = cax_size
+        structure_outputs.append(outputs)
+
+    # Concat all structures
+    structure_outputs = pd.concat(structure_outputs)
+
+    # Create the output plots
+    fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 8))
+    axes = axes.flatten()
+    plt.subplots_adjust(hspace=0.1, wspace=0.01)
+
+    # add the axes to the dataframe
+    structure_outputs["ax"] = axes
+
+    for index, data in enumerate(structure_outputs.itertuples()):
+        ax = data.ax
+        ax.imshow(data.designs, cmap="Greys")
+
+        # Add the colors box for the scoring
+        divider = make_axes_locatable(ax)
+
+        cax = divider.append_axes("bottom", size=f"{data.cax_size}%", pad=0.01)
+        cax.get_xaxis().set_visible(False)
+        cax.get_yaxis().set_visible(False)
+
+        formatting = data.formatting
+        facecolor = formatting[0]
+        fontcolor = formatting[1]
+
+        # Set the face color of the box
+        cax.set_facecolor(facecolor)
+        cax.spines["bottom"].set_color(facecolor)
+        cax.spines["top"].set_color(facecolor)
+        cax.spines["right"].set_color(facecolor)
+        cax.spines["left"].set_color(facecolor)
+
+        text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
+        at = AnchoredText(
+            text,
+            loc=10,
+            frameon=False,
+            prop=dict(
+                backgroundcolor=facecolor,
+                size=10,
+                color=fontcolor,
+            ),
+        )
+        cax.add_artist(at)
+        ax.set_axis_off()
+        ax.set_title(data.titles, fontsize=14)
 
 
 if __name__ == "__main__":

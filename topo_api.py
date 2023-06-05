@@ -41,5 +41,6 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
         "forces": problem.forces.ravel(),
         "penal": 3.0,
         "filter_width": 2,
+        "epsilon": problem.epsilon,
     }
     return params

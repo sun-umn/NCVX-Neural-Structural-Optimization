@@ -50,6 +50,7 @@ class Problem:
     normals: torch.Tensor  # noqa
     forces: torch.Tensor  # noqa
     density: float  # noqa
+    epsilon: float
     mask: Union[torch.Tensor, float] = 1  # noqa
     name: Optional[str] = None  # noqa
     width: int = dataclasses.field(init=False)  # noqa
@@ -80,7 +81,12 @@ class Problem:
 
 
 def mbb_beam(
-    width=60, height=20, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+    width=60,
+    height=20,
+    density=0.5,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
 ):
     """Textbook beam example."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -90,7 +96,7 @@ def mbb_beam(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, 0, Y] = -1
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def cantilever_beam_full(
@@ -222,6 +228,7 @@ def l_shape(
     density=0.5,
     aspect=0.4,
     force_position=0.5,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -236,7 +243,7 @@ def l_shape(
     mask = torch.ones((width, height)).to(device=device, dtype=dtype)
     mask[round(height * aspect) :, : round(width * (1 - aspect))] = 0  # noqa
 
-    return Problem(normals, forces, density, mask.T)
+    return Problem(normals, forces, density, epsilon, mask.T)
 
 
 def crane(
@@ -397,6 +404,7 @@ def multistory_building(
     height=32,
     density=0.3,
     interval=16,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -407,7 +415,7 @@ def multistory_building(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, ::interval, Y] = -1 / width
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def thin_support_bridge(
@@ -415,6 +423,7 @@ def thin_support_bridge(
     height=32,
     density=0.25,
     design_width=0.25,
+    epsilon=7.5e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -435,7 +444,7 @@ def thin_support_bridge(
         : round(height * (1 - design_width)),  # noqa
     ] = 0  # noqa
 
-    return Problem(normals, forces, density, mask)
+    return Problem(normals, forces, density, epsilon, mask)
 
 
 def drawbridge(
@@ -580,42 +589,42 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             mbb_beam(192, 32, density=0.5, device=device),
             mbb_beam(384, 64, density=0.4, device=device),
         ],
-        "cantilever_beam_full": [
-            cantilever_beam_full(96, 32, density=0.4, device=device),
-            cantilever_beam_full(192, 64, density=0.3, device=device),
-            cantilever_beam_full(384, 128, density=0.2, device=device),
-            cantilever_beam_full(384, 128, density=0.15, device=device),
-        ],
-        "cantilever_beam_two_point": [
-            cantilever_beam_two_point(64, 48, density=0.4, device=device),
-            cantilever_beam_two_point(128, 96, density=0.3, device=device),
-            cantilever_beam_two_point(256, 192, density=0.2, device=device),
-            cantilever_beam_two_point(256, 192, density=0.15, device=device),
-        ],
-        "pure_bending_moment": [
-            pure_bending_moment(32, 64, density=0.15, device=device),
-            pure_bending_moment(64, 128, density=0.125, device=device),
-            pure_bending_moment(128, 256, density=0.1, device=device),
-        ],
-        "michell_centered_both": [
-            michell_centered_both(32, 64, density=0.12, device=device),
-            michell_centered_both(64, 128, density=0.12, device=device),
-            michell_centered_both(128, 256, density=0.12, device=device),
-            michell_centered_both(128, 256, density=0.06, device=device),
-        ],
-        "michell_centered_below": [
-            michell_centered_below(64, 64, density=0.12, device=device),
-            michell_centered_below(128, 128, density=0.12, device=device),
-            michell_centered_below(256, 256, density=0.12, device=device),
-            michell_centered_below(256, 256, density=0.06, device=device),
-        ],
-        "ground_structure": [
-            ground_structure(64, 64, density=0.12, device=device),
-            ground_structure(128, 128, density=0.1, device=device),
-            ground_structure(256, 256, density=0.07, device=device),
-            ground_structure(256, 256, density=0.05, device=device),
-        ],
-        # simple constrained designs
+        # "cantilever_beam_full": [
+        #     cantilever_beam_full(96, 32, density=0.4, device=device),
+        #     cantilever_beam_full(192, 64, density=0.3, device=device),
+        #     cantilever_beam_full(384, 128, density=0.2, device=device),
+        #     cantilever_beam_full(384, 128, density=0.15, device=device),
+        # ],
+        # "cantilever_beam_two_point": [
+        #     cantilever_beam_two_point(64, 48, density=0.4, device=device),
+        #     cantilever_beam_two_point(128, 96, density=0.3, device=device),
+        #     cantilever_beam_two_point(256, 192, density=0.2, device=device),
+        #     cantilever_beam_two_point(256, 192, density=0.15, device=device),
+        # ],
+        # "pure_bending_moment": [
+        #     pure_bending_moment(32, 64, density=0.15, device=device),
+        #     pure_bending_moment(64, 128, density=0.125, device=device),
+        #     pure_bending_moment(128, 256, density=0.1, device=device),
+        # ],
+        # "michell_centered_both": [
+        #     michell_centered_both(32, 64, density=0.12, device=device),
+        #     michell_centered_both(64, 128, density=0.12, device=device),
+        #     michell_centered_both(128, 256, density=0.12, device=device),
+        #     michell_centered_both(128, 256, density=0.06, device=device),
+        # ],
+        # "michell_centered_below": [
+        #     michell_centered_below(64, 64, density=0.12, device=device),
+        #     michell_centered_below(128, 128, density=0.12, device=device),
+        #     michell_centered_below(256, 256, density=0.12, device=device),
+        #     michell_centered_below(256, 256, density=0.06, device=device),
+        # ],
+        # "ground_structure": [
+        #     ground_structure(64, 64, density=0.12, device=device),
+        #     ground_structure(128, 128, density=0.1, device=device),
+        #     ground_structure(256, 256, density=0.07, device=device),
+        #     ground_structure(256, 256, density=0.05, device=device),
+        # ],
+        # # simple constrained designs
         "l_shape_0.2": [
             l_shape(64, 64, aspect=0.2, density=0.4, device=device),
             l_shape(128, 128, aspect=0.2, density=0.3, device=device),
@@ -626,130 +635,130 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             l_shape(128, 128, aspect=0.4, density=0.3, device=device),
             l_shape(256, 256, aspect=0.4, density=0.2, device=device),
         ],
-        "crane": [
-            crane(64, 64, density=0.3, device=device),
-            crane(128, 128, density=0.2, device=device),
-            crane(256, 256, density=0.15, device=device),
-            crane(256, 256, density=0.1, device=device),
-        ],
-        # vertical support structures
-        "center_support": [
-            center_support(64, 64, density=0.15, device=device),
-            center_support(128, 128, density=0.1, device=device),
-            center_support(256, 256, density=0.1, device=device),
-            center_support(256, 256, density=0.05, device=device),
-        ],
-        "column": [
-            column(32, 128, density=0.3, device=device),
-            column(64, 256, density=0.3, device=device),
-            column(128, 512, density=0.1, device=device),
-            column(128, 512, density=0.3, device=device),
-            column(128, 512, density=0.5, device=device),
-        ],
-        "roof": [
-            roof(64, 64, density=0.2, device=device),
-            roof(128, 128, density=0.15, device=device),
-            roof(256, 256, density=0.4, device=device),
-            roof(256, 256, density=0.2, device=device),
-            roof(256, 256, density=0.1, device=device),
-        ],
-        # bridges
-        "causeway_bridge_top": [
-            causeway_bridge(64, 64, density=0.3, device=device),
-            causeway_bridge(128, 128, density=0.2, device=device),
-            causeway_bridge(256, 256, density=0.1, device=device),
-            causeway_bridge(128, 64, density=0.3, device=device),
-            causeway_bridge(256, 128, density=0.2, device=device),
-        ],
-        "causeway_bridge_middle": [
-            causeway_bridge(64, 64, density=0.12, deck_level=0.5, device=device),
-            causeway_bridge(128, 128, density=0.1, deck_level=0.5, device=device),
-            causeway_bridge(256, 256, density=0.08, deck_level=0.5, device=device),
-        ],
-        "causeway_bridge_low": [
-            causeway_bridge(64, 64, density=0.12, deck_level=0.3, device=device),
-            causeway_bridge(128, 128, density=0.1, deck_level=0.3, device=device),
-            causeway_bridge(256, 256, density=0.08, deck_level=0.3, device=device),
-        ],
-        "two_level_bridge": [
-            two_level_bridge(64, 64, density=0.2, device=device),
-            two_level_bridge(128, 128, density=0.16, device=device),
-            two_level_bridge(256, 256, density=0.12, device=device),
-        ],
-        "free_suspended_bridge": [
-            suspended_bridge(64, 64, density=0.15, anchored=False, device=device),
-            suspended_bridge(128, 128, density=0.1, anchored=False, device=device),
-            suspended_bridge(256, 256, density=0.075, anchored=False, device=device),
-            suspended_bridge(256, 256, density=0.05, anchored=False, device=device),
-        ],
-        "anchored_suspended_bridge": [
-            suspended_bridge(
-                64, 64, density=0.15, span_position=0.1, anchored=True, device=device
-            ),
-            suspended_bridge(
-                128, 128, density=0.1, span_position=0.1, anchored=True, device=device
-            ),
-            suspended_bridge(
-                256, 256, density=0.075, span_position=0.1, anchored=True, device=device
-            ),
-            suspended_bridge(
-                256, 256, density=0.05, span_position=0.1, anchored=True, device=device
-            ),
-        ],
-        "canyon_bridge": [
-            canyon_bridge(64, 64, density=0.16, device=device),
-            canyon_bridge(128, 128, density=0.12, device=device),
-            canyon_bridge(256, 256, density=0.1, device=device),
-            canyon_bridge(256, 256, density=0.05, device=device),
-        ],
+        # "crane": [
+        #     crane(64, 64, density=0.3, device=device),
+        #     crane(128, 128, density=0.2, device=device),
+        #     crane(256, 256, density=0.15, device=device),
+        #     crane(256, 256, density=0.1, device=device),
+        # ],
+        # # vertical support structures
+        # "center_support": [
+        #     center_support(64, 64, density=0.15, device=device),
+        #     center_support(128, 128, density=0.1, device=device),
+        #     center_support(256, 256, density=0.1, device=device),
+        #     center_support(256, 256, density=0.05, device=device),
+        # ],
+        # "column": [
+        #     column(32, 128, density=0.3, device=device),
+        #     column(64, 256, density=0.3, device=device),
+        #     column(128, 512, density=0.1, device=device),
+        #     column(128, 512, density=0.3, device=device),
+        #     column(128, 512, density=0.5, device=device),
+        # ],
+        # "roof": [
+        #     roof(64, 64, density=0.2, device=device),
+        #     roof(128, 128, density=0.15, device=device),
+        #     roof(256, 256, density=0.4, device=device),
+        #     roof(256, 256, density=0.2, device=device),
+        #     roof(256, 256, density=0.1, device=device),
+        # ],
+        # # bridges
+        # "causeway_bridge_top": [
+        #     causeway_bridge(64, 64, density=0.3, device=device),
+        #     causeway_bridge(128, 128, density=0.2, device=device),
+        #     causeway_bridge(256, 256, density=0.1, device=device),
+        #     causeway_bridge(128, 64, density=0.3, device=device),
+        #     causeway_bridge(256, 128, density=0.2, device=device),
+        # ],
+        # "causeway_bridge_middle": [
+        #     causeway_bridge(64, 64, density=0.12, deck_level=0.5, device=device),
+        #     causeway_bridge(128, 128, density=0.1, deck_level=0.5, device=device),
+        #     causeway_bridge(256, 256, density=0.08, deck_level=0.5, device=device),
+        # ],
+        # "causeway_bridge_low": [
+        #     causeway_bridge(64, 64, density=0.12, deck_level=0.3, device=device),
+        #     causeway_bridge(128, 128, density=0.1, deck_level=0.3, device=device),
+        #     causeway_bridge(256, 256, density=0.08, deck_level=0.3, device=device),
+        # ],
+        # "two_level_bridge": [
+        #     two_level_bridge(64, 64, density=0.2, device=device),
+        #     two_level_bridge(128, 128, density=0.16, device=device),
+        #     two_level_bridge(256, 256, density=0.12, device=device),
+        # ],
+        # "free_suspended_bridge": [
+        #     suspended_bridge(64, 64, density=0.15, anchored=False, device=device),
+        #     suspended_bridge(128, 128, density=0.1, anchored=False, device=device),
+        #     suspended_bridge(256, 256, density=0.075, anchored=False, device=device),
+        #     suspended_bridge(256, 256, density=0.05, anchored=False, device=device),
+        # ],
+        # "anchored_suspended_bridge": [
+        #     suspended_bridge(
+        #         64, 64, density=0.15, span_position=0.1, anchored=True, device=device
+        #     ),
+        #     suspended_bridge(
+        #         128, 128, density=0.1, span_position=0.1, anchored=True, device=device
+        #     ),
+        #     suspended_bridge(
+        #         256, 256, density=0.075, span_position=0.1, anchored=True, device=device
+        #     ),
+        #     suspended_bridge(
+        #         256, 256, density=0.05, span_position=0.1, anchored=True, device=device
+        #     ),
+        # ],
+        # "canyon_bridge": [
+        #     canyon_bridge(64, 64, density=0.16, device=device),
+        #     canyon_bridge(128, 128, density=0.12, device=device),
+        #     canyon_bridge(256, 256, density=0.1, device=device),
+        #     canyon_bridge(256, 256, density=0.05, device=device),
+        # ],
         "thin_support_bridge": [
             thin_support_bridge(64, 64, density=0.3, device=device),
             thin_support_bridge(128, 128, density=0.2, device=device),
             thin_support_bridge(256, 256, density=0.15, device=device),
             thin_support_bridge(256, 256, density=0.1, device=device),
         ],
-        "drawbridge": [
-            drawbridge(64, 64, density=0.2, device=device),
-            drawbridge(128, 128, density=0.15, device=device),
-            drawbridge(256, 256, density=0.1, device=device),
-        ],
-        # more complex design problems
-        "hoop": [
-            hoop(32, 64, density=0.25, device=device),
-            hoop(64, 128, density=0.2, device=device),
-            hoop(128, 256, density=0.15, device=device),
-        ],
-        "dam": [
-            dam(64, 64, density=0.2, device=device),
-            dam(128, 128, density=0.15, device=device),
-            dam(256, 256, density=0.05, device=device),
-            dam(256, 256, density=0.1, device=device),
-            dam(256, 256, density=0.2, device=device),
-        ],
-        "ramp": [
-            ramp(64, 64, density=0.3, device=device),
-            ramp(128, 128, density=0.2, device=device),
-            ramp(256, 256, density=0.2, device=device),
-            ramp(256, 256, density=0.1, device=device),
-        ],
-        "staircase": [
-            staircase(64, 64, density=0.3, num_stories=3, device=device),
-            staircase(128, 128, density=0.2, num_stories=3, device=device),
-            staircase(256, 256, density=0.15, num_stories=3, device=device),
-            staircase(128, 512, density=0.15, num_stories=6, device=device),
-        ],
-        "staggered_points": [
-            staggered_points(64, 64, density=0.3, device=device),
-            staggered_points(128, 128, density=0.3, device=device),
-            staggered_points(256, 256, density=0.3, device=device),
-            staggered_points(256, 256, density=0.5, device=device),
-            staggered_points(64, 128, density=0.3, device=device),
-            staggered_points(128, 256, density=0.3, device=device),
-            staggered_points(32, 128, density=0.3, device=device),
-            staggered_points(64, 256, density=0.3, device=device),
-            staggered_points(128, 512, density=0.3, device=device),
-            staggered_points(128, 512, interval=32, density=0.15, device=device),
-        ],
+        # "drawbridge": [
+        #     drawbridge(64, 64, density=0.2, device=device),
+        #     drawbridge(128, 128, density=0.15, device=device),
+        #     drawbridge(256, 256, density=0.1, device=device),
+        # ],
+        # # more complex design problems
+        # "hoop": [
+        #     hoop(32, 64, density=0.25, device=device),
+        #     hoop(64, 128, density=0.2, device=device),
+        #     hoop(128, 256, density=0.15, device=device),
+        # ],
+        # "dam": [
+        #     dam(64, 64, density=0.2, device=device),
+        #     dam(128, 128, density=0.15, device=device),
+        #     dam(256, 256, density=0.05, device=device),
+        #     dam(256, 256, density=0.1, device=device),
+        #     dam(256, 256, density=0.2, device=device),
+        # ],
+        # "ramp": [
+        #     ramp(64, 64, density=0.3, device=device),
+        #     ramp(128, 128, density=0.2, device=device),
+        #     ramp(256, 256, density=0.2, device=device),
+        #     ramp(256, 256, density=0.1, device=device),
+        # ],
+        # "staircase": [
+        #     staircase(64, 64, density=0.3, num_stories=3, device=device),
+        #     staircase(128, 128, density=0.2, num_stories=3, device=device),
+        #     staircase(256, 256, density=0.15, num_stories=3, device=device),
+        #     staircase(128, 512, density=0.15, num_stories=6, device=device),
+        # ],
+        # "staggered_points": [
+        #     staggered_points(64, 64, density=0.3, device=device),
+        #     staggered_points(128, 128, density=0.3, device=device),
+        #     staggered_points(256, 256, density=0.3, device=device),
+        #     staggered_points(256, 256, density=0.5, device=device),
+        #     staggered_points(64, 128, density=0.3, device=device),
+        #     staggered_points(128, 256, density=0.3, device=device),
+        #     staggered_points(32, 128, density=0.3, device=device),
+        #     staggered_points(64, 256, density=0.3, device=device),
+        #     staggered_points(128, 512, density=0.3, device=device),
+        #     staggered_points(128, 512, interval=32, density=0.15, device=device),
+        # ],
         "multistory_building": [
             multistory_building(32, 64, density=0.5, device=device),
             multistory_building(64, 128, interval=32, density=0.4, device=device),
