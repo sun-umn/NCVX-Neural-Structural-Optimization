@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# stdlib
+import gc
 
 # third party
 import click
@@ -383,6 +385,11 @@ def run_multi_structure_pipeline():
     Task that will build out multiple structures and compare
     performance against known benchmarks.
     """
+    run = neptune.init_run(
+        project="dever120/CNN-Structural-Optimization-Prod",
+        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",  # noqa
+    )
+
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
@@ -480,6 +487,9 @@ def run_multi_structure_pipeline():
         outputs["cax_size"] = cax_size
         structure_outputs.append(outputs)
 
+        gc.collect()
+        torch.cuda.empty_cache()
+
     # Concat all structures
     structure_outputs = pd.concat(structure_outputs)
 
@@ -528,6 +538,14 @@ def run_multi_structure_pipeline():
         ax.set_axis_off()
         ax.set_title(data.titles, fontsize=14)
 
+    fig.savefig(
+        "./results/single_material_model_comparisons.png",
+        bbox_inches="tight",
+        pad_inches=0.02,
+    )
+    run[f"topology-optimization-model-comparisons"].upload(fig)
+
 
 if __name__ == "__main__":
-    structural_optimization_task()
+    # structural_optimization_task()
+    run_multi_structure_pipeline()
