@@ -71,12 +71,12 @@ def build_outputs(problem_name, outputs, volume, requires_flip, epsilon=1e-3):
     # Get all final objects
     best_final_design = final_designs[0, :, :]
     if requires_flip:
-        if ("mbb" in problem_name) or ("thin" in problem_name):
+        if ("mbb" in problem_name) or ("l_shape" in problem_name):
             best_final_design = np.hstack(
                 [best_final_design[:, ::-1], best_final_design]
             )
 
-        elif "multistory" in problem_name:
+        elif ("multistory" in problem_name) or ("thin" in problem_name):
             best_final_design = np.hstack(
                 [best_final_design, best_final_design[:, ::-1]] * 2
             )
@@ -135,11 +135,11 @@ def build_google_outputs(problem_name, ds, volume, requires_flip, epsilon=1e-3):
     )
 
     if requires_flip:
-        if ("mbb" in problem_name) or ("thin" in problem_name):
+        if ("mbb" in problem_name) or ("l_shape" in problem_name):
             cnn_final_design = np.hstack([cnn_final_design[:, ::-1], cnn_final_design])
             mma_final_design = np.hstack([mma_final_design[:, ::-1], mma_final_design])
 
-        if "multistory" in problem_name:
+        if ("multistory" in problem_name) or ("thin" in problem_name):
             cnn_final_design = np.hstack(
                 [cnn_final_design, cnn_final_design[:, ::-1]] * 2
             )
@@ -393,15 +393,16 @@ def run_multi_structure_pipeline():
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 500
+    maxit = 1000
+    max_iterations = 200
 
     # Set up the problem names
     problem_config = [
         ("mbb_beam_96x32_0.5", True, 1, 66),
-        ("multistory_building_64x128_0.4", True, 2, 30),
-        ("thin_support_bridge_128x128_0.2", True, 1, 30),
-        ("l shape_0.2_128x128_0.3", False, 1, 30),
-        ("l_shape_0.4_128x128_0.3", False, 1, 30),
+        ("multistory_building_64x128_0.4", True, 1, 25),
+        ("thin_support_bridge_128x128_0.2", True, 1, 35),
+        ("l_shape_0.2_128x128_0.3", True, 1, 25),
+        ("l_shape_0.4_128x128_0.3", True, 1, 25),
     ]
 
     # PyGranso function
@@ -444,7 +445,6 @@ def run_multi_structure_pipeline():
 
         # Build google results
         google_problem = google_problems.PROBLEMS_BY_NAME[problem_name]
-        max_iterations = 200
         ds = train_all(google_problem, max_iterations)
 
         # Get google outputs
@@ -494,9 +494,9 @@ def run_multi_structure_pipeline():
     structure_outputs = pd.concat(structure_outputs)
 
     # Create the output plots
-    fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 8))
+    fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 9))
     axes = axes.flatten()
-    plt.subplots_adjust(hspace=0.1, wspace=0.01)
+    plt.subplots_adjust(hspace=0.01, wspace=0.01)
 
     # add the axes to the dataframe
     structure_outputs["ax"] = axes
@@ -536,8 +536,9 @@ def run_multi_structure_pipeline():
         )
         cax.add_artist(at)
         ax.set_axis_off()
-        ax.set_title(data.titles, fontsize=14)
+        ax.set_title(data.titles, fontsize=10)
 
+    fig.tight_layout()
     fig.savefig(
         "./results/single_material_model_comparisons.png",
         bbox_inches="tight",
