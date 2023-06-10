@@ -423,7 +423,7 @@ def thin_support_bridge(
     height=32,
     density=0.25,
     design_width=0.25,
-    epsilon=5e-3,
+    epsilon=6e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
