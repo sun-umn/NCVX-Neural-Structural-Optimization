@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # stdlib
 import gc
+import math
 
 # third party
 import click
@@ -25,21 +26,90 @@ import train
 import utils
 
 
-def calculate_binary_constraint(design, epsilon):
+def bilinear_interpolation(img, y, x):
+    """
+    Function that computes bilinear interpolation
+    """
+    height, width = img.shape
+
+    # Get the (x1, y1), (x2, y2) values
+    x1 = max(min(math.floor(x), width - 1), 0)
+    y1 = max(min(math.floor(y), height - 1), 0)
+    x2 = max(min(math.ceil(x), width - 1), 0)
+    y2 = max(min(math.ceil(y), height - 1), 0)
+
+    # Get the 4 nearest pixel values
+    a = float(img[y1, x1])
+    b = float(img[y2, x1])
+    c = float(img[y1, x2])
+    d = float(img[y2, x2])
+
+    dx = x - x1
+    dy = y - y1
+
+    # Get the new pixel value
+    new_pixel = (
+        (a * (1 - dx) * (1 - dy))
+        + (b * dy * (1 - dx))
+        + (c * dx * (1 - dy))
+        + (d * dx * dy)
+    )
+
+    return round(new_pixel)
+
+
+def resize(img, resize_shape):
+    """
+    Function that utilizes bilinear interpolation for aliasing effects
+    for resizing a grayscale image
+    """
+    new_height, new_width = resize_shape
+    new_image = np.zeros((new_height, new_width), img.dtype)
+
+    orig_height = img.shape[0]
+    orig_width = img.shape[1]
+
+    # Compute center column and center row
+    x_orig_center = (orig_width - 1) / 2
+    y_orig_center = (orig_height - 1) / 2
+
+    # Compute center of resized image
+    x_scaled_center = (new_width - 1) / 2
+    y_scaled_center = (new_height - 1) / 2
+
+    # Compute the scale in both axes
+    scale_x = orig_width / new_width
+    scale_y = orig_height / new_height
+
+    # iterate over the new height and width to get the new pixel
+    # values
+    for y in range(new_height):
+        for x in range(new_width):
+            x_interpolated = (x - x_scaled_center) * scale_x + x_orig_center
+            y_interpolated = (y - y_scaled_center) * scale_y + y_orig_center
+
+            new_image[y, x] = bilinear_interpolation(
+                img, y_interpolated, x_interpolated
+            )
+
+    return new_image
+
+
+def calculate_binary_constraint(design, mask, epsilon):
     """
     Function to compute the binary constraint
     """
-    return np.round(np.mean(design * (1 - design)) - epsilon, 4)
+    return np.round(np.mean(design[mask] * (1 - design[mask])) - epsilon, 4)
 
 
-def calculate_volume_constraint(design, volume):
+def calculate_volume_constraint(design, mask, volume):
     """
     Function that computes the volume constraint
     """
-    return np.round(np.mean(design) / volume - 1.0, 4)
+    return np.round(np.mean(design[mask]) / volume - 1.0, 4)
 
 
-def build_outputs(problem_name, outputs, volume, requires_flip, epsilon=1e-3):
+def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e-3):
     """
     From each of the methods we will have an outputs
     based on the number of trials. This function
@@ -70,6 +140,20 @@ def build_outputs(problem_name, outputs, volume, requires_flip, epsilon=1e-3):
 
     # Get all final objects
     best_final_design = final_designs[0, :, :]
+    # Compute the binary and volume constraints
+    binary_constraint = calculate_binary_constraint(
+        design=best_final_design,
+        mask=mask,
+        epsilon=epsilon,
+    )
+
+    # volume constraint
+    volume_constraint = calculate_volume_constraint(
+        design=best_final_design,
+        mask=mask,
+        volume=volume,
+    )
+
     if requires_flip:
         if ("mbb" in problem_name) or ("l_shape" in problem_name):
             best_final_design = np.hstack(
@@ -84,22 +168,10 @@ def build_outputs(problem_name, outputs, volume, requires_flip, epsilon=1e-3):
     # last row, first column (-1, 0)
     best_score = np.round(losses_df.iloc[-1, 0], 2)
 
-    # Compute the binary and volume constraints
-    binary_constraint = calculate_binary_constraint(
-        design=best_final_design,
-        epsilon=epsilon,
-    )
-
-    # volume constraint
-    volume_constraint = calculate_volume_constraint(
-        design=best_final_design,
-        volume=volume,
-    )
-
     return best_final_design, best_score, binary_constraint, volume_constraint
 
 
-def build_google_outputs(problem_name, ds, volume, requires_flip, epsilon=1e-3):
+def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=1e-3):
     """
     Build the google outputs.
     TODO: I think I will want to extend this for multiple
@@ -116,10 +188,11 @@ def build_google_outputs(problem_name, ds, volume, requires_flip, epsilon=1e-3):
     # CNN final design
     cnn_final_design = final_designs[0, :, :]
     cnn_binary_constraint = calculate_binary_constraint(
-        design=cnn_final_design, epsilon=epsilon
+        design=cnn_final_design, mask=mask, epsilon=epsilon
     )
     cnn_volume_constraint = calculate_volume_constraint(
         design=cnn_final_design,
+        mask=mask,
         volume=volume,
     )
 
@@ -127,10 +200,12 @@ def build_google_outputs(problem_name, ds, volume, requires_flip, epsilon=1e-3):
     mma_final_design = final_designs[1, :, :]
     mma_binary_constraint = calculate_binary_constraint(
         design=mma_final_design,
+        mask=mask,
         epsilon=epsilon,
     )
     mma_volume_constraint = calculate_volume_constraint(
         design=mma_final_design,
+        mask=mask,
         volume=volume,
     )
 
@@ -398,11 +473,11 @@ def run_multi_structure_pipeline():
 
     # Set up the problem names
     problem_config = [
-        ("mbb_beam_96x32_0.5", True, 1, 66),
-        ("multistory_building_64x128_0.4", True, 1, 25),
+        ("mbb_beam_96x32_0.5", True, 1, 65),
+        ("multistory_building_64x128_0.4", True, 1, 30),
         ("thin_support_bridge_128x128_0.2", True, 1, 35),
-        ("l_shape_0.2_128x128_0.3", True, 1, 25),
-        ("l_shape_0.4_128x128_0.3", True, 1, 25),
+        ("l_shape_0.2_128x128_0.3", True, 1, 30),
+        ("l_shape_0.4_128x128_0.3", True, 1, 30),
     ]
 
     # PyGranso function
@@ -422,6 +497,10 @@ def run_multi_structure_pipeline():
         args = topo_api.specified_task(pygranso_problem, device=device)
         volume = args["volfrac"]
 
+        nely = int(args["nely"])
+        nelx = int(args["nelx"])
+        mask = (torch.broadcast_to(args["mask"], (nely, nelx)) > 0).numpy()
+
         # Build the structure with pygranso
         outputs = train.train_pygranso(
             problem=pygranso_problem,
@@ -439,6 +518,7 @@ def run_multi_structure_pipeline():
         pygranso_outputs = build_outputs(
             problem_name=problem_name,
             outputs=outputs,
+            mask=mask,
             volume=volume,
             requires_flip=requires_flip,
         )
@@ -449,7 +529,11 @@ def run_multi_structure_pipeline():
 
         # Get google outputs
         benchmark_outputs = build_google_outputs(
-            problem_name=problem_name, ds=ds, volume=volume, requires_flip=requires_flip
+            problem_name=problem_name,
+            ds=ds,
+            mask=mask,
+            volume=volume,
+            requires_flip=requires_flip,
         )
 
         # Zip the results together to create a dataframe
