@@ -499,7 +499,7 @@ def run_multi_structure_pipeline():
 
         nely = int(args["nely"])
         nelx = int(args["nelx"])
-        mask = (torch.broadcast_to(args["mask"], (nely, nelx)) > 0).numpy()
+        mask = (torch.broadcast_to(args["mask"], (nely, nelx)) > 0).cpu().numpy()
 
         # Build the structure with pygranso
         outputs = train.train_pygranso(
