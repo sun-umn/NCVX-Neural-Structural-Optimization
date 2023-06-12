@@ -591,7 +591,7 @@ def run_multi_structure_pipeline():
     ).reset_index(drop=True)
     structure_outputs["order"] = structure_outputs.groupby("problem_name").cumcount()
     structure_outputs = structure_outputs.sort_values(["problem_name", "initial_order"])
-    structure_outputs["formatting"] = structure_outputs["order"].map(colormap)
+    structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
 
     # Save the data
     structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
