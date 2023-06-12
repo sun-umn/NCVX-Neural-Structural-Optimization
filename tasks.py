@@ -476,8 +476,8 @@ def run_multi_structure_pipeline():
         ("mbb_beam_96x32_0.5", True, 1, 65),
         ("multistory_building_64x128_0.4", True, 1, 30),
         ("thin_support_bridge_128x128_0.2", True, 1, 35),
-        ("l_shape_0.2_128x128_0.3", True, 1, 30),
-        ("l_shape_0.4_128x128_0.3", True, 1, 30),
+        # ("l_shape_0.2_128x128_0.3", True, 1, 30),
+        # ("l_shape_0.4_128x128_0.3", True, 1, 30),
     ]
 
     # PyGranso function
@@ -576,6 +576,7 @@ def run_multi_structure_pipeline():
 
     # Concat all structures
     structure_outputs = pd.concat(structure_outputs)
+    print(structure_outputs)
 
     # Create the output plots
     fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 9))

@@ -404,7 +404,7 @@ def multistory_building(
     height=32,
     density=0.3,
     interval=16,
-    epsilon=1e-3,
+    epsilon=5e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
