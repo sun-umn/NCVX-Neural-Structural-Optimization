@@ -477,7 +477,7 @@ def run_multi_structure_pipeline():
     problem_config = [
         ("mbb_beam_96x32_0.5", True, 1, 65),
         ("multistory_building_64x128_0.4", True, 1, 30),
-        ("thin_support_bridge_128x128_0.2", True, 1, 35),
+        # ("thin_support_bridge_128x128_0.2", True, 1, 35),
         # ("l_shape_0.2_128x128_0.3", True, 1, 30),
         # ("l_shape_0.4_128x128_0.3", True, 1, 30),
     ]
@@ -554,19 +554,6 @@ def run_multi_structure_pipeline():
         outputs.columns = ["designs", "loss", "binary_constraint", "volume_constraint"]
         outputs["problem_name"] = problem_name
 
-        # Create the color map
-        color_map = {
-            0: ("yellow", "black"),
-            1: ("orange", "black"),
-            2: ("mediumblue", "white"),
-        }
-
-        # Get the best to worst
-        outputs["formatting"] = outputs.groupby("problem_name", group_keys=False)[
-            "loss"
-        ].apply(lambda x: np.argsort(x))
-        outputs["formatting"] = outputs["formatting"].map(color_map)
-
         # Add titles
         titles = ["PyGranso-CNN", f"{problem_name} \n Google-CNN", "MMA"]
         outputs["titles"] = titles
@@ -587,8 +574,21 @@ def run_multi_structure_pipeline():
     # add the axes to the dataframe
     structure_outputs["ax"] = axes
 
+    # Create the color map
+    color_map = {
+        0: ("yellow", "black"),
+        1: ("orange", "black"),
+        2: ("mediumblue", "white"),
+    }
+
+    # Get the best to worst
+    outputs["order"] = outputs.groupby("problem_name", group_keys=False)["loss"].apply(
+        lambda x: np.argsort(x)
+    )
+    outputs["formatting"] = outputs["order"].map(color_map)
+
     # Save the data
-    structure_outputs[["problem_name", "loss", "formatting"]].to_csv(
+    structure_outputs[["problem_name", "loss", "order", "formatting"]].to_csv(
         "./results/structure_outputs.csv", index=False
     )
 
