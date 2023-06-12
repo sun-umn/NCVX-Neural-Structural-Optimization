@@ -20,6 +20,7 @@ from neural_structural_optimization import topo_api as google_topo_api
 from neural_structural_optimization import train as google_train
 
 # first party
+import models
 import problems
 import topo_api
 import train
@@ -460,6 +461,7 @@ def run_multi_structure_pipeline():
     Task that will build out multiple structures and compare
     performance against known benchmarks.
     """
+    models.set_seed(0)
     run = neptune.init_run(
         project="dever120/CNN-Structural-Optimization-Prod",
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",  # noqa
@@ -586,6 +588,9 @@ def run_multi_structure_pipeline():
     # add the axes to the dataframe
     structure_outputs["ax"] = axes
 
+    # Save the data
+    structure_outputs.to_csv("./results/structure_outputs.csv", index=False)
+
     for index, data in enumerate(structure_outputs.itertuples()):
         ax = data.ax
         ax.imshow(data.designs, cmap="Greys")
@@ -624,11 +629,11 @@ def run_multi_structure_pipeline():
         ax.set_title(data.titles, fontsize=10)
 
     fig.tight_layout()
-    # fig.savefig(
-    #     "./results/single_material_model_comparisons.png",
-    #     bbox_inches="tight",
-    #     pad_inches=0.02,
-    # )
+    fig.savefig(
+        "./results/single_material_model_comparisons.png",
+        bbox_inches="tight",
+        pad_inches=0.02,
+    )
     run[f"topology-optimization-model-comparisons"].upload(fig)
 
 
