@@ -578,7 +578,6 @@ def run_multi_structure_pipeline():
 
     # Concat all structures
     structure_outputs = pd.concat(structure_outputs)
-    print(structure_outputs)
 
     # Create the output plots
     fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 9))
@@ -589,7 +588,9 @@ def run_multi_structure_pipeline():
     structure_outputs["ax"] = axes
 
     # Save the data
-    structure_outputs.to_csv("./results/structure_outputs.csv", index=False)
+    structure_outputs[["problem_name", "loss", "formatting"]].to_csv(
+        "./results/structure_outputs.csv", index=False
+    )
 
     for index, data in enumerate(structure_outputs.itertuples()):
         ax = data.ax
