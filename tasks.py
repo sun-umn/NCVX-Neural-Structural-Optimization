@@ -582,10 +582,10 @@ def run_multi_structure_pipeline():
     }
 
     # Get the best to worst
-    outputs["order"] = outputs.groupby("problem_name", group_keys=False)["loss"].apply(
-        lambda x: np.argsort(x)
-    )
-    outputs["formatting"] = outputs["order"].map(color_map)
+    structure_outputs["order"] = structure_outputs.groupby(
+        "problem_name", group_keys=False
+    )["loss"].apply(lambda x: np.argsort(x))
+    structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
 
     # Save the data
     structure_outputs[["problem_name", "loss", "order", "formatting"]].to_csv(
