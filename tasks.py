@@ -565,6 +565,7 @@ def run_multi_structure_pipeline():
 
     # Concat all structures
     structure_outputs = pd.concat(structure_outputs)
+    structure_outputs['loss'] = structure_outputs['loss'].astype(float)
 
     # Create the output plots
     fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 9))
