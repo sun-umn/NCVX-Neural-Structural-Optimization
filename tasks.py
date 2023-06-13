@@ -470,15 +470,15 @@ def run_multi_structure_pipeline():
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 1000
-    max_iterations = 200
+    maxit = 1
+    max_iterations = 1
 
     # Set up the problem names
     problem_config = [
-        ("mbb_beam_96x32_0.5", True, 1, 60),
-        ("cantilever_beam_full_96x32_0.4", True, 1, 60),
+        ("mbb_beam_96x32_0.5", True, 1, 55),
+        ("cantilever_beam_full_96x32_0.4", True, 1, 55),
         ("multistory_building_64x128_0.4", True, 1, 30),
-        ("thin_support_bridge_128x128_0.2", True, 1, 35),
+        ("thin_support_bridge_128x128_0.2", True, 1, 40),
         ("l_shape_0.2_128x128_0.3", True, 1, 30),
         ("l_shape_0.4_128x128_0.3", True, 1, 30),
     ]
