@@ -156,7 +156,7 @@ def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e
     )
 
     if requires_flip:
-        if ("mbb" in problem_name) or ("l_shape" in problem_name):
+        if problem_name in ('mbb', 'l_shape', 'cantilever'):
             best_final_design = np.hstack(
                 [best_final_design[:, ::-1], best_final_design]
             )
@@ -211,7 +211,7 @@ def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=
     )
 
     if requires_flip:
-        if ("mbb" in problem_name) or ("l_shape" in problem_name):
+        if problem_name in ('mbb', 'l_shape', 'cantilever'):
             cnn_final_design = np.hstack([cnn_final_design[:, ::-1], cnn_final_design])
             mma_final_design = np.hstack([mma_final_design[:, ::-1], mma_final_design])
 
@@ -476,6 +476,7 @@ def run_multi_structure_pipeline():
     # Set up the problem names
     problem_config = [
         ("mbb_beam_96x32_0.5", True, 1, 65),
+        ("cantilever_beam_full_96x32_0.4", True, 1, 65),
         ("multistory_building_64x128_0.4", True, 1, 30),
         ("thin_support_bridge_128x128_0.2", True, 1, 35),
         ("l_shape_0.2_128x128_0.3", True, 1, 30),
@@ -627,7 +628,7 @@ def run_multi_structure_pipeline():
             frameon=False,
             prop=dict(
                 backgroundcolor=facecolor,
-                size=12,
+                size=11,
                 color=fontcolor,
                 weight="bold",
             ),
