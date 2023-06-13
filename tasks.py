@@ -627,8 +627,9 @@ def run_multi_structure_pipeline():
             frameon=False,
             prop=dict(
                 backgroundcolor=facecolor,
-                size=10,
+                size=12,
                 color=fontcolor,
+                weight=bold,
             ),
         )
         cax.add_artist(at)
