@@ -629,7 +629,7 @@ def run_multi_structure_pipeline():
                 backgroundcolor=facecolor,
                 size=12,
                 color=fontcolor,
-                weight=bold,
+                weight="bold",
             ),
         )
         cax.add_artist(at)
