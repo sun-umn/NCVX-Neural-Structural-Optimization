@@ -156,7 +156,11 @@ def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e
     )
 
     if requires_flip:
-        if problem_name in ('mbb', 'l_shape', 'cantilever'):
+        if (
+            ("mbb" in problem_name)
+            or ("l_shape" in problem_name)
+            or ("cantilever" in problem_name)
+        ):
             best_final_design = np.hstack(
                 [best_final_design[:, ::-1], best_final_design]
             )
@@ -211,7 +215,11 @@ def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=
     )
 
     if requires_flip:
-        if problem_name in ('mbb', 'l_shape', 'cantilever'):
+        if (
+            ("mbb" in problem_name)
+            or ("l_shape" in problem_name)
+            or ("cantilever" in problem_name)
+        ):
             cnn_final_design = np.hstack([cnn_final_design[:, ::-1], cnn_final_design])
             mma_final_design = np.hstack([mma_final_design[:, ::-1], mma_final_design])
 
