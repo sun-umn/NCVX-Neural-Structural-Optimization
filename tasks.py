@@ -485,10 +485,10 @@ def run_multi_structure_pipeline():
     problem_config = [
         ("mbb_beam_96x32_0.5", True, 1, 55),
         ("cantilever_beam_full_96x32_0.4", True, 1, 55),
-        ("multistory_building_64x128_0.4", True, 1, 30),
-        ("thin_support_bridge_128x128_0.2", True, 1, 45),
-        ("l_shape_0.2_128x128_0.3", True, 1, 30),
-        ("l_shape_0.4_128x128_0.3", True, 1, 30),
+        # ("multistory_building_64x128_0.4", True, 1, 30),
+        # ("thin_support_bridge_128x128_0.2", True, 1, 45),
+        # ("l_shape_0.2_128x128_0.3", True, 1, 30),
+        # ("l_shape_0.4_128x128_0.3", True, 1, 30),
     ]
 
     # PyGranso function
@@ -679,7 +679,7 @@ def run_multi_structure_pipeline():
             color = 'purple'
 
         ax.hist(
-            np.nan_to_num(data.designs.flatten(),nan=0.0),
+            np.nan_to_num(data.designs.flatten(), nan=0.0),
             bins=100,
             density=True,
             color=color,
