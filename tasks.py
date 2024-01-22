@@ -653,6 +653,49 @@ def run_multi_structure_pipeline():
     )
     run[f"topology-optimization-model-comparisons"].upload(fig)
 
+    # Add a plot for the binary conditions
+    # Create the output plots
+    fig, axes = plt.subplots(
+        len(problem_config),
+        3,
+        figsize=(9.5, 12),
+        sharex=True,
+    )
+    axes = axes.flatten()
+
+    # add the axes to the dataframe
+    structure_outputs["ax"] = axes
+
+    # Create the pixel historgrams
+    for index, data in enumerate(structure_outputs.itertuples()):
+        ax = data.ax
+        title = data.titles
+
+        if 'PyGranso' in title:
+            color = 'blue'
+        elif 'Google' in title:
+            color = 'red'
+        elif 'MMA' in title:
+            color = 'purple'
+
+        ax.hist(
+            np.nan_to_num(data.designs.flatten(),nan=0.0),
+            bins=100,
+            density=True,
+            color=color,
+            range=(0.0, 1.0)
+        )
+        ax.set_title(title)
+
+    fig.tight_layout()
+
+    fig.savefig(
+        "./results/single_material_distribution_comparisons.png",
+        bbox_inches="tight",
+        pad_inches=0.02,
+    )
+    run[f"topology-optimization-distribution-comparisons"].upload(fig)
+
 
 if __name__ == "__main__":
     # structural_optimization_task()
