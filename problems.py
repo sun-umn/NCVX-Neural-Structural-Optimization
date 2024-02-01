@@ -609,12 +609,12 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
         #     pure_bending_moment(64, 128, density=0.125, device=device),
         #     pure_bending_moment(128, 256, density=0.1, device=device),
         # ],
-        # "michell_centered_both": [
-        #     michell_centered_both(32, 64, density=0.12, device=device),
-        #     michell_centered_both(64, 128, density=0.12, device=device),
-        #     michell_centered_both(128, 256, density=0.12, device=device),
-        #     michell_centered_both(128, 256, density=0.06, device=device),
-        # ],
+        "michell_centered_both": [
+            michell_centered_both(32, 64, density=0.12, device=device),
+            michell_centered_both(64, 128, density=0.12, device=device),
+            michell_centered_both(128, 256, density=0.12, device=device),
+            michell_centered_both(128, 256, density=0.06, device=device),
+        ],
         # "michell_centered_below": [
         #     michell_centered_below(64, 64, density=0.12, device=device),
         #     michell_centered_below(128, 128, density=0.12, device=device),
