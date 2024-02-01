@@ -170,6 +170,7 @@ def michell_centered_both(
     height=32,
     density=0.5,
     position=0.05,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
