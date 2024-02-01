@@ -170,7 +170,11 @@ def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e
                 [best_final_design[:, ::-1], best_final_design]
             )
 
-        elif ("multistory" in problem_name) or ("thin" in problem_name):
+        elif (
+            ("multistory" in problem_name)
+            or ("thin" in problem_name)
+            or ("michell" in problem_name)
+        ):
             best_final_design = np.hstack(
                 [best_final_design, best_final_design[:, ::-1]] * 2
             )
@@ -228,7 +232,11 @@ def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=
             cnn_final_design = np.hstack([cnn_final_design[:, ::-1], cnn_final_design])
             mma_final_design = np.hstack([mma_final_design[:, ::-1], mma_final_design])
 
-        if ("multistory" in problem_name) or ("thin" in problem_name):
+        if (
+            ("multistory" in problem_name)
+            or ("thin" in problem_name)
+            or ("michell" in problem_name)
+        ):
             cnn_final_design = np.hstack(
                 [cnn_final_design, cnn_final_design[:, ::-1]] * 2
             )
