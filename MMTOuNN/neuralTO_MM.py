@@ -15,8 +15,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from FE_MM import StructuralFE
 from matplotlib import colors
+from MM.TOuNN.FE_MM import StructuralFE
 
 plt.rcParams['figure.dpi'] = 150
 

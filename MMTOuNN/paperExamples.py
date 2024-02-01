@@ -4,7 +4,8 @@ import time
 # third party
 import matplotlib.pyplot as plt
 import numpy as np
-from neuralTO_MM import TopologyOptimizer
+
+from MMTOuNN.neuralTO_MM import TopologyOptimizer
 
 example = 7
 plt.close('all')
