@@ -193,7 +193,6 @@ class CNNModel(nn.Module):
         self.z = nn.Parameter(self.z)
 
     def forward(self, x=None):  # noqa
-
         # Create the model
         output = self.dense(self.z)
         output = output.reshape((1, self.dense_channels, self.h, self.w))
@@ -226,7 +225,6 @@ class CNNModel(nn.Module):
 
         # # Squeeze the result in the first axis just like in the
         # # tensorflow code
-        # import pdb; pdb.set_trace()
         output = torch.mean(output, axis=1)  # Along the feature dimension
         output = torch.squeeze(output)
 

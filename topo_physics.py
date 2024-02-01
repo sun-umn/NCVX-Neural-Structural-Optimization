@@ -6,6 +6,8 @@ import torch
 # first party
 import utils
 
+# TODO: Investigate file
+
 
 # Calculate the young modulus
 def young_modulus(
@@ -69,13 +71,13 @@ def calculate_forces(x_phys, args):
 # Build a stiffness matrix
 def get_stiffness_matrix(
     young: float, poisson: float, device=utils.DEFAULT_DEVICE, dtype=utils.DEFAULT_DTYPE
-) -> np.array:
+) -> torch.Tensor:
     """
     Function to build the elements of the stiffness matrix
     """
     # Build the element stiffness matrix
     # What are e & nu?
-    e, nu = young, poisson
+    _, nu = young, poisson
 
     A11 = torch.tensor(
         [[12, 3, -6, -3], [3, 12, 3, 0], [-6, 3, 12, -3], [-3, 0, -3, 12]]
@@ -140,9 +142,6 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
     if not torch.is_tensor(ke):
         ke = torch.from_numpy(ke)
 
-    # Get the dimensions
-    nely, nelx = args["nely"], args["nelx"]
-
     edof, x_list, y_list = build_nodes_data(args, base=base)
 
     # stiffness flattened
@@ -160,58 +159,58 @@ def get_k_data(stiffness, ke, args, base="MATLAB"):
     return value_list, y_list, x_list
 
 
-def displace(
-    x_phys,
-    ke,
-    forces,
-    freedofs,
-    fixdofs,
-    *,
-    penal=3,
-    e_min=1e-9,
-    e_0=1,
-    device=torch.device("cpu"),
-    dtype=torch.double,
-):
-    """
-    Function that displaces the load x using finite element techniques.
-    """
-    stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
+# def displace(
+#     x_phys,
+#     ke,
+#     forces,
+#     freedofs,
+#     fixdofs,
+#     *,
+#     penal=3,
+#     e_min=1e-9,
+#     e_0=1,
+#     device=torch.device("cpu"),
+#     dtype=torch.double,
+# ):
+#     """
+#     Function that displaces the load x using finite element techniques.
+#     """
+#     stiffness = young_modulus(x_phys, e_0, e_min, p=penal)
 
-    # Get the K values
-    k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
-    k_ylist = k_ylist.to(device=device, dtype=dtype)
-    k_xlist = k_xlist.to(device=device, dtype=dtype)
+#     # Get the K values
+#     k_entries, k_ylist, k_xlist = get_k(stiffness, ke)
+#     k_ylist = k_ylist.to(device=device, dtype=dtype)
+#     k_xlist = k_xlist.to(device=device, dtype=dtype)
 
-    index_map, keep, indices = utils._get_dof_indices(
-        freedofs, fixdofs, k_ylist, k_xlist
-    )
+#     index_map, keep, indices = utils._get_dof_indices(
+#         freedofs, fixdofs, k_ylist, k_xlist
+#     )
 
-    # Reduced forces
-    freedofs_forces = forces[freedofs.cpu().numpy()].double()
+#     # Reduced forces
+#     freedofs_forces = forces[freedofs.cpu().numpy()].double()
 
-    # K matrix based on the size of forces[freedofs]
-    K = (
-        torch.sparse_coo_tensor(
-            indices, k_entries[keep], (len(freedofs_forces),) * 2
-        ).to_dense()
-    ).double()
-    K = (K + K.transpose(1, 0)) / 2.0
+#     # K matrix based on the size of forces[freedofs]
+#     K = (
+#         torch.sparse_coo_tensor(
+#             indices, k_entries[keep], (len(freedofs_forces),) * 2
+#         ).to_dense()
+#     ).double()
+#     K = (K + K.transpose(1, 0)) / 2.0
 
-    # Compute the non-zero u values
-    # Get the choleskly factorization
-    k_cholesky = torch.linalg.cholesky(K)
+#     # Compute the non-zero u values
+#     # Get the choleskly factorization
+#     k_cholesky = torch.linalg.cholesky(K)
 
-    # Solve for u nonzero
-    u_nonzero = torch.cholesky_solve(
-        freedofs_forces.reshape(len(freedofs_forces), 1),
-        k_cholesky,
-    ).flatten()
-    u_values = torch.cat(
-        (u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype))
-    )
+#     # Solve for u nonzero
+#     u_nonzero = torch.cholesky_solve(
+#         freedofs_forces.reshape(len(freedofs_forces), 1),
+#         k_cholesky,
+#     ).flatten()
+#     u_values = torch.cat(
+#         (u_nonzero, torch.zeros(len(fixdofs)).to(device=device, dtype=dtype))
+#     )
 
-    return u_values[index_map], K
+#     return u_values[index_map], K
 
 
 def sparse_displace(
@@ -356,7 +355,6 @@ def build_K_matrix(x_phys, args, base="MATLAB"):
         size = free_forces.size
 
         # Calculate the K matrix for the google based code
-        k_entires = k_entries[keep].numpy()
         indices = indices.numpy()
 
         # Compute K

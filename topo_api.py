@@ -12,6 +12,8 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
 
     NOTE: Based on what I have been learning about pytorch
     we may need to update these inputs to be torch tensors.
+
+    NOTE: Nothing to check here
     """
     fixdofs = np.flatnonzero(problem.normals.ravel().cpu().detach().clone())
     alldofs = np.arange(2 * (problem.width + 1) * (problem.height + 1))

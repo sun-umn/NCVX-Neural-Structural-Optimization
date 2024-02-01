@@ -14,7 +14,6 @@ import xarray
 from matplotlib.offsetbox import AnchoredText
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from neural_structural_optimization import models as google_models
-from neural_structural_optimization import pipeline_utils
 from neural_structural_optimization import problems as google_problems
 from neural_structural_optimization import topo_api as google_topo_api
 from neural_structural_optimization import train as google_train
@@ -25,6 +24,8 @@ import problems
 import topo_api
 import train
 import utils
+
+# TODO: Restructure and investigate file
 
 
 def bilinear_interpolation(img, y, x):
@@ -264,7 +265,7 @@ def structural_optimization_task(
     # TODO: make the api token an environment variable
     run = neptune.init_run(
         project="dever120/CNN-Structural-Optimization-Prod",
-        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",
+        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",  # noqa
     )
 
     # Get the available device
@@ -338,7 +339,6 @@ def structural_optimization_task(
     volumes_df = volumes_df.iloc[:, losses_indexes]
     binary_constraint_df = binary_constraint_df.iloc[:, losses_indexes]
     final_designs = outputs["designs"][losses_indexes, :, :]
-    initial_volumes = outputs["trials_initial_volumes"][losses_indexes]
 
     # Save the best final design
     best_final_design = final_designs[0, :, :]
@@ -421,7 +421,7 @@ def structural_optimization_task(
     best_trial_bc_constr.plot(
         color="blue", lw=2, marker="o", ax=ax2, label="binary constraint"
     )
-    ax2.set_ylabel("Binary Constraint: $x \in [0, 1]$")
+    ax2.set_ylabel("Binary Constraint: $x \in [0, 1]$")  # noqa
 
     # Set xlabel
     ax1.set_xlabel("Iteration")
@@ -433,14 +433,6 @@ def structural_optimization_task(
 
     # Close the figure
     plt.close()
-
-    # Create a histogram of losses and scatter plot of volumes
-    meta_df = pd.DataFrame(
-        {
-            "final_losses": losses,
-            "initial_volumes": initial_volumes,
-        }
-    )
 
     run.stop()
 
@@ -500,7 +492,7 @@ def run_multi_structure_pipeline():
     # For running this we only want one trial
     # with maximum iterations 1000
     structure_outputs = []
-    for (problem_name, requires_flip, total_frames, cax_size) in problem_config:
+    for problem_name, requires_flip, total_frames, cax_size in problem_config:
         print(f"Building structure: {problem_name}")
         pygranso_problem = PYGRANSO_PROBLEMS_BY_NAME.get(problem_name)
 
@@ -651,7 +643,7 @@ def run_multi_structure_pipeline():
         bbox_inches="tight",
         pad_inches=0.02,
     )
-    run[f"topology-optimization-model-comparisons"].upload(fig)
+    run["topology-optimization-model-comparisons"].upload(fig)
 
     # Add a plot for the binary conditions
     # Create the output plots
@@ -683,7 +675,7 @@ def run_multi_structure_pipeline():
             bins=100,
             density=True,
             color=color,
-            range=(0.0, 1.0)
+            range=(0.0, 1.0),
         )
         ax.set_title(title)
 
@@ -694,7 +686,7 @@ def run_multi_structure_pipeline():
         bbox_inches="tight",
         pad_inches=0.02,
     )
-    run[f"topology-optimization-distribution-comparisons"].upload(fig)
+    run["topology-optimization-distribution-comparisons"].upload(fig)
 
 
 if __name__ == "__main__":

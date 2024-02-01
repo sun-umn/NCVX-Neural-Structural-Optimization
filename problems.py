@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# TODO: Need to make a modification to some structures
 """A suite of topology optimization problems."""
 # third party
 import dataclasses
@@ -700,10 +702,10 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
         #         128, 128, density=0.1, span_position=0.1, anchored=True, device=device
         #     ),
         #     suspended_bridge(
-        #         256, 256, density=0.075, span_position=0.1, anchored=True, device=device
+        #         256, 256, density=0.075, span_position=0.1, anchored=True, device=device  # noqa
         #     ),
         #     suspended_bridge(
-        #         256, 256, density=0.05, span_position=0.1, anchored=True, device=device
+        #         256, 256, density=0.05, span_position=0.1, anchored=True, device=device  # noqa
         #     ),
         # ],
         # "canyon_bridge": [

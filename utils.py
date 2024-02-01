@@ -13,7 +13,6 @@ import scipy.sparse
 import scipy.sparse.linalg
 import torch
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from neptune.new.types import File
 from pygranso.pygransoStruct import pygransoStruct
 from torch.autograd import Function
 
@@ -149,9 +148,9 @@ class FindRoot(Function):
     """
 
     @staticmethod
-    def forward(  # noqa
+    def forward(  # type: ignore
         ctx, x, f, lower_bound, upper_bound, tolerance=1e-6
-    ) -> torch.tensor:  # noqa
+    ):  # noqa
         # define the maximum number of iterations
         max_iterations = 65
 
@@ -565,6 +564,7 @@ class HaltLog:
         """
         Function to make the halt log functions
         """
+
         # don't change these lambda functions
         def halt_log_fn(  # noqa
             iteration,
