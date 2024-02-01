@@ -496,7 +496,7 @@ def run_multi_structure_pipeline():
     problem_config = [
         ("mbb_beam_96x32_0.5", True, 1, 55),
         ("cantilever_beam_full_96x32_0.4", True, 1, 55),
-        ("michell_centered_both_64x128_0.12", True, 1, 55),
+        ("michell_centered_both_64x128_0.12", True, 1, 30),
         # ("multistory_building_64x128_0.4", True, 1, 30),
         # ("thin_support_bridge_128x128_0.2", True, 1, 45),
         # ("l_shape_0.2_128x128_0.3", True, 1, 30),
