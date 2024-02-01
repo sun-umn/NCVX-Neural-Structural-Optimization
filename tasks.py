@@ -10,6 +10,7 @@ import neptune.new as neptune
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 import xarray
 from matplotlib.offsetbox import AnchoredText
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -467,6 +468,21 @@ def run_multi_structure_pipeline():
         api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",  # noqa
     )
 
+    # For testing we will run two experimentation trackers
+    API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
+    PROJECT_NAME = 'Topology-Optimization'
+
+    # Enable wandb
+    wandb.login(key=API_KEY)
+
+    # Initalize wandb
+    # TODO: Save training and validation curves per fold
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project=PROJECT_NAME,
+        tags=['topology-optimization-task'],
+    )
+
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
@@ -643,7 +659,12 @@ def run_multi_structure_pipeline():
         bbox_inches="tight",
         pad_inches=0.02,
     )
+
+    # Save figure to neptune
     run["topology-optimization-model-comparisons"].upload(fig)
+
+    # Save figure to weights and biases
+    wandb.log({'plot': wandb.Image(fig)})
 
     # Add a plot for the binary conditions
     # Create the output plots
@@ -686,7 +707,12 @@ def run_multi_structure_pipeline():
         bbox_inches="tight",
         pad_inches=0.02,
     )
+
+    # Save to neptune.ai
     run["topology-optimization-distribution-comparisons"].upload(fig)
+
+    # Save to weights and biases
+    wandb.log({'plot': wandb.Image(fig)})
 
 
 if __name__ == "__main__":
