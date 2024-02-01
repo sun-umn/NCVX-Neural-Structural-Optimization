@@ -474,10 +474,6 @@ def run_multi_structure_pipeline():
     performance against known benchmarks.
     """
     models.set_seed(0)
-    run = neptune.init_run(
-        project="dever120/CNN-Structural-Optimization-Prod",
-        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",  # noqa
-    )
 
     # For testing we will run two experimentation trackers
     API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
@@ -679,9 +675,6 @@ def run_multi_structure_pipeline():
 
     fig.tight_layout()
 
-    # Save figure to neptune
-    run["topology-optimization-model-comparisons"].upload(fig)
-
     # Save figure to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
 
@@ -720,9 +713,6 @@ def run_multi_structure_pipeline():
         ax.set_title(title)
 
     fig.tight_layout()
-
-    # Save to neptune.ai
-    run["topology-optimization-distribution-comparisons"].upload(fig)
 
     # Save to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
