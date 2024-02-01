@@ -1,7 +1,32 @@
+import random
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as Fun
+
+
+def set_seed(seed):
+    """
+    Function to set the seed for the run
+    """
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+
+def get_seeded_random_variable(latent_size, seed):
+    """
+    Want to try an experiment that could help the network
+    generalize a bit better. Right now the best designs
+    depend on the random seed that is being initialized
+    """
+    set_seed(seed)
+    return torch.normal(mean=0.0, std=1.0, size=(3, latent_size))
 
 
 class STEFunction(torch.autograd.Function):
@@ -42,7 +67,7 @@ class AddOffset(nn.Module):
 
     def __init__(self, conv_channels, height, width, scale=10):  # noqa
         super().__init__()
-        self.scale = scale
+        self.scale = torch.tensor(scale, requires_grad=True)
         self.conv_channels = conv_channels
         self.height = height
         self.width = width
@@ -67,14 +92,16 @@ class CNNModel(nn.Module):
         latent_size=128,
         dense_channels=32,
         resizes=(1, 2, 2, 2, 1),
-        conv_filters=(128, 64, 32, 16, 1),
+        conv_filters=(128 * 2 // 1, 64 * 2 // 1, 32 * 2 // 1, 16 * 2 // 1, 8 * 2 // 1),
         offset_scale=10.0,
         kernel_size=(5, 5),
         latent_scale=1.0,
         dense_init_scale=1.0,
+        random_seed=0,
         train_u_matrix=False,
     ):
         super().__init__()
+        set_seed(random_seed)
 
         # Raise an error if the resizes are not equal to the convolutional
         # filteres
@@ -108,9 +135,10 @@ class CNNModel(nn.Module):
         # Create the first dense layer
         self.dense = nn.Linear(latent_size, filters)
 
-        # Create the gain for the initializer
+        # # Create the gain for the initializer
         gain = self.dense_init_scale * np.sqrt(max(filters / latent_size, 1.0))
         nn.init.orthogonal_(self.dense.weight, gain=gain)
+        # torch.nn.init.xavier_normal_(self.dense.weight, gain=gain)
 
         # Create the convoluational layers that will be used
         self.conv = nn.ModuleList()
@@ -138,10 +166,11 @@ class CNNModel(nn.Module):
                 kernel_size=self.kernel_size,
                 padding="same",
             )
+            # This was the best initialization
             torch.nn.init.kaiming_normal_(
                 convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
             )
-
+            # torch.nn.init.xavier_normal_(convolution_layer.weight, gain=1.0)
             # torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
             self.conv.append(convolution_layer)
             self.global_normalization.append(GlobalNormalization())
@@ -158,11 +187,10 @@ class CNNModel(nn.Module):
             self.add_offset.append(offset_layer)
 
         # Set up z here otherwise it is not part of the leaf tensors
-        self.z = torch.normal(mean=0.0, std=1.0, size=(1, latent_size))
-        self.z = nn.Parameter(self.z)
+        self.z = get_seeded_random_variable(latent_size, random_seed)
+        self.z = torch.mean(self.z, axis=0)
 
-        # STE function
-        # self.ste = STEFunction
+        self.z = nn.Parameter(self.z)
 
     def forward(self, x=None):  # noqa
 
@@ -173,8 +201,9 @@ class CNNModel(nn.Module):
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
             # output = torch.tanh(output)
-            output = nn.LeakyReLU()(output)
-            # output = nn.ReLU()(output)
+
+            output = torch.sin(output)
+            # output = nn.LeakyReLU()(output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
@@ -195,31 +224,10 @@ class CNNModel(nn.Module):
             if self.offset_scale != 0:
                 output = self.add_offset[idx](output)
 
-        # Squeeze the result in the first axis just like in the
-        # tensorflow code
+        # # Squeeze the result in the first axis just like in the
+        # # tensorflow code
+        # import pdb; pdb.set_trace()
+        output = torch.mean(output, axis=1)  # Along the feature dimension
         output = torch.squeeze(output)
-        # output = self.ste.apply(output)
 
         return output
-
-
-class UMatrixModel(nn.Module):
-    """
-    Class that will simply implement a u matrix for us to
-    train
-    """
-
-    def __init__(self, args, uniform_lower_bound, uniform_upper_bound):  # noqa
-        super().__init__()
-        self.uniform_upper_bound = uniform_upper_bound
-        self.uniform_lower_bound = uniform_lower_bound
-
-        # Initialize U from a uniform distribution
-        distribution = torch.distributions.uniform.Uniform(
-            self.uniform_lower_bound, self.uniform_upper_bound
-        )
-        sample = distribution.sample(torch.Size([len(args["freedofs"])]))
-        self.u_matrix = nn.Parameter(sample.double())
-
-    def forward(self, x=None):  # noqa
-        return self.u_matrix

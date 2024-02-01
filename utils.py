@@ -12,6 +12,7 @@ import pandas as pd
 import scipy.sparse
 import scipy.sparse.linalg
 import torch
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from neptune.new.types import File
 from pygranso.pygransoStruct import pygransoStruct
 from torch.autograd import Function
@@ -454,13 +455,14 @@ def build_final_design(
     # Setup the figure
     fig, axes = plt.subplots(1, 1, figsize=figsize)
 
-    im = axes.imshow(final_design)
-    axes.set_xlabel("x")
-    axes.set_ylabel("y")
+    im = axes.imshow(final_design, cmap="Greys")
+    axes.set_axis_off()
     axes.set_title(f"{problem_name} / Comp={compliance}")
 
+    divider = make_axes_locatable(axes)
+    cax = divider.append_axes("bottom", size="10%", pad=0.05)
+    fig.colorbar(im, orientation="horizontal", cax=cax)
     fig.tight_layout()
-    fig.colorbar(im, orientation="horizontal", pad=0.1)
 
     return fig
 

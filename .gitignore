@@ -3,3 +3,10 @@
 fig
 .neptune
 .vscode
+notebooks/*
+
+# Ignore results directories
+results/*
+raw_data/*
+images/*
+frames/*
