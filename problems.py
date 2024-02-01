@@ -183,7 +183,7 @@ def michell_centered_both(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, round(height / 2), Y] = -1
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def michell_centered_below(
