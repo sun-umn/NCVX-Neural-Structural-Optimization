@@ -583,6 +583,7 @@ def run_multi_structure_pipeline():
         gc.collect()
         torch.cuda.empty_cache()
 
+    print('Building and saving outputs, hang tight! ⏳')
     # Concat all structures
     structure_outputs = pd.concat(structure_outputs)
     structure_outputs["loss"] = structure_outputs["loss"].astype(float)
@@ -716,6 +717,7 @@ def run_multi_structure_pipeline():
 
     # Save to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
+    print('Run completed! 🎉')
 
 
 if __name__ == "__main__":
