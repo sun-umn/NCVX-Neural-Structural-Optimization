@@ -2,6 +2,7 @@
 # stdlib
 import gc
 import math
+import warnings
 
 # third party
 import click
@@ -26,7 +27,8 @@ import topo_api
 import train
 import utils
 
-# TODO: Restructure and investigate file
+# Filter warnings
+warnings.filterwarnings('ignore')
 
 
 def bilinear_interpolation(img, y, x):
