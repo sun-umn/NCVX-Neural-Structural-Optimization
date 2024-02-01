@@ -2,6 +2,7 @@
 # stdlib
 import gc
 import math
+import os
 import warnings
 
 # third party
@@ -612,9 +613,20 @@ def run_multi_structure_pipeline():
     structure_outputs = structure_outputs.sort_values(["problem_name", "initial_order"])
     structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
 
+    # Will create directories for saving models
+    save_path = os.path.join(
+        '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
+        f'{wandb.run.id}',
+    )
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        print(f"The directory {save_path} was created.")
+    else:
+        print(f"The directory {save_path} already exists.")
+
     # Save the data
     structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
-        "./results/structure_outputs.csv", index=False
+        os.path.join(save_path, 'structure_outputs.csv'), index=False
     )
 
     for index, data in enumerate(structure_outputs.itertuples()):
