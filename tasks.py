@@ -656,11 +656,6 @@ def run_multi_structure_pipeline():
         ax.set_title(data.titles, fontsize=10)
 
     fig.tight_layout()
-    fig.savefig(
-        "./results/single_material_model_comparisons.png",
-        bbox_inches="tight",
-        pad_inches=0.02,
-    )
 
     # Save figure to neptune
     run["topology-optimization-model-comparisons"].upload(fig)
@@ -703,12 +698,6 @@ def run_multi_structure_pipeline():
         ax.set_title(title)
 
     fig.tight_layout()
-
-    fig.savefig(
-        "./results/single_material_distribution_comparisons.png",
-        bbox_inches="tight",
-        pad_inches=0.02,
-    )
 
     # Save to neptune.ai
     run["topology-optimization-distribution-comparisons"].upload(fig)
