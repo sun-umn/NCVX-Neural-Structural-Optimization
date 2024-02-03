@@ -216,8 +216,11 @@ class TopologyOptimizer:
         ).to(device)
         self.objective = 0.0
         self.convergenceHistory = []
-        self.topFig, self.topAx = plt.subplots()
-        plt.ion()
+
+        # NOTE: This is creating an empty plot because we have plotting turned
+        # off
+        # self.topFig, self.topAx = plt.subplots()
+        # plt.ion()
 
     # %%
     def optimizeDesign(self, maxEpochs, minEpochs, useSavedNet):
@@ -489,7 +492,6 @@ class TopologyOptimizer:
             fig.show()
         plt.pause(0.01)
 
-    # %%
     def plotConvergence(self):
         self.convergenceHistory = np.array(self.convergenceHistory)
         plt.figure()
