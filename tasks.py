@@ -27,6 +27,7 @@ import problems
 import topo_api
 import train
 import utils
+from TOuNN.TOuNN import TopologyOptimizer
 
 # Filter warnings
 warnings.filterwarnings('ignore')
@@ -466,6 +467,71 @@ def train_all(problem, max_iterations, cnn_kwargs=None):
 
     dims = pd.Index(["cnn-lbfgs", "mma"], name="model")
     return xarray.concat([ds_cnn, ds_mma], dim=dims)
+
+
+def tounn_train(problem):
+    """
+    Function that will run the TOuNN pipeline
+    """
+    # Get the arguments for the problem
+    args = topo_api.specified_task(problem)
+
+    # Get the problem dimensions
+    # Our arguments come as torch tensors so we need to convert back
+    # to numpy and int to work with their framework
+    nelx, nely = int(args['nelx'].numpy()), int(args['nely'].numpy())
+
+    # Get the volume fraction
+    desiredVolumeFraction = args['volfrac']
+
+    # Get the forces - convert to numpy to work with
+    # their pipeline
+    force = args['forces'].cpu().numpy()
+
+    # Add an extra axis because their framework expects
+    # (n, 1)
+    force = force[:, None]
+
+    # Get the fixed dofs
+    fixed = args['fixdofs'].cpu().numpy()
+
+    # TODO: Figure out how this works with non-design
+    # regions but for now it will be none
+    nonDesignRegion = {
+        'Rect': None,
+        'Circ': None,
+        'Annular': None,
+    }
+
+    # Symmetry about axes
+    symXAxis = False
+    symYAxis = True
+
+    # Penal in their code starts at 2
+    penal = 2
+
+    # Neural network config
+    numLayers = 5
+    numNeuronsPerLyr = 20
+    minEpochs = 20
+    maxEpochs = 500
+    useSavedNet = False
+
+    # Run the pipeline
+    topOpt = TopologyOptimizer()
+
+    # Initialize the FE (Finite element) solver
+    topOpt.initializeFE(problem.name, nelx, nely, force, fixed, penal, nonDesignRegion)
+
+    # Initialize the optimizer
+    topOpt.initializeOptimizer(
+        numLayers, numNeuronsPerLyr, desiredVolumeFraction, symXAxis, symYAxis
+    )
+
+    # Run the optimization
+    topOpt.optimizeDesign(maxEpochs, minEpochs, useSavedNet)
+
+    # After everything is fitted we need to extract the final information
 
 
 def run_multi_structure_pipeline():

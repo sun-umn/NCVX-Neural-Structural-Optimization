@@ -44,5 +44,6 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
         "penal": 3.0,
         "filter_width": 2,
         "epsilon": problem.epsilon,
+        'ndof': len(alldofs),
     }
     return params

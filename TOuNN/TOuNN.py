@@ -157,9 +157,12 @@ class TopologyOptimizer:
         self, nx, ny, resolution=1, nonDesignRegion=None
     ):  # generate points in elements
         ctr = 0
-        xy = np.zeros((resolution * nelx * resolution * nely, 2))
+
+        # NOTE: Changed some of the varables here becuase they were
+        # calling global variables which is bad practice
+        xy = np.zeros((resolution * nx * resolution * ny, 2))
         nonDesignIdx = torch.zeros(
-            (resolution * nelx * resolution * nely), requires_grad=False
+            (resolution * nx * resolution * ny), requires_grad=False
         ).to(device)
         for i in range(resolution * nx):
             for j in range(resolution * ny):
@@ -287,6 +290,7 @@ class TopologyOptimizer:
                     currentVolumeFraction,
                     loss.item(),
                     relGreyElements,
+                    Jelem,  # We need to compare the unscaled compliance
                 ]
             )
             self.FE.penal = min(4.0, self.FE.penal + 0.01)
@@ -373,7 +377,9 @@ class TopologyOptimizer:
             plt.savefig('./frames/f_' + str(iter) + '.jpg')
         if saveFig:
             fig, ax = plt.subplots()
-            plotResolution = 15
+
+            # For us plot resolution is 1
+            plotResolution = 1
             # controlslower quality figure
             xyPlot, nonDesignPlotIdx = self.generatePoints(
                 self.FE.nelx, self.FE.nely, plotResolution, self.nonDesignRegion
