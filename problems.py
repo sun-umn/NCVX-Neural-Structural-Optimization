@@ -206,6 +206,29 @@ def michell_centered_below(
     return Problem(normals, forces, density)
 
 
+def michell_centered_top(
+    width=32,
+    height=32,
+    density=0.5,
+    position=0.25,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """A single force down at the center, with support from the side below."""
+    # https://en.wikipedia.org/wiki/Michell_structures#Examples
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, -1, X] = 1
+    normals[-1, -1, Y] = 1
+    normals[0, -1, X] = 1
+    normals[0, -1, Y] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[round(width // 2), 0, Y] = -1
+
+    return Problem(normals, forces, density, epsilon)
+
+
 def ground_structure(
     width=32,
     height=32,
@@ -615,6 +638,12 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             michell_centered_both(64, 128, density=0.12, device=device),
             michell_centered_both(128, 256, density=0.12, device=device),
             michell_centered_both(128, 256, density=0.06, device=device),
+        ],
+        "michell_centered_top": [
+            michell_centered_top(32, 64, density=0.12, device=device),
+            michell_centered_top(64, 128, density=0.12, device=device),
+            michell_centered_top(128, 256, density=0.12, device=device),
+            michell_centered_top(128, 256, density=0.06, device=device),
         ],
         # "michell_centered_below": [
         #     michell_centered_below(64, 64, density=0.12, device=device),
