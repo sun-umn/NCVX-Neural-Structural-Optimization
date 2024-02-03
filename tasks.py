@@ -2,7 +2,6 @@
 # stdlib
 import gc
 import math
-import os
 import warnings
 
 # third party
@@ -14,8 +13,6 @@ import pandas as pd
 import torch
 import wandb
 import xarray
-from matplotlib.offsetbox import AnchoredText
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from neural_structural_optimization import models as google_models
 from neural_structural_optimization import problems as google_problems
 from neural_structural_optimization import topo_api as google_topo_api
@@ -31,6 +28,11 @@ from TOuNN.TOuNN import TopologyOptimizer
 
 # Filter warnings
 warnings.filterwarnings('ignore')
+
+# NOTES:
+# Keep these imports
+# from matplotlib.offsetbox import AnchoredText
+# from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def bilinear_interpolation(img, y, x):
@@ -469,7 +471,7 @@ def train_all(problem, max_iterations, cnn_kwargs=None):
     return xarray.concat([ds_cnn, ds_mma], dim=dims)
 
 
-def tounn_train(problem):
+def tounn_train_and_outputs(problem):
     """
     Function that will run the TOuNN pipeline
     """
@@ -494,6 +496,9 @@ def tounn_train(problem):
 
     # Get the fixed dofs
     fixed = args['fixdofs'].cpu().numpy()
+
+    # Get epsilon value
+    epsilon = args['epsilon']
 
     # TODO: Figure out how this works with non-design
     # regions but for now it will be none
@@ -532,6 +537,38 @@ def tounn_train(problem):
     topOpt.optimizeDesign(maxEpochs, minEpochs, useSavedNet)
 
     # After everything is fitted we need to extract the final information
+    # Set the plotResolution to 1
+    plotResolution = 1
+
+    # compute the points for the problem
+    xyPlot, nonDesignPlotIdx = topOpt.generatePoints(
+        topOpt.FE.nelx, topOpt.FE.nely, plotResolution, topOpt.nonDesignRegion
+    )
+
+    # Compute the final density
+    density = torch.flatten(topOpt.topNet(xyPlot, nonDesignPlotIdx))
+    density = density.detach().cpu().numpy()
+    best_final_design = density.copy()
+
+    # get the best score
+    best_score = topOpt.convergenceHistory[-1][-1]
+
+    # Return everything
+    mask = (torch.broadcast_to(args["mask"], (nely, nelx)) > 0).cpu().numpy()
+
+    # Compute the binary constraint
+    binary_constraint = calculate_binary_constraint(
+        design=best_final_design,
+        mask=mask,
+        epsilon=epsilon,
+    )
+    volume_constraint = calculate_volume_constraint(
+        design=best_final_design,
+        mask=mask,
+        volume=desiredVolumeFraction,
+    )
+
+    return best_final_design, best_score, binary_constraint, volume_constraint
 
 
 def run_multi_structure_pipeline():
@@ -565,8 +602,8 @@ def run_multi_structure_pipeline():
     # Set up the problem names
     problem_config = [
         ("mbb_beam_96x32_0.5", True, 1, 55),
-        ("cantilever_beam_full_96x32_0.4", True, 1, 55),
-        ("michell_centered_both_64x128_0.12", True, 1, 30),
+        # ("cantilever_beam_full_96x32_0.4", True, 1, 55),
+        # ("michell_centered_both_64x128_0.12", True, 1, 30),
         # ("multistory_building_64x128_0.4", True, 1, 30),
         # ("thin_support_bridge_128x128_0.2", True, 1, 45),
         # ("l_shape_0.2_128x128_0.3", True, 1, 30),
@@ -584,10 +621,10 @@ def run_multi_structure_pipeline():
     structure_outputs = []
     for problem_name, requires_flip, total_frames, cax_size in problem_config:
         print(f"Building structure: {problem_name}")
-        pygranso_problem = PYGRANSO_PROBLEMS_BY_NAME.get(problem_name)
+        problem = PYGRANSO_PROBLEMS_BY_NAME.get(problem_name)
 
         # Get volume assignment
-        args = topo_api.specified_task(pygranso_problem, device=device)
+        args = topo_api.specified_task(problem, device=device)
         volume = args["volfrac"]
 
         nely = int(args["nely"])
@@ -596,7 +633,7 @@ def run_multi_structure_pipeline():
 
         # Build the structure with pygranso
         outputs = train.train_pygranso(
-            problem=pygranso_problem,
+            problem=problem,
             device=device,
             pygranso_combined_function=comb_fn,
             requires_flip=requires_flip,
@@ -633,10 +670,14 @@ def run_multi_structure_pipeline():
         google_cnn_outputs = benchmark_outputs["google-cnn"]
         mma_outputs = benchmark_outputs["mma"]
 
+        # Add TOuNN to the pipeline
+        tounn_outputs = tounn_train_and_outputs(problem)
+
         # All outputs
         outputs = pd.DataFrame(
             zip(
                 pygranso_outputs,
+                tounn_outputs,
                 google_cnn_outputs,
                 mma_outputs,
             ),
@@ -646,7 +687,7 @@ def run_multi_structure_pipeline():
         outputs["problem_name"] = problem_name
 
         # Add titles
-        titles = ["PyGranso-CNN", f"{problem_name} \n Google-CNN", "MMA"]
+        titles = ["PyGranso-CNN", "TOuNN", f"{problem_name} \n Google-CNN", "MMA"]
         outputs["titles"] = titles
         outputs["cax_size"] = cax_size
         structure_outputs.append(outputs)
@@ -654,135 +695,137 @@ def run_multi_structure_pipeline():
         gc.collect()
         torch.cuda.empty_cache()
 
-    print('Building and saving outputs, hang tight! ⏳')
-    # Concat all structures
-    structure_outputs = pd.concat(structure_outputs)
-    structure_outputs["loss"] = structure_outputs["loss"].astype(float)
+    return outputs
 
-    # Create the output plots
-    fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 9))
-    axes = axes.flatten()
-    plt.subplots_adjust(hspace=0.01, wspace=0.01)
+    # print('Building and saving outputs, hang tight! ⏳')
+    # # Concat all structures
+    # structure_outputs = pd.concat(structure_outputs)
+    # structure_outputs["loss"] = structure_outputs["loss"].astype(float)
 
-    # add the axes to the dataframe
-    structure_outputs["ax"] = axes
+    # # Create the output plots
+    # fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 9))
+    # axes = axes.flatten()
+    # plt.subplots_adjust(hspace=0.01, wspace=0.01)
 
-    # Create the color map
-    color_map = {
-        0: ("yellow", "black"),
-        1: ("orange", "black"),
-        2: ("darkviolet", "white"),
-    }
+    # # add the axes to the dataframe
+    # structure_outputs["ax"] = axes
 
-    # Get the best to worst
-    structure_outputs["initial_order"] = structure_outputs.groupby(
-        "problem_name"
-    ).cumcount()
-    structure_outputs = structure_outputs.sort_values(
-        ["problem_name", "loss"]
-    ).reset_index(drop=True)
-    structure_outputs["order"] = structure_outputs.groupby("problem_name").cumcount()
-    structure_outputs = structure_outputs.sort_values(["problem_name", "initial_order"])
-    structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
+    # # Create the color map
+    # color_map = {
+    #     0: ("yellow", "black"),
+    #     1: ("orange", "black"),
+    #     2: ("darkviolet", "white"),
+    # }
 
-    # Will create directories for saving models
-    save_path = os.path.join(
-        '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
-        f'{wandb.run.id}',
-    )
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-        print(f"The directory {save_path} was created.")
-    else:
-        print(f"The directory {save_path} already exists.")
+    # # Get the best to worst
+    # structure_outputs["initial_order"] = structure_outputs.groupby(
+    #     "problem_name"
+    # ).cumcount()
+    # structure_outputs = structure_outputs.sort_values(
+    #     ["problem_name", "loss"]
+    # ).reset_index(drop=True)
+    # structure_outputs["order"] = structure_outputs.groupby("problem_name").cumcount()
+    # structure_outputs = structure_outputs.sort_values(["problem_name", "initial_order"])  # noqa
+    # structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
 
-    # Save the data
-    structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
-        os.path.join(save_path, 'structure_outputs.csv'), index=False
-    )
+    # # Will create directories for saving models
+    # save_path = os.path.join(
+    #     '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
+    #     f'{wandb.run.id}',
+    # )
+    # if not os.path.exists(save_path):
+    #     os.makedirs(save_path)
+    #     print(f"The directory {save_path} was created.")
+    # else:
+    #     print(f"The directory {save_path} already exists.")
 
-    for index, data in enumerate(structure_outputs.itertuples()):
-        ax = data.ax
-        ax.imshow(data.designs, cmap="Greys")
+    # # Save the data
+    # structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
+    #     os.path.join(save_path, 'structure_outputs.csv'), index=False
+    # )
 
-        # Add the colors box for the scoring
-        divider = make_axes_locatable(ax)
+    # for index, data in enumerate(structure_outputs.itertuples()):
+    #     ax = data.ax
+    #     ax.imshow(data.designs, cmap="Greys")
 
-        cax = divider.append_axes("bottom", size=f"{data.cax_size}%", pad=0.01)
-        cax.get_xaxis().set_visible(False)
-        cax.get_yaxis().set_visible(False)
+    #     # Add the colors box for the scoring
+    #     divider = make_axes_locatable(ax)
 
-        formatting = data.formatting
-        facecolor = formatting[0]
-        fontcolor = formatting[1]
+    #     cax = divider.append_axes("bottom", size=f"{data.cax_size}%", pad=0.01)
+    #     cax.get_xaxis().set_visible(False)
+    #     cax.get_yaxis().set_visible(False)
 
-        # Set the face color of the box
-        cax.set_facecolor(facecolor)
-        cax.spines["bottom"].set_color(facecolor)
-        cax.spines["top"].set_color(facecolor)
-        cax.spines["right"].set_color(facecolor)
-        cax.spines["left"].set_color(facecolor)
+    #     formatting = data.formatting
+    #     facecolor = formatting[0]
+    #     fontcolor = formatting[1]
 
-        text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
-        at = AnchoredText(
-            text,
-            loc=10,
-            frameon=False,
-            prop=dict(
-                backgroundcolor=facecolor,
-                size=11,
-                color=fontcolor,
-                weight="bold",
-            ),
-        )
-        cax.add_artist(at)
-        ax.set_axis_off()
-        ax.set_title(data.titles, fontsize=10)
+    #     # Set the face color of the box
+    #     cax.set_facecolor(facecolor)
+    #     cax.spines["bottom"].set_color(facecolor)
+    #     cax.spines["top"].set_color(facecolor)
+    #     cax.spines["right"].set_color(facecolor)
+    #     cax.spines["left"].set_color(facecolor)
 
-    fig.tight_layout()
+    #     text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
+    #     at = AnchoredText(
+    #         text,
+    #         loc=10,
+    #         frameon=False,
+    #         prop=dict(
+    #             backgroundcolor=facecolor,
+    #             size=11,
+    #             color=fontcolor,
+    #             weight="bold",
+    #         ),
+    #     )
+    #     cax.add_artist(at)
+    #     ax.set_axis_off()
+    #     ax.set_title(data.titles, fontsize=10)
 
-    # Save figure to weights and biases
-    wandb.log({'plot': wandb.Image(fig)})
+    # fig.tight_layout()
 
-    # Add a plot for the binary conditions
-    # Create the output plots
-    fig, axes = plt.subplots(
-        len(problem_config),
-        3,
-        figsize=(9.5, 12),
-        sharex=True,
-    )
-    axes = axes.flatten()
+    # # Save figure to weights and biases
+    # wandb.log({'plot': wandb.Image(fig)})
 
-    # add the axes to the dataframe
-    structure_outputs["ax"] = axes
+    # # Add a plot for the binary conditions
+    # # Create the output plots
+    # fig, axes = plt.subplots(
+    #     len(problem_config),
+    #     3,
+    #     figsize=(9.5, 12),
+    #     sharex=True,
+    # )
+    # axes = axes.flatten()
 
-    # Create the pixel historgrams
-    for index, data in enumerate(structure_outputs.itertuples()):
-        ax = data.ax
-        title = data.titles
+    # # add the axes to the dataframe
+    # structure_outputs["ax"] = axes
 
-        if 'PyGranso' in title:
-            color = 'blue'
-        elif 'Google' in title:
-            color = 'red'
-        elif 'MMA' in title:
-            color = 'purple'
+    # # Create the pixel historgrams
+    # for index, data in enumerate(structure_outputs.itertuples()):
+    #     ax = data.ax
+    #     title = data.titles
 
-        ax.hist(
-            np.nan_to_num(data.designs.flatten(), nan=0.0),
-            bins=100,
-            density=True,
-            color=color,
-            range=(0.0, 1.0),
-        )
-        ax.set_title(title)
+    #     if 'PyGranso' in title:
+    #         color = 'blue'
+    #     elif 'Google' in title:
+    #         color = 'red'
+    #     elif 'MMA' in title:
+    #         color = 'purple'
 
-    fig.tight_layout()
+    #     ax.hist(
+    #         np.nan_to_num(data.designs.flatten(), nan=0.0),
+    #         bins=100,
+    #         density=True,
+    #         color=color,
+    #         range=(0.0, 1.0),
+    #     )
+    #     ax.set_title(title)
 
-    # Save to weights and biases
-    wandb.log({'plot': wandb.Image(fig)})
-    print('Run completed! 🎉')
+    # fig.tight_layout()
+
+    # # Save to weights and biases
+    # wandb.log({'plot': wandb.Image(fig)})
+    # print('Run completed! 🎉')
 
 
 if __name__ == "__main__":

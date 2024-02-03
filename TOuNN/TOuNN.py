@@ -1,6 +1,5 @@
 # stdlib
 import random
-import time
 from os import path
 
 # third party
@@ -505,167 +504,168 @@ class TopologyOptimizer:
         plt.savefig(fName, dpi=450)
 
 
-#  ~~~~~~~~~~~~ Setup ~~~~~~~~~~~~~#
-example = 6
-# see below for description
-#  ~~~~~~~~~~~~Main Simulation Parameters~~~~~~~~~~~~~#
-nelx = 60
-# number of FE elements along X
-nely = 30
-# number of FE elements along Y
-#  ~~~~~~~~~~~~Other Simulation Parameters~~~~~~~~~~~~~#
-numLayers = 5
-# the depth of the NN
-numNeuronsPerLyr = 20
-# the height of the NN
-minEpochs = 20
-# minimum number of iterations
-maxEpochs = 500
-# Max number of iterations
-penal = 2
-# SIMP penalization constant, starting value
-useSavedNet = False
-# use a net previouslySaved  as starting point
-# (exampleName_nelx_nely.nt in ./results folder)
-#  ~~~~~~~~~~~~ Examples ~~~~~~~~~~~~~#
-# Tip Cantilever
-if example == 1:
-    exampleName = 'TipCantilever'
-    desiredVolumeFraction = 0.70
-    # between 0.1 and 0.9
-    ndof = 2 * (nelx + 1) * (nely + 1)
-    force = np.zeros((ndof, 1))
-    dofs = np.arange(ndof)
-    fixed = dofs[0 : 2 * (nely + 1) : 1]
-    force[2 * (nelx + 1) * (nely + 1) - 2 * nely + 1, 0] = -1
-    nonDesignRegion = {'Rect': None, 'Circ': None, 'Annular': None}
-    symXAxis = False
-    symYAxis = False
+# TODO: After pipeline is verified go back and clean this up
+# #  ~~~~~~~~~~~~ Setup ~~~~~~~~~~~~~#
+# example = 6
+# # see below for description
+# #  ~~~~~~~~~~~~Main Simulation Parameters~~~~~~~~~~~~~#
+# nelx = 60
+# # number of FE elements along X
+# nely = 30
+# # number of FE elements along Y
+# #  ~~~~~~~~~~~~Other Simulation Parameters~~~~~~~~~~~~~#
+# numLayers = 5
+# # the depth of the NN
+# numNeuronsPerLyr = 20
+# # the height of the NN
+# minEpochs = 20
+# # minimum number of iterations
+# maxEpochs = 500
+# # Max number of iterations
+# penal = 2
+# # SIMP penalization constant, starting value
+# useSavedNet = False
+# # use a net previouslySaved  as starting point
+# # (exampleName_nelx_nely.nt in ./results folder)
+# #  ~~~~~~~~~~~~ Examples ~~~~~~~~~~~~~#
+# # Tip Cantilever
+# if example == 1:
+#     exampleName = 'TipCantilever'
+#     desiredVolumeFraction = 0.70
+#     # between 0.1 and 0.9
+#     ndof = 2 * (nelx + 1) * (nely + 1)
+#     force = np.zeros((ndof, 1))
+#     dofs = np.arange(ndof)
+#     fixed = dofs[0 : 2 * (nely + 1) : 1]
+#     force[2 * (nelx + 1) * (nely + 1) - 2 * nely + 1, 0] = -1
+#     nonDesignRegion = {'Rect': None, 'Circ': None, 'Annular': None}
+#     symXAxis = False
+#     symYAxis = False
 
-# Mid Cantilever
-elif example == 2:
-    exampleName = 'MidCantilever'
-    desiredVolumeFraction = 0.50
-    # between 0.1 and 0.9
-    ndof = 2 * (nelx + 1) * (nely + 1)
-    force = np.zeros((ndof, 1))
-    dofs = np.arange(ndof)
-    fixed = dofs[0 : 2 * (nely + 1) : 1]
-    force[2 * (nelx + 1) * (nely + 1) - (nely + 1), 0] = -1
-    nonDesignRegion = {
-        'Rect': None,
-        'Circ': {'center': [30.0, 15.0], 'rad': 6.0},  # type: ignore
-        'Annular': None,
-    }
-    symXAxis = True
-    symYAxis = False
+# # Mid Cantilever
+# elif example == 2:
+#     exampleName = 'MidCantilever'
+#     desiredVolumeFraction = 0.50
+#     # between 0.1 and 0.9
+#     ndof = 2 * (nelx + 1) * (nely + 1)
+#     force = np.zeros((ndof, 1))
+#     dofs = np.arange(ndof)
+#     fixed = dofs[0 : 2 * (nely + 1) : 1]
+#     force[2 * (nelx + 1) * (nely + 1) - (nely + 1), 0] = -1
+#     nonDesignRegion = {
+#         'Rect': None,
+#         'Circ': {'center': [30.0, 15.0], 'rad': 6.0},  # type: ignore
+#         'Annular': None,
+#     }
+#     symXAxis = True
+#     symYAxis = False
 
-# MBB Beam
-elif example == 3:
-    desiredVolumeFraction = 0.75
-    # between 0.1 and 0.9
-    exampleName = 'MBBBeam'
-    ndof = 2 * (nelx + 1) * (nely + 1)
-    force = np.zeros((ndof, 1))
-    dofs = np.arange(ndof)
-    fixed = np.union1d(
-        np.arange(0, 2 * (nely + 1), 2),
-        2 * (nelx + 1) * (nely + 1) - 2 * (nely + 1) + 1,
-    )
-    force[2 * (nely + 1) + 1, 0] = -1
-    nonDesignRegion = {
-        'Rect': None,
-        'Circ': {'center': [30.0, 15.0], 'rad': 8},  # type: ignore
-        'Annular': None,
-    }
-    symXAxis = False
-    symYAxis = True
+# # MBB Beam
+# elif example == 3:
+#     desiredVolumeFraction = 0.75
+#     # between 0.1 and 0.9
+#     exampleName = 'MBBBeam'
+#     ndof = 2 * (nelx + 1) * (nely + 1)
+#     force = np.zeros((ndof, 1))
+#     dofs = np.arange(ndof)
+#     fixed = np.union1d(
+#         np.arange(0, 2 * (nely + 1), 2),
+#         2 * (nelx + 1) * (nely + 1) - 2 * (nely + 1) + 1,
+#     )
+#     force[2 * (nely + 1) + 1, 0] = -1
+#     nonDesignRegion = {
+#         'Rect': None,
+#         'Circ': {'center': [30.0, 15.0], 'rad': 8},  # type: ignore
+#         'Annular': None,
+#     }
+#     symXAxis = False
+#     symYAxis = True
 
-# Michell
-elif example == 4:
-    desiredVolumeFraction = 0.34
-    # between 0.1 and 0.9
-    exampleName = 'Michell'
-    ndof = 2 * (nelx + 1) * (nely + 1)
-    force = np.zeros((ndof, 1))
-    dofs = np.arange(ndof)
-    fixed = np.array(
-        [
-            0,
-            1,
-            2 * (nelx + 1) * (nely + 1) - 2 * nely + 1,
-            2 * (nelx + 1) * (nely + 1) - 2 * nely,
-        ]
-    )
-    force[nelx * (nely + 1) + 1, 0] = -1
-    nonDesignRegion = {
-        'Rect': None,
-        'Circ': None,
-        'Annular': {'center': [30.0, 15.0], 'rad_out': 6.0, 'rad_in': 3},  # type: ignore  # noqa
-    }
-    symXAxis = False
-    symYAxis = True
+# # Michell
+# elif example == 4:
+#     desiredVolumeFraction = 0.34
+#     # between 0.1 and 0.9
+#     exampleName = 'Michell'
+#     ndof = 2 * (nelx + 1) * (nely + 1)
+#     force = np.zeros((ndof, 1))
+#     dofs = np.arange(ndof)
+#     fixed = np.array(
+#         [
+#             0,
+#             1,
+#             2 * (nelx + 1) * (nely + 1) - 2 * nely + 1,
+#             2 * (nelx + 1) * (nely + 1) - 2 * nely,
+#         ]
+#     )
+#     force[nelx * (nely + 1) + 1, 0] = -1
+#     nonDesignRegion = {
+#         'Rect': None,
+#         'Circ': None,
+#         'Annular': {'center': [30.0, 15.0], 'rad_out': 6.0, 'rad_in': 3},  # type: ignore  # noqa
+#     }
+#     symXAxis = False
+#     symYAxis = True
 
-# Distributed MBB
-elif example == 5:
-    exampleName = 'Bridge'
-    desiredVolumeFraction = 0.5
-    # between 0.1 and 0.9
-    ndof = 2 * (nelx + 1) * (nely + 1)
-    force = np.zeros((ndof, 1))
-    dofs = np.arange(ndof)
-    fixed = np.array(
-        [
-            0,
-            1,
-            2 * (nelx + 1) * (nely + 1) - 2 * nely + 1,
-            2 * (nelx + 1) * (nely + 1) - 2 * nely,
-        ]
-    )
-    force[2 * nely + 1 : 2 * (nelx + 1) * (nely + 1) : 2 * (nely + 1), 0] = -1 / (
-        nelx + 1
-    )
-    nonDesignRegion = {
-        'Rect': {'x>': 0, 'x<': nelx, 'y>': nely - 1, 'y<': nely},  # type: ignore  # noqa
-        'Circ': None,
-        'Annular': None,
-    }
-    symXAxis = False
-    symYAxis = True
+# # Distributed MBB
+# elif example == 5:
+#     exampleName = 'Bridge'
+#     desiredVolumeFraction = 0.5
+#     # between 0.1 and 0.9
+#     ndof = 2 * (nelx + 1) * (nely + 1)
+#     force = np.zeros((ndof, 1))
+#     dofs = np.arange(ndof)
+#     fixed = np.array(
+#         [
+#             0,
+#             1,
+#             2 * (nelx + 1) * (nely + 1) - 2 * nely + 1,
+#             2 * (nelx + 1) * (nely + 1) - 2 * nely,
+#         ]
+#     )
+#     force[2 * nely + 1 : 2 * (nelx + 1) * (nely + 1) : 2 * (nely + 1), 0] = -1 / (
+#         nelx + 1
+#     )
+#     nonDesignRegion = {
+#         'Rect': {'x>': 0, 'x<': nelx, 'y>': nely - 1, 'y<': nely},  # type: ignore  # noqa
+#         'Circ': None,
+#         'Annular': None,
+#     }
+#     symXAxis = False
+#     symYAxis = True
 
-# Tensile bar
-elif example == 6:
-    exampleName = 'TensileBar'
-    nelx = 20
-    # number of FE elements along X
-    nely = 10
-    # number of FE elements along Y
-    numLayers = 1
-    # the depth of the NN
-    numNeuronsPerLyr = 1
-    # the height of the NN
-    desiredVolumeFraction = 0.4
-    # between 0.1 and 0.9
-    ndof = 2 * (nelx + 1) * (nely + 1)
-    force = np.zeros((ndof, 1))
-    dofs = np.arange(ndof)
-    fixed = np.union1d(np.arange(0, 2 * (nely + 1), 2), 1)
-    # fix X dof on left
-    midDofX = 2 * (nelx + 1) * (nely + 1) - (nely)
-    force[midDofX, 0] = 1
-    nonDesignRegion = {'Rect': None, 'Circ': None, 'Annular': None}
-    symXAxis = True
-    symYAxis = False
+# # Tensile bar
+# elif example == 6:
+#     exampleName = 'TensileBar'
+#     nelx = 20
+#     # number of FE elements along X
+#     nely = 10
+#     # number of FE elements along Y
+#     numLayers = 1
+#     # the depth of the NN
+#     numNeuronsPerLyr = 1
+#     # the height of the NN
+#     desiredVolumeFraction = 0.4
+#     # between 0.1 and 0.9
+#     ndof = 2 * (nelx + 1) * (nely + 1)
+#     force = np.zeros((ndof, 1))
+#     dofs = np.arange(ndof)
+#     fixed = np.union1d(np.arange(0, 2 * (nely + 1), 2), 1)
+#     # fix X dof on left
+#     midDofX = 2 * (nelx + 1) * (nely + 1) - (nely)
+#     force[midDofX, 0] = 1
+#     nonDesignRegion = {'Rect': None, 'Circ': None, 'Annular': None}
+#     symXAxis = True
+#     symYAxis = False
 
-plt.close('all')
-start = time.perf_counter()
-topOpt = TopologyOptimizer()
-topOpt.initializeFE(exampleName, nelx, nely, force, fixed, penal, nonDesignRegion)
-topOpt.initializeOptimizer(
-    numLayers, numNeuronsPerLyr, desiredVolumeFraction, symXAxis, symYAxis
-)
-topOpt.optimizeDesign(maxEpochs, minEpochs, useSavedNet)
-print("Time taken (secs): {:.2F}".format(time.perf_counter() - start))
-topOpt.plotConvergence()
-modelWeights, modelBiases = topOpt.topNet.getWeights()
-print("#Design variables: ", len(modelWeights) + len(modelBiases))
+# plt.close('all')
+# start = time.perf_counter()
+# topOpt = TopologyOptimizer()
+# topOpt.initializeFE(exampleName, nelx, nely, force, fixed, penal, nonDesignRegion)
+# topOpt.initializeOptimizer(
+#     numLayers, numNeuronsPerLyr, desiredVolumeFraction, symXAxis, symYAxis
+# )
+# topOpt.optimizeDesign(maxEpochs, minEpochs, useSavedNet)
+# print("Time taken (secs): {:.2F}".format(time.perf_counter() - start))
+# topOpt.plotConvergence()
+# modelWeights, modelBiases = topOpt.topNet.getWeights()
+# print("#Design variables: ", len(modelWeights) + len(modelBiases))
