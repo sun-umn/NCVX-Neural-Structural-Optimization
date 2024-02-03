@@ -295,10 +295,16 @@ class TopologyOptimizer:
                     self.objective.item() * self.obj0,
                 ]
             )
+
+            # Increasing penal after each epoch
             self.FE.penal = min(4.0, self.FE.penal + 0.01)
-            # continuation scheme
+
+            # Plot the results
+            # NOTE: For our pipeline we will turn this plotting off
             if epoch % 20 == 0:
-                self.plotTO(epoch)
+                # self.plotTO(epoch)
+
+                # Print training log
                 print(
                     "{:3d} J: {:.2F}; Vf: {:.3F}; loss: {:.3F}; relGreyElems: {:.3F} ".format(  # noqa
                         epoch,
@@ -308,9 +314,15 @@ class TopologyOptimizer:
                         relGreyElements,
                     )
                 )
+
+            # Early stopping mechanism?
             if (epoch > minEpochs) & (relGreyElements < 0.035):
                 break
-        self.plotTO(epoch, True)
+
+        # NOTE: Turn off plotting for our pipeline
+        # self.plotTO(epoch, True)
+
+        # Note final logging
         print(
             "{:3d} J: {:.2F}; Vf: {:.3F}; loss: {:.3F}; relGreyElems: {:.3F} ".format(
                 epoch,
@@ -320,10 +332,11 @@ class TopologyOptimizer:
                 relGreyElements,
             )
         )
-        torch.save(self.topNet, savedNetFileName)
+
+        # NOTE: In our version to not save the data
+        # torch.save(self.topNet, savedNetFileName)
         return self.convergenceHistory
 
-    # %%
     def plotTO(self, iter, saveFig=False):
         saveFrame = False
         # set this T/F if you want to create frames- use for video
