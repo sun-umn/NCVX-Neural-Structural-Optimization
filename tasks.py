@@ -551,10 +551,10 @@ def tounn_train_and_outputs(problem):
     best_final_design = density.copy()
 
     # The final design needs to be reshaped and transposed
-    design = density.reshape(
+    best_final_design = best_final_design.reshape(
         plotResolution * topOpt.FE.nelx, plotResolution * topOpt.FE.nely
     )
-    design = design.T
+    best_final_design = best_final_design.T
 
     # get the best score
     best_score = topOpt.convergenceHistory[-1][-1]
