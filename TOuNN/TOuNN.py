@@ -120,8 +120,10 @@ class TopOptLoss(nn.Module):
         super(TopOptLoss, self).__init__()
 
     def forward(self, nn_rho, Jelem, desiredVolumeFraction, penal, obj0):
+        # Scaled compliance
         objective = torch.sum(torch.div(Jelem, nn_rho**penal)) / obj0
-        # compliance
+
+        # Unscaled compliance
         volConstraint = (torch.mean(nn_rho) / desiredVolumeFraction) - 1.0
         return objective, volConstraint
 
@@ -290,7 +292,8 @@ class TopologyOptimizer:
                     currentVolumeFraction,
                     loss.item(),
                     relGreyElements,
-                    Jelem,  # We need to compare the unscaled compliance
+                    # We need to compare the unscaled compliance
+                    self.objective.item() * self.obj0,
                 ]
             )
             self.FE.penal = min(4.0, self.FE.penal + 0.01)
