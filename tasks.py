@@ -471,10 +471,13 @@ def train_all(problem, max_iterations, cnn_kwargs=None):
     return xarray.concat([ds_cnn, ds_mma], dim=dims)
 
 
-def tounn_train_and_outputs(problem):
+def tounn_train_and_outputs(problem, requires_flip):
     """
     Function that will run the TOuNN pipeline
     """
+    # Get the problem name
+    problem_name = problem.name
+
     # Get the arguments for the problem
     args = topo_api.specified_task(problem)
 
@@ -510,7 +513,7 @@ def tounn_train_and_outputs(problem):
 
     # Symmetry about axes
     symXAxis = False
-    symYAxis = True
+    symYAxis = False
 
     # Penal in their code starts at 2
     penal = 2
@@ -573,6 +576,26 @@ def tounn_train_and_outputs(problem):
         mask=mask,
         volume=desiredVolumeFraction,
     )
+
+    # Add more information about the outputs
+    if requires_flip:
+        if (
+            ("mbb" in problem_name)
+            or ("l_shape" in problem_name)
+            or ("cantilever" in problem_name)
+        ):
+            best_final_design = np.hstack(
+                [best_final_design[:, ::-1], best_final_design]
+            )
+
+        if (
+            ("multistory" in problem_name)
+            or ("thin" in problem_name)
+            or ("michell" in problem_name)
+        ):
+            best_final_design = np.hstack(
+                [best_final_design, best_final_design[:, ::-1]] * 2
+            )
 
     return best_final_design, best_score, binary_constraint, volume_constraint
 
@@ -677,7 +700,7 @@ def run_multi_structure_pipeline():
         mma_outputs = benchmark_outputs["mma"]
 
         # Add TOuNN to the pipeline
-        tounn_outputs = tounn_train_and_outputs(problem)
+        tounn_outputs = tounn_train_and_outputs(problem, requires_flip)
 
         # All outputs
         outputs = pd.DataFrame(
