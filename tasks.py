@@ -15,7 +15,6 @@ import pandas as pd
 import torch
 import wandb
 import xarray
-from matplotlib.offsetbox import AnchoredText
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from neural_structural_optimization import models as google_models
 from neural_structural_optimization import problems as google_problems
@@ -734,12 +733,12 @@ def run_multi_structure_pipeline():
     structure_outputs["loss"] = structure_outputs["loss"].astype(float)
 
     # Create the output plots
-    fig, axes = plt.subplots(len(problem_config), 4, figsize=(12, 6))
-    axes = axes.flatten()
-    plt.subplots_adjust(hspace=0.01, wspace=0.01)
+    # Create the output plots
+    # fig, axes = plt.subplots(len(problem_config), 4, figsize=(15, 4))
+    fig = plt.figure(figsize=(12, 2))
 
     # Create subfigs
-    subfigs = fig.subfigures(len(problem_config), 1)
+    subfigs = fig.subfigures(len(problem_config), 1, hspace=1)
 
     # For every 4 axes
     axes_list = []
@@ -789,19 +788,22 @@ def run_multi_structure_pipeline():
         os.path.join(save_path, 'structure_outputs.csv'), index=False
     )
 
-    # Build the subfigs first and suptitles
-    for problem_name in problem_config:
-        subfigs[i].suptitle(f'{problem_name}')
+    # Plot all of the structures
+    # Create the suptitles
+    for index, (problem_name, _, _, _) in enumerate(problem_config):
+        subfigs[index].suptitle(f'{problem_name}', fontsize=12, weight='bold')
 
     # Plot all of the structures
     for index, data in enumerate(structure_outputs.itertuples()):
         ax = data.ax
         ax.imshow(data.designs, cmap="Greys", aspect='auto')
+        ax.axis('off')
+        ax.set_title(data.titles, fontsize=12, weight='bold')
 
         # Add the colors box for the scoring
         divider = make_axes_locatable(ax)
 
-        cax = divider.append_axes("bottom", size=f"{data.cax_size}%", pad=0.01)
+        cax = divider.append_axes("bottom", size="50%", pad=0.01)
         cax.get_xaxis().set_visible(False)
         cax.get_yaxis().set_visible(False)
 
@@ -817,24 +819,20 @@ def run_multi_structure_pipeline():
         cax.spines["left"].set_color(facecolor)
 
         text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
-        at = AnchoredText(
+        cax.text(
+            0.5,
+            0.5,
             text,
-            loc=10,
-            frameon=False,
-            prop=dict(
-                backgroundcolor=facecolor,
-                size=11,
-                color=fontcolor,
-                weight="bold",
-            ),
+            ha='center',
+            va='center',
+            fontsize=11,
+            color=fontcolor,
+            weight='bold',
         )
-        cax.add_artist(at)
-        ax.set_axis_off()
-        ax.set_title(data.titles, fontsize=10)
 
-        problem_name = data.problem_name
-
-    fig.tight_layout()
+    # Need to custom adjust the spacing of tight layout becuase
+    # the subfigures suptitle is not working correctly / automatically
+    fig.tight_layout(rect=[0, 0, 1, 0.65])
 
     # Save figure to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
