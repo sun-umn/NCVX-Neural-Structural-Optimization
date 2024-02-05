@@ -634,9 +634,9 @@ def run_multi_structure_pipeline():
 
     # Set up the problem names
     problem_config = [
-        # ("mbb_beam_96x32_0.5", True, 1, 60),
-        # ("cantilever_beam_full_96x32_0.4", True, 1, 55),
-        ("michell_centered_top_64x128_0.12", True, 1, 55),
+        ("mbb_beam_96x32_0.5", True, 1, 60),
+        ("cantilever_beam_full_96x32_0.4", True, 1, 55),
+        # ("michell_centered_top_64x128_0.12", True, 1, 55),
         # ("multistory_building_64x128_0.4", True, 1, 30),
         # ("thin_support_bridge_128x128_0.2", True, 1, 45),
         # ("l_shape_0.2_128x128_0.3", True, 1, 30),
@@ -727,8 +727,6 @@ def run_multi_structure_pipeline():
 
         gc.collect()
         torch.cuda.empty_cache()
-
-    return outputs
 
     print('Building and saving outputs, hang tight! ⏳')
     # Concat all structures
