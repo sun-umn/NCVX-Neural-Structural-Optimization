@@ -685,6 +685,9 @@ def run_multi_structure_pipeline():
             requires_flip=requires_flip,
         )
 
+        # Add TOuNN to the pipeline
+        tounn_outputs = tounn_train_and_outputs(problem, requires_flip)
+
         # Build google results - lets use our problem library
         # so we can also have custom structures not in the
         # google code
@@ -711,9 +714,6 @@ def run_multi_structure_pipeline():
         # Zip the results together to create a dataframe
         google_cnn_outputs = benchmark_outputs["google-cnn"]
         mma_outputs = benchmark_outputs["mma"]
-
-        # Add TOuNN to the pipeline
-        tounn_outputs = tounn_train_and_outputs(problem, requires_flip)
 
         # All outputs
         outputs = pd.DataFrame(
