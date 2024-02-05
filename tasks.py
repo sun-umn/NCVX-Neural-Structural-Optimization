@@ -564,7 +564,7 @@ def tounn_train_and_outputs(problem, requires_flip):
     best_final_design = best_final_design.T
 
     # get the best score
-    best_score = topOpt.convergenceHistory[-1][-1]
+    best_score = np.round(topOpt.convergenceHistory[-1][-1], 2)
 
     # Return everything
     mask = (torch.broadcast_to(args["mask"], (nely, nelx)) > 0).cpu().numpy()
@@ -749,8 +749,8 @@ def run_multi_structure_pipeline():
 
     axes = list(chain.from_iterable(axes_list))
 
-    # # add the axes to the dataframe
-    # structure_outputs["ax"] = axes
+    # add the axes to the dataframe
+    structure_outputs["ax"] = axes
 
     # Create the color map
     color_map = {
@@ -833,7 +833,6 @@ def run_multi_structure_pipeline():
         ax.set_title(data.titles, fontsize=10)
 
         problem_name = data.problem_name
-        subfigs[index].suptitle(f'{problem_name}', fontsize=10)
 
     fig.tight_layout()
 

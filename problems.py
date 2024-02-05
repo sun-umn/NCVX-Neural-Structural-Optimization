@@ -52,7 +52,7 @@ class Problem:
     normals: torch.Tensor  # noqa
     forces: torch.Tensor  # noqa
     density: float  # noqa
-    epsilon: float
+    epsilon: float  # noqa
     mask: Union[torch.Tensor, float] = 1  # noqa
     name: Optional[str] = None  # noqa
     width: int = dataclasses.field(init=False)  # noqa
