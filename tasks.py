@@ -2,7 +2,9 @@
 # stdlib
 import gc
 import math
+import os
 import warnings
+from itertools import chain
 
 # third party
 import click
@@ -13,6 +15,8 @@ import pandas as pd
 import torch
 import wandb
 import xarray
+from matplotlib.offsetbox import AnchoredText
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from neural_structural_optimization import models as google_models
 from neural_structural_optimization import problems as google_problems
 from neural_structural_optimization import topo_api as google_topo_api
@@ -630,9 +634,9 @@ def run_multi_structure_pipeline():
 
     # Set up the problem names
     problem_config = [
-        ("mbb_beam_96x32_0.5", True, 1, 55),
+        # ("mbb_beam_96x32_0.5", True, 1, 60),
         # ("cantilever_beam_full_96x32_0.4", True, 1, 55),
-        # ("michell_centered_both_64x128_0.12", True, 1, 30),
+        ("michell_centered_top_64x128_0.12", True, 1, 55),
         # ("multistory_building_64x128_0.4", True, 1, 30),
         # ("thin_support_bridge_128x128_0.2", True, 1, 45),
         # ("l_shape_0.2_128x128_0.3", True, 1, 30),
@@ -726,95 +730,117 @@ def run_multi_structure_pipeline():
 
     return outputs
 
-    # print('Building and saving outputs, hang tight! ⏳')
-    # # Concat all structures
-    # structure_outputs = pd.concat(structure_outputs)
-    # structure_outputs["loss"] = structure_outputs["loss"].astype(float)
+    print('Building and saving outputs, hang tight! ⏳')
+    # Concat all structures
+    structure_outputs = pd.concat(structure_outputs)
+    structure_outputs["loss"] = structure_outputs["loss"].astype(float)
 
-    # # Create the output plots
-    # fig, axes = plt.subplots(len(problem_config), 3, figsize=(10, 9))
-    # axes = axes.flatten()
-    # plt.subplots_adjust(hspace=0.01, wspace=0.01)
+    # Create the output plots
+    fig, axes = plt.subplots(len(problem_config), 4, figsize=(10, 5))
+    axes = axes.flatten()
+    plt.subplots_adjust(hspace=0.01, wspace=0.01)
+
+    # Create subfigs
+    subfigs = fig.subfigures(len(problem_config), 1)
+
+    # For every 4 axes
+    axes_list = []
+    for i in range(len(problem_config)):
+        axes = subfigs[i].subplots(1, 4)
+        axes_list.append(axes.flatten())
+
+    axes = list(chain.from_iterable(axes_list))
 
     # # add the axes to the dataframe
     # structure_outputs["ax"] = axes
 
-    # # Create the color map
-    # color_map = {
-    #     0: ("yellow", "black"),
-    #     1: ("orange", "black"),
-    #     2: ("darkviolet", "white"),
-    # }
+    # Create the color map
+    color_map = {
+        0: ('yellow', 'black'),
+        1: ('orange', 'black'),
+        2: ('darkviolet', 'white'),
+        3: ('navy', 'white'),
+    }
 
-    # # Get the best to worst
-    # structure_outputs["initial_order"] = structure_outputs.groupby(
-    #     "problem_name"
-    # ).cumcount()
-    # structure_outputs = structure_outputs.sort_values(
-    #     ["problem_name", "loss"]
-    # ).reset_index(drop=True)
-    # structure_outputs["order"] = structure_outputs.groupby("problem_name").cumcount()
-    # structure_outputs = structure_outputs.sort_values(["problem_name", "initial_order"])  # noqa
-    # structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
+    # Get the best to worst
+    structure_outputs["initial_order"] = structure_outputs.groupby(
+        "problem_name"
+    ).cumcount()
+    structure_outputs = structure_outputs.sort_values(
+        ["problem_name", "loss"]
+    ).reset_index(drop=True)
+    structure_outputs["order"] = structure_outputs.groupby("problem_name").cumcount()
+    structure_outputs = structure_outputs.sort_values(
+        ["problem_name", "initial_order"]
+    )  # noqa
+    structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
 
-    # # Will create directories for saving models
-    # save_path = os.path.join(
-    #     '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
-    #     f'{wandb.run.id}',
-    # )
-    # if not os.path.exists(save_path):
-    #     os.makedirs(save_path)
-    #     print(f"The directory {save_path} was created.")
-    # else:
-    #     print(f"The directory {save_path} already exists.")
+    # Will create directories for saving models
+    save_path = os.path.join(
+        '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
+        f'{wandb.run.id}',
+    )
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        print(f"The directory {save_path} was created.")
+    else:
+        print(f"The directory {save_path} already exists.")
 
-    # # Save the data
-    # structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
-    #     os.path.join(save_path, 'structure_outputs.csv'), index=False
-    # )
+    # Save the data
+    structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
+        os.path.join(save_path, 'structure_outputs.csv'), index=False
+    )
 
-    # for index, data in enumerate(structure_outputs.itertuples()):
-    #     ax = data.ax
-    #     ax.imshow(data.designs, cmap="Greys")
+    # Build the subfigs first and suptitles
+    for problem_name in problem_config:
+        subfigs[i].suptitle(f'{problem_name}')
 
-    #     # Add the colors box for the scoring
-    #     divider = make_axes_locatable(ax)
+    # Plot all of the structures
+    for index, data in enumerate(structure_outputs.itertuples()):
+        ax = data.ax
+        ax.imshow(data.designs, cmap="Greys", aspect='auto')
 
-    #     cax = divider.append_axes("bottom", size=f"{data.cax_size}%", pad=0.01)
-    #     cax.get_xaxis().set_visible(False)
-    #     cax.get_yaxis().set_visible(False)
+        # Add the colors box for the scoring
+        divider = make_axes_locatable(ax)
 
-    #     formatting = data.formatting
-    #     facecolor = formatting[0]
-    #     fontcolor = formatting[1]
+        cax = divider.append_axes("bottom", size=f"{data.cax_size}%", pad=0.01)
+        cax.get_xaxis().set_visible(False)
+        cax.get_yaxis().set_visible(False)
 
-    #     # Set the face color of the box
-    #     cax.set_facecolor(facecolor)
-    #     cax.spines["bottom"].set_color(facecolor)
-    #     cax.spines["top"].set_color(facecolor)
-    #     cax.spines["right"].set_color(facecolor)
-    #     cax.spines["left"].set_color(facecolor)
+        formatting = data.formatting
+        facecolor = formatting[0]
+        fontcolor = formatting[1]
 
-    #     text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
-    #     at = AnchoredText(
-    #         text,
-    #         loc=10,
-    #         frameon=False,
-    #         prop=dict(
-    #             backgroundcolor=facecolor,
-    #             size=11,
-    #             color=fontcolor,
-    #             weight="bold",
-    #         ),
-    #     )
-    #     cax.add_artist(at)
-    #     ax.set_axis_off()
-    #     ax.set_title(data.titles, fontsize=10)
+        # Set the face color of the box
+        cax.set_facecolor(facecolor)
+        cax.spines["bottom"].set_color(facecolor)
+        cax.spines["top"].set_color(facecolor)
+        cax.spines["right"].set_color(facecolor)
+        cax.spines["left"].set_color(facecolor)
 
-    # fig.tight_layout()
+        text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
+        at = AnchoredText(
+            text,
+            loc=10,
+            frameon=False,
+            prop=dict(
+                backgroundcolor=facecolor,
+                size=11,
+                color=fontcolor,
+                weight="bold",
+            ),
+        )
+        cax.add_artist(at)
+        ax.set_axis_off()
+        ax.set_title(data.titles, fontsize=10)
 
-    # # Save figure to weights and biases
-    # wandb.log({'plot': wandb.Image(fig)})
+        problem_name = data.problem_name
+        subfigs[index].suptitle(f'{problem_name}', fontsize=10)
+
+    fig.tight_layout()
+
+    # Save figure to weights and biases
+    wandb.log({'plot': wandb.Image(fig)})
 
     # # Add a plot for the binary conditions
     # # Create the output plots
@@ -850,11 +876,11 @@ def run_multi_structure_pipeline():
     #     )
     #     ax.set_title(title)
 
-    # fig.tight_layout()
+    fig.tight_layout()
 
-    # # Save to weights and biases
-    # wandb.log({'plot': wandb.Image(fig)})
-    # print('Run completed! 🎉')
+    # Save to weights and biases
+    wandb.log({'plot': wandb.Image(fig)})
+    print('Run completed! 🎉')
 
 
 if __name__ == "__main__":
