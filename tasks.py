@@ -685,8 +685,18 @@ def run_multi_structure_pipeline():
             requires_flip=requires_flip,
         )
 
-        # Build google results
+        # Build google results - lets use our problem library
+        # so we can also have custom structures not in the
+        # google code
         google_problem = google_problems.PROBLEMS_BY_NAME[problem_name]
+        google_problem = problem
+
+        # Set to numpy for google framework
+        google_problem.normals = google_problem.normals.cpu().numpy()
+        google_problem.forces = google_problem.forces.cpu().numpy()
+        google_problem.mirror_left = True
+        google_problem.mirror_right = False
+
         ds = train_all(google_problem, max_iterations)
 
         # Get google outputs
