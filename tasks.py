@@ -17,7 +17,6 @@ import wandb
 import xarray
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from neural_structural_optimization import models as google_models
-from neural_structural_optimization import problems as google_problems
 from neural_structural_optimization import topo_api as google_topo_api
 from neural_structural_optimization import train as google_train
 
@@ -633,9 +632,9 @@ def run_multi_structure_pipeline():
 
     # Set up the problem names
     problem_config = [
-        ("mbb_beam_96x32_0.5", True, 1, 30),
-        ("cantilever_beam_full_96x32_0.4", True, 1, 30),
-        # ("michell_centered_top_64x128_0.12", True, 1, 55),
+        ("mbb_beam_96x32_0.5", True, 1, 50),
+        ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+        ("michell_centered_top_64x128_0.12", True, 1, 50),
         # ("multistory_building_64x128_0.4", True, 1, 30),
         # ("thin_support_bridge_128x128_0.2", True, 1, 45),
         # ("l_shape_0.2_128x128_0.3", True, 1, 30),
@@ -691,8 +690,7 @@ def run_multi_structure_pipeline():
         # Build google results - lets use our problem library
         # so we can also have custom structures not in the
         # google code
-        google_problem = google_problems.PROBLEMS_BY_NAME[problem_name]
-        google_problem = problem
+        google_problem = problem.copy()
 
         # Set to numpy for google framework
         google_problem.normals = google_problem.normals.cpu().numpy()
@@ -842,7 +840,7 @@ def run_multi_structure_pipeline():
 
     # Need to custom adjust the spacing of tight layout becuase
     # the subfigures suptitle is not working correctly / automatically
-    fig.tight_layout(rect=[0, 0, 1, 0.65])
+    fig.tight_layout(rect=[0, 0, 1, 0.5])
 
     # Save figure to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
