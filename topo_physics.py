@@ -150,6 +150,32 @@ def compliance(
     return young_x_phys * ce.t(), None, None
 
 
+def multi_material_compliance(
+    stiffness,
+    u,
+    ke,
+    args,
+    *,
+    penal=3,
+    e_min=1e-9,
+    e_0=1,
+    base="Google",
+    device=utils.DEFAULT_DEVICE,
+    dtype=utils.DEFAULT_DTYPE,
+):
+    """
+    Calculate the compliance objective.
+    NOTE: For our implementation both x_phys and u will require_grad
+    and will both be torch tensors.
+    """
+    # Updated code - for multi material compliance
+    edof, x_list, y_list = build_nodes_data(args, base=base)
+    ce = (u[edof] @ ke) * u[edof]
+    ce = torch.sum(ce, axis=1)
+
+    return stiffness * ce, None, None
+
+
 def get_k_data(stiffness, ke, args, base="MATLAB"):
     """
     Function that is the pytorch version of get_K
@@ -337,7 +363,9 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
     )
 
     # Calculate the compliance output
-    compliance_output, _, _ = compliance(stiffness, u_matrix, ke, args, **kwargs)
+    compliance_output, _, _ = multi_material_compliance(
+        stiffness, u_matrix, ke, args, **kwargs
+    )
 
     # The loss is the sum of the compliance
     return torch.sum(compliance_output), x_phys, mask
