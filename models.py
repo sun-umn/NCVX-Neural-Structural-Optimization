@@ -385,7 +385,7 @@ class TopologyOptimizationMLP(nn.Module):
     def __init__(self, num_layers, num_neurons, nelx, nely, num_materials):
         self.input_dim = 2
         # x and y coordn of the point
-        self.outputDim = num_materials + 1
+        self.output_dim = num_materials + 1
         # if material A/B/.../void at the point
         self.nelx = nelx
         self.nely = nely
@@ -398,13 +398,13 @@ class TopologyOptimizationMLP(nn.Module):
 
         # Iterate the create the layers
         for lyr in range(num_layers):
-            l = nn.Linear(current_dim, numNeuronsPerLyr)  # noqa
+            l = nn.Linear(current_dim, num_neurons)  # noqa
             nn.init.xavier_uniform_(l.weight)
             nn.init.zeros_(l.bias)
             self.layers.append(l)
             current_dim = num_neurons
 
-        self.layers.append(nn.Linear(current_dim, self.outputDim))
+        self.layers.append(nn.Linear(current_dim, self.output_dim))
         self.bnLayer = nn.ModuleList()
         for lyr in range(num_layers):
             self.bnLayer.append(nn.BatchNorm1d(num_neurons))
