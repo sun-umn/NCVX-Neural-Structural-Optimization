@@ -325,11 +325,6 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
     # For now set the mask to None
     mask = None
 
-    # For the multi-material design we need to use softmax
-    # to ensure the outputs sum to 1
-    softmax = nn.Softmax(dim=0)
-    logits = softmax(logits)
-
     # TODO: I do not remember the meaning for this
     # We turn x_phys into a flattened matrix with
     # num_materials + 1 columns
@@ -342,13 +337,19 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
     )
 
     if np.all(logits.shape != x_phys.shape):
+        softmax = nn.Softmax(dim=0)
+        logits = softmax(logits)
+
         # TODO: Why can we not just reshape this?
         for i in range(material_channels + 1):
             x_phys[:, i] = logits[i, :, :].T.flatten()
 
     else:
+        softmax = nn.Softmax(dim=1)
+        logits = softmax(logits)
+
         # NOTE: Case of the MLP
-        x_phys = logits.copy()
+        x_phys = logits
 
     # Need to compute a stiffness matrix
     stiffness = young_modulus_multi_material(
