@@ -340,9 +340,15 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
         device=device,
         dtype=torch.double,
     )
-    # TODO: Why can we not just reshape this?
-    for i in range(material_channels + 1):
-        x_phys[:, i] = logits[i, :, :].T.flatten()
+
+    if np.all(logits.shape != x_phys.shape):
+        # TODO: Why can we not just reshape this?
+        for i in range(material_channels + 1):
+            x_phys[:, i] = logits[i, :, :].T.flatten()
+
+    else:
+        # NOTE: Case of the MLP
+        x_phys = logits.copy()
 
     # Need to compute a stiffness matrix
     stiffness = young_modulus_multi_material(

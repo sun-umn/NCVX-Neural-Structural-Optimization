@@ -382,7 +382,9 @@ class TopologyOptimizationMLP(nn.Module):
     multi-material problem
     """
 
-    def __init__(self, num_layers, num_neurons, nelx, nely, num_materials):
+    def __init__(
+        self, num_layers, num_neurons, nelx, nely, num_materials, seed: int = 1234
+    ):
         self.input_dim = 2
         # x and y coordn of the point
         self.output_dim = num_materials + 1
@@ -394,7 +396,7 @@ class TopologyOptimizationMLP(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList()
         current_dim = self.input_dim
-        set_seed(1234)
+        set_seed(seed)
 
         # Iterate the create the layers
         for lyr in range(num_layers):
