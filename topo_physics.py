@@ -309,7 +309,10 @@ def calculate_multi_material_compliance(model, ke, args, device, dtype):
     # num_materials + 1 columns
     material_channels = len(args['e_materials'])
     x_phys = torch.zeros(
-        args['nelx'] * args['nely'], material_channels + 1, dtype=torch.double
+        args['nelx'] * args['nely'],
+        material_channels + 1,
+        device=device,
+        dtype=torch.double,
     )
     # TODO: Why can we not just reshape this?
     for i in range(material_channels + 1):
