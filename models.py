@@ -374,3 +374,82 @@ class MultiMaterialCNNModel(nn.Module):
         output = torch.squeeze(output)
 
         return output
+
+
+class TopologyOptimizationMLP(nn.Module):
+    """
+    Class that creates a topology optimization MLP for
+    multi-material problem
+    """
+
+    def __init__(self, num_layers, num_neurons, nelx, nely, num_materials):
+        self.input_dim = 2
+        # x and y coordn of the point
+        self.outputDim = num_materials + 1
+        # if material A/B/.../void at the point
+        self.nelx = nelx
+        self.nely = nely
+        self.num_layers = num_layers
+        self.num_neurons = num_neurons
+        super().__init__()
+        self.layers = nn.ModuleList()
+        current_dim = self.input_dim
+        set_seed(1234)
+
+        # Iterate the create the layers
+        for lyr in range(num_layers):
+            l = nn.Linear(current_dim, numNeuronsPerLyr)  # noqa
+            nn.init.xavier_uniform_(l.weight)
+            nn.init.zeros_(l.bias)
+            self.layers.append(l)
+            current_dim = num_neurons
+
+        self.layers.append(nn.Linear(current_dim, self.outputDim))
+        self.bnLayer = nn.ModuleList()
+        for lyr in range(num_layers):
+            self.bnLayer.append(nn.BatchNorm1d(num_neurons))
+
+        # Generate the points
+        self.x = self._generate_points()
+
+    def _generate_points(self):
+        """
+        Function to generate the points and make them a part of the neural
+        network
+        """
+        ctr = 0
+        xy = np.zeros((self.nelx * self.nely, 2))
+        for i in range(self.nelx):
+            for j in range(self.nely):
+                xy[ctr, 0] = i + 0.5
+                xy[ctr, 1] = j + 0.5
+                ctr += 1
+        xy = torch.tensor(xy, requires_grad=True).float().view(-1, 2)
+        xy = nn.Parameter(xy)
+        return xy
+
+    def forward(self, fixedIdx=None):  # noqa
+        # activations ReLU, ReLU6, ELU, SELU, PReLU, LeakyReLU, Sigmoid,
+        # Tanh, LogSigmoid, Softplus, Softsign,
+        # TanhShrink, Softmin, Softmax
+        m = nn.ReLU6()
+        #
+        ctr = 0
+
+        # TODO: Why this line? Gather inputs?
+        xv = self.x[:, 0]
+        yv = self.x[:, 1]
+
+        x = torch.transpose(torch.stack((xv, yv)), 0, 1)
+        # Compute each layer
+        for layer in self.layers[:-1]:
+            x = m(self.bnLayer[ctr](layer(x)))
+            ctr += 1
+        out = 1e-4 + torch.softmax(self.layers[-1](x), dim=1)
+
+        if fixedIdx is not None:
+            out[fixedIdx, 0] = 0.95
+            out[fixedIdx, 1:] = 0.01
+            # fixed Idx removes region
+
+        return out
