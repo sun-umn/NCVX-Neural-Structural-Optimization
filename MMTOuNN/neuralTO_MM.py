@@ -677,8 +677,8 @@ class TopologyOptimizer:
 
 # %% Example - See paperExamples for more
 def runExample():
-    nelx = 60
-    nely = 30
+    nelx = 64
+    nely = 32
     elemArea = 1.0
     # assumes sizeX = sizeY.
     desiredMassFraction = 0.6
