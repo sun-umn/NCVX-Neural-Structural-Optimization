@@ -332,6 +332,8 @@ class TopologyOptimizer:
                     / nnPred_np.shape[0]
                 )
                 relGreyElements /= nnPred_np.shape[1]
+
+            # Update the penalty that starts at 1 for each epoch
             self.FE.penal = min(4.0, self.FE.penal + 0.01)
             # continuation scheme
             lossHistory.append(

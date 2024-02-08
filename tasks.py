@@ -690,7 +690,7 @@ def run_multi_structure_pipeline():
         # Build google results - lets use our problem library
         # so we can also have custom structures not in the
         # google code
-        google_problem = problem.copy()
+        google_problem = problem
 
         # Set to numpy for google framework
         google_problem.normals = google_problem.normals.cpu().numpy()

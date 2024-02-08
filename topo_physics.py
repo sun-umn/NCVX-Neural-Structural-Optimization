@@ -31,7 +31,7 @@ def young_modulus_multi_material(
 
     # Reshaping for matrix multiplication
     e_materials = e_materials.reshape(num_materials, 1).T - e_min
-    young_modulus = (e_materials @ penalized_materials.T).flatten()
+    young_modulus = (e_materials * penalized_materials).sum(axis=1).flatten()
     return young_modulus.to(device=device, dtype=dtype)
 
 
