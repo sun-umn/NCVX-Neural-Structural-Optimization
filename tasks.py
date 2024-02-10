@@ -806,12 +806,12 @@ def run_multi_structure_pipeline():
         ax = data.ax
         ax.imshow(data.designs, cmap="Greys", aspect='auto')
         ax.axis('off')
-        ax.set_title(data.titles, fontsize=12, weight='bold')
+        ax.set_title(data.titles, fontsize=10, weight='bold')
 
         # Add the colors box for the scoring
         divider = make_axes_locatable(ax)
 
-        cax = divider.append_axes("bottom", size="60%", pad=0.01)
+        cax = divider.append_axes("bottom", size="55%", pad=0.01)
         cax.get_xaxis().set_visible(False)
         cax.get_yaxis().set_visible(False)
 
