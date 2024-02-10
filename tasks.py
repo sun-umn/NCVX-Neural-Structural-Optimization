@@ -743,7 +743,7 @@ def run_multi_structure_pipeline():
     # Create the output plots
     # Create the output plots
     # fig, axes = plt.subplots(len(problem_config), 4, figsize=(15, 4))
-    fig = plt.figure(figsize=(12, 2))
+    fig = plt.figure(figsize=(12, 4))
 
     # Create subfigs
     subfigs = fig.subfigures(len(problem_config), 1, hspace=1)
@@ -799,7 +799,7 @@ def run_multi_structure_pipeline():
     # Plot all of the structures
     # Create the suptitles
     for index, (problem_name, _, _, _) in enumerate(problem_config):
-        subfigs[index].suptitle(f'{problem_name}', fontsize=12, weight='bold')
+        subfigs[index].suptitle(f'{problem_name}', fontsize=12)
 
     # Plot all of the structures
     for index, data in enumerate(structure_outputs.itertuples()):
@@ -811,7 +811,7 @@ def run_multi_structure_pipeline():
         # Add the colors box for the scoring
         divider = make_axes_locatable(ax)
 
-        cax = divider.append_axes("bottom", size="50%", pad=0.01)
+        cax = divider.append_axes("bottom", size="60%", pad=0.01)
         cax.get_xaxis().set_visible(False)
         cax.get_yaxis().set_visible(False)
 

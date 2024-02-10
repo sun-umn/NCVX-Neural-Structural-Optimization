@@ -87,6 +87,9 @@ class StructuralFE:
     def solve88(self, density):
         self.densityField = density
         self.u = np.zeros((self.ndof, 1))
+
+        # NOTE: For a 32x64 structure the shape of EnetOfElem for example will be
+        # 2048, 1
         EnetOfElem = np.array(
             [
                 np.dot(self.EMaterials, (density[i, :]) ** self.penal)
