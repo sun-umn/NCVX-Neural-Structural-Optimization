@@ -800,7 +800,9 @@ def run_multi_structure_pipeline():
         ax = data.ax
         ax.imshow(data.designs, cmap="Greys", aspect='auto')
         ax.axis('off')
-        ax.set_title(data.titles, fontsize=9, weight='bold')
+
+        if index == 0:
+            ax.set_title(data.titles, fontsize=9, weight='bold')
 
         # Add the colors box for the scoring
         divider = make_axes_locatable(ax)
