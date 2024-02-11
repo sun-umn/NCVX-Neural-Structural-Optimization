@@ -208,8 +208,8 @@ def train_pygranso(
         opts.maxit = maxit
         opts.print_frequency = 20
         opts.stat_l2_model = False
-        opts.viol_eq_tol = 1e-4
-        opts.opt_tol = 1e-4
+        opts.viol_eq_tol = 1e-5
+        opts.opt_tol = 1e-5
 
         mHLF_obj = utils.HaltLog()
         halt_log_fn, get_log_fn = mHLF_obj.makeHaltLogFunctions(opts.maxit)

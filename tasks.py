@@ -635,10 +635,6 @@ def run_multi_structure_pipeline():
         ("mbb_beam_96x32_0.5", True, 1, 50),
         ("cantilever_beam_full_96x32_0.4", True, 1, 50),
         ("michell_centered_top_64x128_0.12", True, 1, 50),
-        # ("multistory_building_64x128_0.4", True, 1, 30),
-        # ("thin_support_bridge_128x128_0.2", True, 1, 45),
-        # ("l_shape_0.2_128x128_0.3", True, 1, 30),
-        # ("l_shape_0.4_128x128_0.3", True, 1, 30),
     ]
 
     # PyGranso function
@@ -741,9 +737,7 @@ def run_multi_structure_pipeline():
     structure_outputs["loss"] = structure_outputs["loss"].astype(float)
 
     # Create the output plots
-    # Create the output plots
-    # fig, axes = plt.subplots(len(problem_config), 4, figsize=(15, 4))
-    fig = plt.figure(figsize=(12, 4))
+    fig = plt.figure(figsize=(12, 3))
 
     # Create subfigs
     subfigs = fig.subfigures(len(problem_config), 1, hspace=1)
@@ -806,12 +800,12 @@ def run_multi_structure_pipeline():
         ax = data.ax
         ax.imshow(data.designs, cmap="Greys", aspect='auto')
         ax.axis('off')
-        ax.set_title(data.titles, fontsize=10, weight='bold')
+        ax.set_title(data.titles, fontsize=9, weight='bold')
 
         # Add the colors box for the scoring
         divider = make_axes_locatable(ax)
 
-        cax = divider.append_axes("bottom", size="55%", pad=0.01)
+        cax = divider.append_axes("bottom", size="50%", pad=0.01)
         cax.get_xaxis().set_visible(False)
         cax.get_yaxis().set_visible(False)
 
