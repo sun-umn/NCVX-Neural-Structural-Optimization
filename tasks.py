@@ -731,7 +731,9 @@ def run_multi_structure_pipeline():
     structure_outputs = structure_outputs.sort_values(
         ['problem_name', 'titles']
     ).reset_index(drop=True)
-    structure_outputs['problem_name'] = structure_outputs.map(name_mapping)
+    structure_outputs['problem_name'] = structure_outputs['problem_name'].map(
+        name_mapping
+    )
 
     for index, data in enumerate(structure_outputs.itertuples()):
         ax = axes[index]
