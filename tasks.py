@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # stdlib
 import gc
-import math
 import os
 import warnings
 
@@ -34,75 +33,6 @@ warnings.filterwarnings('ignore')
 # Keep these imports
 # from matplotlib.offsetbox import AnchoredText
 # from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-
-def bilinear_interpolation(img, y, x):
-    """
-    Function that computes bilinear interpolation
-    """
-    height, width = img.shape
-
-    # Get the (x1, y1), (x2, y2) values
-    x1 = max(min(math.floor(x), width - 1), 0)
-    y1 = max(min(math.floor(y), height - 1), 0)
-    x2 = max(min(math.ceil(x), width - 1), 0)
-    y2 = max(min(math.ceil(y), height - 1), 0)
-
-    # Get the 4 nearest pixel values
-    a = float(img[y1, x1])
-    b = float(img[y2, x1])
-    c = float(img[y1, x2])
-    d = float(img[y2, x2])
-
-    dx = x - x1
-    dy = y - y1
-
-    # Get the new pixel value
-    new_pixel = (
-        (a * (1 - dx) * (1 - dy))
-        + (b * dy * (1 - dx))
-        + (c * dx * (1 - dy))
-        + (d * dx * dy)
-    )
-
-    return round(new_pixel)
-
-
-def resize(img, resize_shape):
-    """
-    Function that utilizes bilinear interpolation for aliasing effects
-    for resizing a grayscale image
-    """
-    new_height, new_width = resize_shape
-    new_image = np.zeros((new_height, new_width), img.dtype)
-
-    orig_height = img.shape[0]
-    orig_width = img.shape[1]
-
-    # Compute center column and center row
-    x_orig_center = (orig_width - 1) / 2
-    y_orig_center = (orig_height - 1) / 2
-
-    # Compute center of resized image
-    x_scaled_center = (new_width - 1) / 2
-    y_scaled_center = (new_height - 1) / 2
-
-    # Compute the scale in both axes
-    scale_x = orig_width / new_width
-    scale_y = orig_height / new_height
-
-    # iterate over the new height and width to get the new pixel
-    # values
-    for y in range(new_height):
-        for x in range(new_width):
-            x_interpolated = (x - x_scaled_center) * scale_x + x_orig_center
-            y_interpolated = (y - y_scaled_center) * scale_y + y_orig_center
-
-            new_image[y, x] = bilinear_interpolation(
-                img, y_interpolated, x_interpolated
-            )
-
-    return new_image
 
 
 def calculate_binary_constraint(design, mask, epsilon):
@@ -832,42 +762,6 @@ def run_multi_structure_pipeline():
 
     # Save figure to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
-
-    # # Add a plot for the binary conditions
-    # # Create the output plots
-    # fig, axes = plt.subplots(
-    #     len(problem_config),
-    #     3,
-    #     figsize=(9.5, 12),
-    #     sharex=True,
-    # )
-    # axes = axes.flatten()
-
-    # # add the axes to the dataframe
-    # structure_outputs["ax"] = axes
-
-    # # Create the pixel historgrams
-    # for index, data in enumerate(structure_outputs.itertuples()):
-    #     ax = data.ax
-    #     title = data.titles
-
-    #     if 'PyGranso' in title:
-    #         color = 'blue'
-    #     elif 'Google' in title:
-    #         color = 'red'
-    #     elif 'MMA' in title:
-    #         color = 'purple'
-
-    #     ax.hist(
-    #         np.nan_to_num(data.designs.flatten(), nan=0.0),
-    #         bins=100,
-    #         density=True,
-    #         color=color,
-    #         range=(0.0, 1.0),
-    #     )
-    #     ax.set_title(title)
-
-    # fig.tight_layout()
 
     # Save to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
