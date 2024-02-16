@@ -685,7 +685,7 @@ def run_multi_structure_pipeline():
         4, len(problem_config), figsize=(12, 4), constrained_layout=True
     )
     axes = axes.T.flatten()
-    fig.subplots_adjust(wspace=0)
+    fig.subplots_adjust(wspace=0, hspace=0)
 
     # add the axes to the dataframe
     structure_outputs["ax"] = axes
