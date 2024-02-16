@@ -692,10 +692,10 @@ def run_multi_structure_pipeline():
 
     # Create the color map
     color_map = {
-        0: ('yellow', 'black'),
+        0: ('yellow', 'black'),  # Best
         1: ('orange', 'black'),
         2: ('darkviolet', 'white'),
-        3: ('navy', 'white'),
+        3: ('navy', 'white'),  # Worst
     }
 
     # Get the best to worst
