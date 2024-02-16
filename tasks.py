@@ -733,7 +733,7 @@ def run_multi_structure_pipeline():
 
         # Set x-labels
         if index in [0, 4, 8, 12]:
-            ax.set_title(data.problem_name, weight='bold')
+            ax.set_title(data.problem_name, weight='bold', fontsize=9)
 
         # Add the colors box for the scoring
         divider = make_axes_locatable(ax)
