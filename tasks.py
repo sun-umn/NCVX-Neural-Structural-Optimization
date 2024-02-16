@@ -781,6 +781,11 @@ def run_multi_structure_pipeline():
         os.path.join(save_path, 'structure_outputs.csv'), index=False
     )
 
+    # Sort the structures and algorithms
+    structure_outputs = structure_outputs.sort_values(
+        ['problem_name', 'titles']
+    ).reset_index(drop=True)
+
     for index, data in enumerate(structure_outputs.itertuples()):
         ax = axes[index]
         ax.imshow(data.designs, cmap='Greys', aspect='auto')
