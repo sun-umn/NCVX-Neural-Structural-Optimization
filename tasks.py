@@ -4,7 +4,6 @@ import gc
 import math
 import os
 import warnings
-from itertools import chain
 
 # third party
 import click
@@ -723,7 +722,7 @@ def run_multi_structure_pipeline():
         outputs["problem_name"] = problem_name
 
         # Add titles
-        titles = ["PyGranso-CNN", "TOuNN", "Google-CNN", "MMA"]
+        titles = ["PG", "TOuNN", "Google", "MMA"]
         outputs["titles"] = titles
         outputs["cax_size"] = cax_size
         structure_outputs.append(outputs)
@@ -737,18 +736,10 @@ def run_multi_structure_pipeline():
     structure_outputs["loss"] = structure_outputs["loss"].astype(float)
 
     # Create the output plots
-    fig = plt.figure(figsize=(12, 3))
-
-    # Create subfigs
-    subfigs = fig.subfigures(len(problem_config), 1, hspace=1)
-
-    # For every 4 axes
-    axes_list = []
-    for i in range(len(problem_config)):
-        axes = subfigs[i].subplots(1, 4)
-        axes_list.append(axes.flatten())
-
-    axes = list(chain.from_iterable(axes_list))
+    fig, axes = plt.subplots(
+        4, len(problem_config), figsize=(12, 4), constrained_layout=True
+    )
+    axes = axes.T.flatten()
 
     # add the axes to the dataframe
     structure_outputs["ax"] = axes
@@ -790,24 +781,24 @@ def run_multi_structure_pipeline():
         os.path.join(save_path, 'structure_outputs.csv'), index=False
     )
 
-    # Plot all of the structures
-    # Create the suptitles
-    for index, (problem_name, _, _, _) in enumerate(problem_config):
-        subfigs[index].suptitle(f'{problem_name}', fontsize=12)
-
-    # Plot all of the structures
     for index, data in enumerate(structure_outputs.itertuples()):
-        ax = data.ax
-        ax.imshow(data.designs, cmap="Greys", aspect='auto')
-        ax.axis('off')
+        ax = axes[index]
+        ax.imshow(data.designs, cmap='Greys', aspect='auto')
+        ax.set_xticks([])
+        ax.set_yticks([])
 
-        if index == 0:
-            ax.set_title(data.titles, fontsize=9, weight='bold')
+        # Set y-labels
+        if index in [0, 1, 2, 3]:
+            ax.set_ylabel(data.titles, weight='bold')
+
+        # Set x-labels
+        if index in [0, 4, 8]:
+            ax.set_title(data.problem_name, weight='bold')
 
         # Add the colors box for the scoring
         divider = make_axes_locatable(ax)
 
-        cax = divider.append_axes("bottom", size="50%", pad=0.01)
+        cax = divider.append_axes("bottom", size="40%", pad=0.01)
         cax.get_xaxis().set_visible(False)
         cax.get_yaxis().set_visible(False)
 
@@ -833,10 +824,6 @@ def run_multi_structure_pipeline():
             color=fontcolor,
             weight='bold',
         )
-
-    # Need to custom adjust the spacing of tight layout becuase
-    # the subfigures suptitle is not working correctly / automatically
-    fig.tight_layout(rect=[0, 0, 1, 0.5])
 
     # Save figure to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
@@ -875,7 +862,7 @@ def run_multi_structure_pipeline():
     #     )
     #     ax.set_title(title)
 
-    fig.tight_layout()
+    # fig.tight_layout()
 
     # Save to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
