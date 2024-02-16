@@ -732,7 +732,7 @@ def run_multi_structure_pipeline():
             ax.set_ylabel(data.titles, weight='bold')
 
         # Set x-labels
-        if index in [0, 4, 8]:
+        if index in [0, 4, 8, 12]:
             ax.set_title(data.problem_name, weight='bold')
 
         # Add the colors box for the scoring
