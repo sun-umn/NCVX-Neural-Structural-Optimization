@@ -567,6 +567,14 @@ def run_multi_structure_pipeline():
         ("thin_support_bridge_128x128_0.2", True, 1, 50),
     ]
 
+    # renaming
+    name_mapping = {
+        'mbb_beam_96x32_0.5': 'MBB Beam \n 96x32; $v_f = 0.5$',
+        'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n 96x32; $v_f=0.4$',
+        'michell_centered_top_64x128_0.12': 'Michell Top \n 64x128; $v_f=0.12$',
+        'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n 128x128 \n $v_f=0.2$',  # noqa
+    }
+
     # PyGranso function
     comb_fn = train.volume_constrained_structural_optimization_function
 
@@ -720,6 +728,7 @@ def run_multi_structure_pipeline():
     structure_outputs = structure_outputs.sort_values(
         ['problem_name', 'titles']
     ).reset_index(drop=True)
+    structure_outputs['problem_name'] = structure_outputs.map(name_mapping)
 
     for index, data in enumerate(structure_outputs.itertuples()):
         ax = axes[index]
