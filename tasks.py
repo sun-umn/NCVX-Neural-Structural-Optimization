@@ -570,11 +570,11 @@ def run_multi_structure_pipeline():
 
     # renaming
     name_mapping = {
-        'mbb_beam_96x32_0.5': 'MBB Beam \n 96x32; $v_f = 0.5$',
-        'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n 96x32; $v_f=0.4$',
-        'michell_centered_top_64x128_0.12': 'Michell Top \n 64x128; $v_f=0.12$',
-        'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n 128x128 \n $v_f=0.2$',  # noqa
-        'l_shape_0.2_128x128_0.3': 'L-Shape 0.2 \n 128x128; $v_f=0.3$',
+        'mbb_beam_96x32_0.5': 'MBB Beam \n $96\times32; v_f = 0.5$',
+        'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n $96\times32; v_f=0.4$',
+        'michell_centered_top_64x128_0.12': 'Michell Top \n $64\times128; v_f=0.12$',
+        'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n $128\times128; v_f=0.2$',  # noqa
+        'l_shape_0.2_128x128_0.3': 'L-Shape 0.2 \n $128\times128; v_f=0.3$',
     }
 
     # PyGranso function
@@ -774,7 +774,7 @@ def run_multi_structure_pipeline():
             text,
             ha='center',
             va='center',
-            fontsize=11,
+            fontsize=9,
             color=fontcolor,
             weight='bold',
         )
