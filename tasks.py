@@ -621,6 +621,7 @@ def run_multi_structure_pipeline():
         # Set to numpy for google framework
         google_problem.normals = google_problem.normals.cpu().numpy()
         google_problem.forces = google_problem.forces.cpu().numpy()
+        google_problem.mask = google_problem.mask.cpu().numpy()
         google_problem.mirror_left = True
         google_problem.mirror_right = False
 
