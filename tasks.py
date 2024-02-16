@@ -622,7 +622,7 @@ def run_multi_structure_pipeline():
         google_problem.normals = google_problem.normals.cpu().numpy()
         google_problem.forces = google_problem.forces.cpu().numpy()
 
-        if not isinstance(google_problem, int):
+        if not isinstance(google_problem.mask, int):
             google_problem.mask = google_problem.mask.cpu().numpy()
 
         google_problem.mirror_left = True
