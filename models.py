@@ -138,7 +138,6 @@ class CNNModel(nn.Module):
         # # Create the gain for the initializer
         gain = self.dense_init_scale * np.sqrt(max(filters / latent_size, 1.0))
         nn.init.orthogonal_(self.dense.weight, gain=gain)
-        # torch.nn.init.xavier_normal_(self.dense.weight, gain=gain)
 
         # Create the convoluational layers that will be used
         self.conv = nn.ModuleList()
@@ -170,8 +169,7 @@ class CNNModel(nn.Module):
             torch.nn.init.kaiming_normal_(
                 convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
             )
-            # torch.nn.init.xavier_normal_(convolution_layer.weight, gain=1.0)
-            # torch.nn.init.xavier_uniform_(convolution_layer.weight, gain=1.2)
+            torch.nn.init.zeros_(convolution_layer.bias)
             self.conv.append(convolution_layer)
             self.global_normalization.append(GlobalNormalization())
 
@@ -202,7 +200,6 @@ class CNNModel(nn.Module):
             # output = torch.tanh(output)
 
             output = torch.sin(output)
-            # output = nn.LeakyReLU()(output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
