@@ -561,9 +561,9 @@ def run_multi_structure_pipeline():
 
     # Set up the problem names
     problem_config = [
-        ("mbb_beam_96x32_0.5", True, 1, 50),
-        ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-        ("michell_centered_top_64x128_0.12", True, 1, 50),
+        # ("mbb_beam_96x32_0.5", True, 1, 50),
+        # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+        # ("michell_centered_top_64x128_0.12", True, 1, 50),
         ("thin_support_bridge_128x128_0.2", True, 1, 50),
         ("l_shape_0.2_128x128_0.3", True, 1, 50),
     ]
