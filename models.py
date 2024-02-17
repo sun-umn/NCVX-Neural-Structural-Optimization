@@ -92,7 +92,7 @@ class CNNModel(nn.Module):
         latent_size=128,
         dense_channels=32,
         resizes=(1, 2, 2, 2, 1),
-        conv_filters=(128 * 2 // 1, 64 * 2 // 1, 32 * 2 // 1, 16 * 2 // 1, 8 * 2 // 1),
+        conv_filters=(128 * 2 // 3, 64 * 2 // 3, 32 * 2 // 3, 16 * 2 // 3, 8 * 2 // 3),
         offset_scale=10.0,
         kernel_size=(5, 5),
         latent_scale=1.0,
