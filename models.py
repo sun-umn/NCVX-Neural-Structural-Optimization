@@ -104,7 +104,7 @@ class CNNModel(nn.Module):
         set_seed(random_seed)
 
         # set Omega for SIREN
-        self.omega_0 = 30.0
+        self.omega_0 = 1.0
 
         # Raise an error if the resizes are not equal to the convolutional
         # filteres
