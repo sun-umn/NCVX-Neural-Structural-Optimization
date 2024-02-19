@@ -406,6 +406,9 @@ def tounn_train_and_outputs(problem, requires_flip):
     """
     Function that will run the TOuNN pipeline
     """
+    # Try setting seed here as well
+    models.set_seed(0)
+
     # Get the problem name
     problem_name = problem.name
 
@@ -536,7 +539,52 @@ def run_multi_structure_pipeline():
     Task that will build out multiple structures and compare
     performance against known benchmarks.
     """
-    models.set_seed(0)
+    # Model size
+    model_size = 'tiny'
+
+    # CNN parameters
+    cnn_features = (256, 128, 64, 32, 16)
+
+    # Configurations
+    configs = {
+        'tiny': {
+            'latent_size': 16,
+            'dense_channels': 16,
+            'conv_filters': tuple(features // 6 for features in cnn_features),
+        },
+        'xsmall': {
+            'latent_size': 32,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 5 for features in cnn_features),
+        },
+        'small': {
+            'latent_size': 64,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 4 for features in cnn_features),
+        },
+        'medium': {
+            'latent_size': 128,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 3 for features in cnn_features),
+        },
+        'large': {
+            'latent_size': 128,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 2 for features in cnn_features),
+        },
+        # x-large has been our original architecture
+        'xlarge': {
+            'latent_size': 128,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 1 for features in cnn_features),
+        },
+    }
+
+    # CNN kwargs
+    cnn_kwargs = configs[model_size]
+
+    # Set seed
+    models.set_seed(0)  # Model seed is set here but results are changing?
 
     # For testing we will run two experimentation trackers
     API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
@@ -550,7 +598,8 @@ def run_multi_structure_pipeline():
     wandb.init(
         # set the wandb project where this run will be logged
         project=PROJECT_NAME,
-        tags=['topology-optimization-task'],
+        tags=['topology-optimization-task', model_size],
+        config=cnn_kwargs,
     )
 
     # Get the device to be used
