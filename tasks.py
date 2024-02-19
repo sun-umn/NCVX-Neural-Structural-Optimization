@@ -654,7 +654,7 @@ def run_multi_structure_pipeline():
             pygranso_combined_function=comb_fn,
             requires_flip=requires_flip,
             total_frames=total_frames,
-            cnn_kwargs=None,
+            cnn_kwargs=cnn_kwargs,
             neptune_logging=None,
             num_trials=num_trials,
             maxit=maxit,
