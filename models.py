@@ -103,6 +103,9 @@ class CNNModel(nn.Module):
         super().__init__()
         set_seed(random_seed)
 
+        # set Omega for SIREN
+        self.omega_0 = 30.0
+
         # Raise an error if the resizes are not equal to the convolutional
         # filteres
         if len(resizes) != len(conv_filters):
@@ -165,10 +168,17 @@ class CNNModel(nn.Module):
                 kernel_size=self.kernel_size,
                 padding="same",
             )
-            # This was the best initialization
-            torch.nn.init.kaiming_normal_(
-                convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
+            # # This was the best initialization
+            # torch.nn.init.kaiming_normal_(
+            #     convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
+            # )
+            # Try SIREN initializers
+            torch.nn.init.uniform_(
+                convolution_layer.weight,
+                -np.sqrt(6 / in_channels) / self.omega_0,
+                np.sqrt(6 / in_channels) / self.omega_0,
             )
+
             torch.nn.init.zeros_(convolution_layer.bias)
             self.conv.append(convolution_layer)
             self.global_normalization.append(GlobalNormalization())
@@ -199,7 +209,7 @@ class CNNModel(nn.Module):
         for idx, (resize, filters) in enumerate(layer_loop):
             # output = torch.tanh(output)
 
-            output = torch.sin(output)
+            output = torch.sin(self.omega_0 * output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
