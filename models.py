@@ -168,16 +168,16 @@ class CNNModel(nn.Module):
                 kernel_size=self.kernel_size,
                 padding="same",
             )
-            # # This was the best initialization
-            # torch.nn.init.kaiming_normal_(
-            #     convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
-            # )
-            # Try SIREN initializers
-            torch.nn.init.uniform_(
-                convolution_layer.weight,
-                -np.sqrt(6 / in_channels) / self.omega_0,
-                np.sqrt(6 / in_channels) / self.omega_0,
+            # This was the best initialization
+            torch.nn.init.kaiming_normal_(
+                convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
             )
+            # Try SIREN initializers
+            # torch.nn.init.uniform_(
+            #     convolution_layer.weight,
+            #     -np.sqrt(6 / in_channels) / self.omega_0,
+            #     np.sqrt(6 / in_channels) / self.omega_0,
+            # )
 
             torch.nn.init.zeros_(convolution_layer.bias)
             self.conv.append(convolution_layer)
