@@ -319,7 +319,9 @@ class TopologyOptimizer:
                 )
 
             # Early stopping mechanism?
-            if (epoch > minEpochs) & (relGreyElements < 0.035):
+            # This is their criterion for early stopping - what happens if we
+            # lower it?
+            if (epoch > minEpochs) & (relGreyElements < 1e-5):
                 break
 
         # NOTE: Turn off plotting for our pipeline

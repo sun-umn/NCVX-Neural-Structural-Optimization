@@ -456,7 +456,7 @@ def tounn_train_and_outputs(problem, requires_flip):
     numLayers = 5
     numNeuronsPerLyr = 20
     minEpochs = 20
-    maxEpochs = 500
+    maxEpochs = 2000
     useSavedNet = False
 
     # Run the pipeline
@@ -605,7 +605,7 @@ def run_multi_structure_pipeline():
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 1000
+    maxit = 2000
     max_iterations = 200
 
     # Set up the problem names
