@@ -548,33 +548,33 @@ def run_multi_structure_pipeline():
     # Configurations
     configs = {
         'tiny': {
-            'latent_size': 16,
-            'dense_channels': 16,
+            'latent_size': 96,
+            'dense_channels': 32,
             'conv_filters': tuple(features // 6 for features in cnn_features),
         },
         'xsmall': {
-            'latent_size': 32,
+            'latent_size': 96,
             'dense_channels': 32,
             'conv_filters': tuple(features // 5 for features in cnn_features),
         },
         'small': {
-            'latent_size': 64,
+            'latent_size': 96,
             'dense_channels': 32,
             'conv_filters': tuple(features // 4 for features in cnn_features),
         },
         'medium': {
-            'latent_size': 128,
+            'latent_size': 96,
             'dense_channels': 32,
             'conv_filters': tuple(features // 3 for features in cnn_features),
         },
         'large': {
-            'latent_size': 128,
+            'latent_size': 96,
             'dense_channels': 32,
             'conv_filters': tuple(features // 2 for features in cnn_features),
         },
         # x-large has been our original architecture
         'xlarge': {
-            'latent_size': 128,
+            'latent_size': 96,
             'dense_channels': 32,
             'conv_filters': tuple(features // 1 for features in cnn_features),
         },
@@ -610,20 +610,28 @@ def run_multi_structure_pipeline():
 
     # Set up the problem names
     problem_config = [
-        ("mbb_beam_96x32_0.5", True, 1, 50),
-        ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-        ("michell_centered_top_64x128_0.12", True, 1, 50),
-        # ("thin_support_bridge_128x128_0.2", True, 1, 50),
-        # ("l_shape_0.2_128x128_0.3", True, 1, 50),
+        # # Medium Size Problems
+        # ("mbb_beam_96x32_0.5", True, 1, 50),
+        # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+        # ("michell_centered_top_64x128_0.12", True, 1, 50),
+        # Large Size Problems
+        ("mbb_beam_384x128_0.3", True, 1, 50),
+        ("cantilever_beam_full_384x128_0.2", True, 1, 50),
+        ("michell_centered_top_128x256_0.12", True, 1, 50),
     ]
 
     # renaming
     name_mapping = {
+        # Medium Size Problems
         'mbb_beam_96x32_0.5': 'MBB Beam \n $96\\times32; v_f = 0.5$',
         'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n $96\\times32; v_f=0.4$',
         'michell_centered_top_64x128_0.12': 'Michell Top \n $64\\times128; v_f=0.12$',
         'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n $128\\times128; v_f=0.2$',  # noqa
         'l_shape_0.2_128x128_0.3': 'L-Shape 0.2 \n $128\\times128; v_f=0.3$',
+        # Large Size Problems
+        'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
+        'cantilever_beam_full_384x128_0.4': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
+        'michell_centered_top_128x256_0.12': 'Michell Top \n $128\\times256; v_f=0.12$',
     }
 
     # PyGranso function
