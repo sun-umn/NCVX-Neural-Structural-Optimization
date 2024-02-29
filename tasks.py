@@ -630,7 +630,7 @@ def run_multi_structure_pipeline():
         'l_shape_0.2_128x128_0.3': 'L-Shape 0.2 \n $128\\times128; v_f=0.3$',
         # Large Size Problems
         'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
-        'cantilever_beam_full_384x128_0.4': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
+        'cantilever_beam_full_384x128_0.2': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
         'michell_centered_top_128x256_0.12': 'Michell Top \n $128\\times256; v_f=0.12$',
     }
 
