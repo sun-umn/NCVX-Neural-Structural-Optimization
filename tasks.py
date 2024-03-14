@@ -540,7 +540,7 @@ def run_multi_structure_pipeline():
     performance against known benchmarks.
     """
     # Model size
-    model_size = 'tiny'
+    model_size = 'medium'
 
     # CNN parameters
     cnn_features = (256, 128, 64, 32, 16)
