@@ -198,7 +198,7 @@ class CNNModel(nn.Module):
         self.z = get_seeded_random_variable(latent_size, random_seed)
         self.z = torch.mean(self.z, axis=0)
 
-        self.z = nn.Parameter(self.z)
+        # self.z = nn.Parameter(self.z)
 
     def forward(self, x=None):  # noqa
         # Create the model
