@@ -837,11 +837,15 @@ def run_multi_structure_pipeline():
             weight='bold',
         )
 
+    # Save the fig
+    fig.savefig(
+        f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-results.png',  # noqa
+        bbox_inches='tight',
+    )
+
     # Save figure to weights and biases
     wandb.log({'plot': wandb.Image(fig)})
 
-    # Save to weights and biases
-    wandb.log({'plot': wandb.Image(fig)})
     print('Run completed! 🎉')
 
 
