@@ -97,7 +97,7 @@ def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e
     if requires_flip:
         if (
             ("mbb" in problem_name)
-            or ("l_shape" in problem_name)
+            # or ("l_shape" in problem_name)
             or ("cantilever" in problem_name)
         ):
             best_final_design = np.hstack(
