@@ -7,7 +7,6 @@ import warnings
 # third party
 import click
 import matplotlib.pyplot as plt
-import neptune.new as neptune
 import numpy as np
 import pandas as pd
 import torch
@@ -33,6 +32,12 @@ warnings.filterwarnings('ignore')
 # Keep these imports
 # from matplotlib.offsetbox import AnchoredText
 # from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+
+# Define the cli group
+@click.group()
+def cli():  # noqa
+    pass
 
 
 def calculate_binary_constraint(design, mask, epsilon):
@@ -190,195 +195,6 @@ def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=
     }
 
 
-# Run the tasks
-@click.command()
-@click.option("--problem_name", default="mbb_beam", type=click.STRING)
-@click.option("--num_trials", default=50)
-@click.option("--maxit", default=1500)
-@click.option("--requires_flip", is_flag=True, default=False)
-@click.option("--total_frames", default=1)
-@click.option("--resizes", is_flag=True, default=False)
-@click.option("--note", default="original", type=click.STRING)
-def structural_optimization_task(
-    problem_name, num_trials, maxit, requires_flip, total_frames, resizes, note
-):
-    click.echo(problem_name)
-    # Enable the neptune run
-    # TODO: make the api token an environment variable
-    run = neptune.init_run(
-        project="dever120/CNN-Structural-Optimization-Prod",
-        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIzYmIwMTUyNC05YmZmLTQ1NzctOTEyNS1kZTIxYjU5NjY5YjAifQ==",  # noqa
-    )
-
-    # Get the available device
-    device = utils.get_devices()
-    # device = torch.device('cpu')
-
-    # PyGranso Volume Function
-    comb_fn = train.volume_constrained_structural_optimization_function
-
-    # Consider resizes
-    if resizes:
-        cnn_kwargs = dict(resizes=(1, 1, 2, 2, 1))
-    else:
-        cnn_kwargs = None
-    print(f"Resizes = {cnn_kwargs}")
-
-    # Build the problems by name with the correct device
-    PROBLEMS_BY_NAME = problems.build_problems_by_name(device=device)
-    # GOOGLE_PROBLEMS_BY_NAME = google_problems.PROBLEMS_BY_NAME
-
-    # Setup the problem
-    problem = PROBLEMS_BY_NAME.get(problem_name)
-    # google_problem = GOOGLE_PROBLEMS_BY_NAME.get(problem_name)
-
-    if problem.name is None:  # or (google_problem.name is None):
-        raise ValueError(f"{problem_name} is not an elgible structure")
-
-    # Add a tag for each type of problem as well
-    run["sys/tags"].add([problem.name])
-
-    # num trials
-    num_trials = num_trials
-
-    # max iterations
-    maxit = maxit
-
-    # Save the parameters
-    run["parameters"] = {
-        "problem_name": problem.name,
-        "num_trials": num_trials,
-        "maxit": maxit,
-        "cnn_kwargs": cnn_kwargs,
-        "device": device,
-        "note": note,
-    }
-
-    # Run the trials
-    outputs = train.train_pygranso(
-        problem=problem,
-        device=device,
-        pygranso_combined_function=comb_fn,
-        requires_flip=requires_flip,
-        total_frames=total_frames,
-        cnn_kwargs=cnn_kwargs,
-        neptune_logging=run,
-        num_trials=num_trials,
-        maxit=maxit,
-    )
-
-    # Set up the loss dataframe
-    losses_df = pd.DataFrame(outputs["losses"])
-    volumes_df = pd.DataFrame(outputs["volumes"])
-    binary_constraint_df = pd.DataFrame(outputs["binary_constraint"])
-
-    # Get all of the final losses
-    losses = np.min(losses_df.ffill(), axis=0).values
-
-    # Argsort losses - smallest to largest
-    losses_indexes = np.argsort(losses)
-    losses_df = losses_df.iloc[:, losses_indexes]
-    volumes_df = volumes_df.iloc[:, losses_indexes]
-    binary_constraint_df = binary_constraint_df.iloc[:, losses_indexes]
-    final_designs = outputs["designs"][losses_indexes, :, :]
-
-    # Save the best final design
-    best_final_design = final_designs[0, :, :]
-    best_score = np.round(losses_df.ffill().iloc[-1, 0], 2)
-
-    # TODO: Will need a special implmentation for some of the final
-    # designs
-    fig = utils.build_final_design(
-        problem.name,
-        best_final_design,
-        best_score,
-        requires_flip,
-        total_frames=total_frames,
-        figsize=(10, 6),
-    )
-    fig.subplots_adjust(hspace=0)
-    fig.tight_layout()
-    run[f"best_trial-{problem.name}-final-design"].upload(fig)
-
-    # Write a histogram as well
-    fig, ax = plt.subplots(1, 1, figsize=(9, 4))
-    hist_values = pd.Series(best_final_design.flatten())
-    hist_values.hist(bins=50, density=True, color="blue", ax=ax)
-    ax.set_title("$x$ Material Distribution (Binary Constraint)")
-    run[f"best-trial-{problem.name}-final-design-histogram"].upload(fig)
-    plt.close()
-
-    # Create a figure with the volumes and compliance values from
-    # the best seed
-    best_trial_losses = losses_df.iloc[:, 0]
-    best_trial_losses.name = "compliance"
-
-    best_trial_volume_constr = volumes_df.iloc[:, 0]
-    best_trial_volume_constr.name = "volume"
-
-    # Let's build the plot
-    fig, ax1 = plt.subplots(1, 1, figsize=(10, 5))
-
-    # Set up the second axis
-    ax2 = ax1.twinx()
-
-    # Plot the data
-    # Plot the compliance
-    best_trial_losses.plot(color="red", lw=2, marker="*", ax=ax1, label="compliance")
-    ax1.set_ylabel("Compliance")
-
-    # Plot the volume constraint
-    best_trial_volume_constr.plot(
-        color="blue", lw=2, marker="o", ax=ax2, label="volume"
-    )
-    ax2.set_ylabel("Volume / $V_t$")
-
-    # Set xlabel
-    ax1.set_xlabel("Iteration")
-    ax1.set_title("Compliance & Volume @ t")
-    ax1.grid()
-    fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
-
-    run[f"best-trial-{problem.name}-compliance-&-volume"].upload(fig)
-
-    # Close the figure
-    plt.close()
-
-    # Create a plot for binary constraints also
-    best_trial_bc_constr = binary_constraint_df.iloc[:, 0]
-    best_trial_bc_constr.name = "binary constraint"
-
-    # Let's build the plot
-    fig, ax1 = plt.subplots(1, 1, figsize=(10, 5))
-
-    # Set up the second axis
-    ax2 = ax1.twinx()
-
-    # Plot the data
-    # Plot the compliance
-    best_trial_losses.plot(color="red", lw=2, marker="*", ax=ax1, label="compliance")
-    ax1.set_ylabel("Compliance")
-
-    # Plot the volume constraint
-    best_trial_bc_constr.plot(
-        color="blue", lw=2, marker="o", ax=ax2, label="binary constraint"
-    )
-    ax2.set_ylabel("Binary Constraint: $x \in [0, 1]$")  # noqa
-
-    # Set xlabel
-    ax1.set_xlabel("Iteration")
-    ax1.set_title("Compliance & Binary Constraint @ t")
-    ax1.grid()
-    fig.legend(loc="upper right", bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
-
-    run[f"best-trial-{problem.name}-compliance-&-binary-constraint"].upload(fig)
-
-    # Close the figure
-    plt.close()
-
-    run.stop()
-
-
 def train_all(problem, max_iterations, cnn_kwargs=None):
     """
     Function that will compute the MMA and google cnn
@@ -530,6 +346,7 @@ def tounn_train_and_outputs(problem, requires_flip):
     return best_final_design, best_score, binary_constraint, volume_constraint
 
 
+@cli.command('run-multi-structure-pipeline')
 def run_multi_structure_pipeline():
     """
     Task that will build out multiple structures and compare
@@ -745,11 +562,19 @@ def run_multi_structure_pipeline():
     structure_outputs["ax"] = axes
 
     # Create the color map
+    # color_map = {
+    #     0: ('yellow', 'black'),  # Best
+    #     1: ('orange', 'black'),
+    #     2: ('darkviolet', 'white'),
+    #     3: ('navy', 'white'),  # Worst
+    # }
+
+    # Minnesota color map
     color_map = {
-        0: ('yellow', 'black'),  # Best
+        0: ('gold', 'black'),  # Best
         1: ('orange', 'black'),
-        2: ('darkviolet', 'white'),
-        3: ('navy', 'white'),  # Worst
+        2: ('maroon', 'white'),
+        3: ('silver', 'black'),  # Worst
     }
 
     # Get the best to worst
@@ -845,6 +670,164 @@ def run_multi_structure_pipeline():
     print('Run completed! 🎉')
 
 
+@cli.command('run-multi-structure-pygranso-pipeline')
+def run_multi_structure_pygranso_pipeline():
+    """
+    Task that will build out multiple structures and compare
+    performance against known benchmarks.
+    """
+    # Model size
+    model_size = 'medium'
+
+    # CNN parameters
+    cnn_features = (256, 128, 64, 32, 16)
+
+    # Configurations
+    configs = {
+        'tiny': {
+            'latent_size': 96,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 6 for features in cnn_features),
+        },
+        'xsmall': {
+            'latent_size': 96,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 5 for features in cnn_features),
+        },
+        'small': {
+            'latent_size': 96,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 4 for features in cnn_features),
+        },
+        'medium': {
+            'latent_size': 96,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 3 for features in cnn_features),
+        },
+        'large': {
+            'latent_size': 96,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 2 for features in cnn_features),
+        },
+        # x-large has been our original architecture
+        'xlarge': {
+            'latent_size': 96,
+            'dense_channels': 32,
+            'conv_filters': tuple(features // 1 for features in cnn_features),
+        },
+    }
+
+    # CNN kwargs
+    cnn_kwargs = configs[model_size]
+
+    # Set seed
+    models.set_seed(0)  # Model seed is set here but results are changing?
+
+    # For testing we will run two experimentation trackers
+    API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
+    PROJECT_NAME = 'Topology-Optimization'
+
+    # Enable wandb
+    wandb.login(key=API_KEY)
+
+    # Initalize wandb
+    # TODO: Save training and validation curves per fold
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project=PROJECT_NAME,
+        tags=['topology-optimization-task', model_size],
+        config=cnn_kwargs,
+    )
+
+    # Get the device to be used
+    device = utils.get_devices()
+    num_trials = 4
+    maxit = 1
+
+    # Set up the problem names
+    problem_config = [
+        # # Medium Size Problems
+        ("mbb_beam_96x32_0.5", True, 1, 50),
+        ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+        ("michell_centered_top_64x128_0.12", True, 1, 50),
+        ("l_shape_0.4_128x128_0.3", True, 1, 50),
+    ]
+
+    # renaming
+    name_mapping = {
+        # Medium Size Problems
+        'mbb_beam_96x32_0.5': 'MBB Beam \n $96\\times32; v_f = 0.5$',
+        'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n $96\\times32; v_f=0.4$',
+        'michell_centered_top_64x128_0.12': 'Michell Top \n $64\\times128; v_f=0.12$',
+        'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n $128\\times128; v_f=0.2$',  # noqa
+        'l_shape_0.4_128x128_0.3': 'L-Shape 0.4 \n $128\\times128; v_f=0.3$',
+    }
+
+    # PyGranso function
+    comb_fn = train.volume_constrained_structural_optimization_function
+
+    # Build the problems for pygranso and google
+    PYGRANSO_PROBLEMS_BY_NAME = problems.build_problems_by_name(device=device)
+
+    # For running this we only want one trial
+    # with maximum iterations 1000
+    structure_outputs = []
+    for problem_name, requires_flip, total_frames, cax_size in problem_config:
+        print(f"Building structure: {problem_name}")
+        problem = PYGRANSO_PROBLEMS_BY_NAME.get(problem_name)
+
+        # Build the structure with pygranso
+        outputs = train.train_pygranso(
+            problem=problem,
+            device=device,
+            pygranso_combined_function=comb_fn,
+            requires_flip=requires_flip,
+            total_frames=total_frames,
+            cnn_kwargs=cnn_kwargs,
+            neptune_logging=None,
+            num_trials=num_trials,
+            maxit=maxit,
+        )
+        structure_outputs.append(outputs)
+
+    # Plot the different seeds
+    fig, axes = plt.subplots(len(problem_config), num_trials, figsize=(15, 8))
+    fig.subplots_adjust(wspace=0, hspace=0)
+
+    # Get the updated structure names
+    structures = list(name_mapping.values())
+
+    # iterate over the structures and plot different seeds
+    for index, structure_name in enumerate(structures):
+        # Get the designs
+        designs = structure_outputs[index]['designs']
+
+        # Get the losses
+        losses = structure_outputs[index]['losses']
+        losses = pd.DataFrame(losses).ffill()
+        losses = losses.iloc[-1, :]
+        print(f'All losses {losses}')
+        print('\n')
+        print(f'Avg loss for {structure_name}; {losses.mean()}')
+
+        for trial in range(num_trials):
+            ax = axes[index, trial]
+            design = designs[index, :, :]
+            design = np.hstack((design[:, ::-1], design))
+            ax.imshow(design, cmap='Greys', aspect='auto')
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+            # Add the ylabel (structure name)
+            if trial == 0:
+                ax.set_ylabel(f'{structure_name}', fontsize=14, weight='bold')
+
+    # Also, save fig
+    fig.savefig(
+        f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-pygranso-seed-results.png',  # noqa
+        bbox_inches='tight',
+    )
+
+
 if __name__ == "__main__":
-    # structural_optimization_task()
-    run_multi_structure_pipeline()
+    cli()
