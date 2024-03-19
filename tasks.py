@@ -576,8 +576,8 @@ def run_multi_structure_pipeline():
     # Minnesota color map
     color_map = {
         0: ('gold', 'black'),  # Best
-        1: ('orange', 'black'),
-        2: ('maroon', 'white'),
+        1: ('darkorange', 'black'),
+        2: ('maroon', 'black'),
         3: ('silver', 'black'),  # Worst
     }
 
@@ -657,7 +657,7 @@ def run_multi_structure_pipeline():
             text,
             ha='center',
             va='center',
-            fontsize=8,
+            fontsize=9,
             color=fontcolor,
             weight='bold',
         )
