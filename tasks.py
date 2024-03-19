@@ -760,9 +760,9 @@ def run_multi_structure_pygranso_pipeline():
     # renaming
     name_mapping = {
         # Medium Size Problems
-        'mbb_beam_96x32_0.5': 'MBB \n Beam',
+        'mbb_beam_96x32_0.5': 'MBB Beam',
         'cantilever_beam_full_96x32_0.4': 'Cantilever \n Beam',
-        'michell_centered_top_64x128_0.12': 'Michell \n Top',
+        'michell_centered_top_64x128_0.12': 'Michell Top',
         'l_shape_0.4_128x128_0.3': 'L-Shape 0.4',
     }
 
