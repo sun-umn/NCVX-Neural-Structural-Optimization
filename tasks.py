@@ -815,7 +815,7 @@ def run_multi_structure_pygranso_pipeline():
 
         for trial in range(num_trials):
             ax = axes[index, trial]
-            design = designs[index, :, :]
+            design = designs[trial, :, :]
             design = np.hstack((design[:, ::-1], design))
             ax.imshow(design, cmap='Greys', aspect='auto')
             ax.set_xticks([])
