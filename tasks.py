@@ -746,7 +746,7 @@ def run_multi_structure_pygranso_pipeline():
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 4
-    maxit = 1
+    maxit = 1500
 
     # Set up the problem names
     problem_config = [
