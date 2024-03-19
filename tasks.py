@@ -739,7 +739,7 @@ def run_multi_structure_pygranso_pipeline():
     wandb.init(
         # set the wandb project where this run will be logged
         project=PROJECT_NAME,
-        tags=['topology-optimization-task', model_size],
+        tags=['topology-optimization-pg-seed-task', model_size],
         config=cnn_kwargs,
     )
 
