@@ -760,10 +760,10 @@ def run_multi_structure_pygranso_pipeline():
     # renaming
     name_mapping = {
         # Medium Size Problems
-        'mbb_beam_96x32_0.5': 'MBB Beam \n $96\\times32; v_f = 0.5$',
-        'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n $96\\times32; v_f=0.4$',
-        'michell_centered_top_64x128_0.12': 'Michell Top \n $64\\times128; v_f=0.12$',
-        'l_shape_0.4_128x128_0.3': 'L-Shape 0.4 \n $128\\times128; v_f=0.3$',
+        'mbb_beam_96x32_0.5': 'MBB \n Beam',
+        'cantilever_beam_full_96x32_0.4': 'Cantilever \n Beam',
+        'michell_centered_top_64x128_0.12': 'Michell \n Top',
+        'l_shape_0.4_128x128_0.3': 'L-Shape 0.4',
     }
 
     # PyGranso function
@@ -830,6 +830,9 @@ def run_multi_structure_pygranso_pipeline():
         f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-pygranso-seed-results.png',  # noqa
         bbox_inches='tight',
     )
+
+    # Save figure to weights and biases
+    wandb.log({'plot': wandb.Image(fig)})
 
 
 if __name__ == "__main__":
