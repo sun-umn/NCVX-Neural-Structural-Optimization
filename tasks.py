@@ -746,7 +746,7 @@ def run_multi_structure_pygranso_pipeline():
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 4
-    maxit = 1500
+    maxit = 1
 
     # Set up the problem names
     problem_config = [
@@ -817,13 +817,15 @@ def run_multi_structure_pygranso_pipeline():
             ax = axes[index, trial]
             design = designs[trial, :, :]
             design = np.hstack((design[:, ::-1], design))
-            ax.imshow(design, cmap='Greys', aspect='auto')
+            ax.imshow(design, cmap='Greys', aspect='auto', vmin=0, vmax=1)
             ax.set_xticks([])
             ax.set_yticks([])
 
             # Add the ylabel (structure name)
             if trial == 0:
                 ax.set_ylabel(f'{structure_name}', fontsize=14, weight='bold')
+
+    fig.colorbar(design, ax=axes.ravel().tolist())
 
     # Also, save fig
     fig.savefig(
