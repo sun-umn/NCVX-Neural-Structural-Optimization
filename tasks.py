@@ -575,10 +575,10 @@ def run_multi_structure_pipeline():
 
     # Minnesota color map
     color_map = {
-        0: ('green', 'black'),  # Best
-        1: ('yellow', 'black'),
-        2: ('blue', 'black'),
-        3: ('red', 'black'),  # Worst
+        0: ('navy', 'white'),  # Best
+        1: ('green', 'black'),
+        2: ('yellow', 'black'),
+        3: ('maroon', 'white'),  # Worst
     }
 
     # Get the best to worst
@@ -745,8 +745,8 @@ def run_multi_structure_pygranso_pipeline():
 
     # Get the device to be used
     device = utils.get_devices()
-    num_trials = 4
-    maxit = 1
+    num_trials = 5
+    maxit = 1500
 
     # Set up the problem names
     problem_config = [
@@ -811,13 +811,13 @@ def run_multi_structure_pygranso_pipeline():
         losses = losses.iloc[-1, :]
         print(f'All losses {losses}')
         print('\n')
-        print(f'Avg loss for {structure_name}; {losses.mean()}')
+        print(f'Median loss for {structure_name}; {np.median(losses)}')
 
         for trial in range(num_trials):
             ax = axes[index, trial]
             design = designs[trial, :, :]
             design = np.hstack((design[:, ::-1], design))
-            ax.imshow(design, cmap='jet', aspect='auto', vmin=0, vmax=1)
+            im = ax.imshow(design, cmap='jet', aspect='auto', vmin=0, vmax=1)
             ax.set_xticks([])
             ax.set_yticks([])
 
@@ -825,9 +825,7 @@ def run_multi_structure_pygranso_pipeline():
             if trial == 0:
                 ax.set_ylabel(f'{structure_name}', fontsize=14, weight='bold')
 
-    fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    fig.colorbar(design, cax=cbar_ax)
+    fig.colorbar(im, ax=axes.ravel().tolist())
 
     # Also, save fig
     fig.savefig(
