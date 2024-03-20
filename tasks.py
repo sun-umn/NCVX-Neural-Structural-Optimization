@@ -428,14 +428,15 @@ def run_multi_structure_pipeline():
     # Set up the problem names
     problem_config = [
         # # Medium Size Problems
-        ("mbb_beam_96x32_0.5", True, 1, 50),
-        ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-        ("michell_centered_top_64x128_0.12", True, 1, 50),
-        ("l_shape_0.4_128x128_0.3", True, 1, 50),
-        # # Large Size Problems
-        # ("mbb_beam_384x128_0.3", True, 1, 50),
-        # ("cantilever_beam_full_384x128_0.2", True, 1, 50),
-        # ("michell_centered_top_128x256_0.12", True, 1, 50),
+        # ("mbb_beam_96x32_0.5", True, 1, 50),
+        # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+        # ("michell_centered_top_64x128_0.12", True, 1, 50),
+        # ("l_shape_0.4_128x128_0.3", True, 1, 50),
+        # Large Size Problems
+        ("mbb_beam_384x128_0.3", True, 1, 50),
+        ("cantilever_beam_full_384x128_0.2", True, 1, 50),
+        ("michell_centered_top_128x256_0.12", True, 1, 50),
+        ("l_shape_0.4_256x256_0.2", True, 1, 50),
     ]
 
     # renaming
@@ -450,6 +451,7 @@ def run_multi_structure_pipeline():
         'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
         'cantilever_beam_full_384x128_0.2': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
         'michell_centered_top_128x256_0.12': 'Michell Top \n $128\\times256; v_f=0.12$',
+        'l_shape_0.4_256x256_0.2': 'L-Shape 0.4 \n $256\\times256; v_f=0.2$',
     }
 
     # PyGranso function
