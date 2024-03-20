@@ -557,7 +557,7 @@ def run_multi_structure_pipeline():
 
     # Create the output plots
     fig, axes = plt.subplots(
-        4, len(problem_config), figsize=(13, 6), constrained_layout=True
+        4, len(problem_config), figsize=(15, 7), constrained_layout=True
     )
     axes = axes.T.flatten()
     fig.subplots_adjust(wspace=0, hspace=0)
@@ -575,10 +575,10 @@ def run_multi_structure_pipeline():
 
     # Minnesota color map
     color_map = {
-        0: ('gold', 'black'),  # Best
-        1: ('darkorange', 'black'),
-        2: ('maroon', 'black'),
-        3: ('silver', 'black'),  # Worst
+        0: ('green', 'black'),  # Best
+        1: ('yellow', 'black'),
+        2: ('blue', 'black'),
+        3: ('red', 'black'),  # Worst
     }
 
     # Get the best to worst
@@ -794,7 +794,7 @@ def run_multi_structure_pygranso_pipeline():
         structure_outputs.append(outputs)
 
     # Plot the different seeds
-    fig, axes = plt.subplots(len(problem_config), num_trials, figsize=(15, 8))
+    fig, axes = plt.subplots(len(problem_config), num_trials, figsize=(15, 7))
     fig.subplots_adjust(wspace=0, hspace=0)
 
     # Get the updated structure names
@@ -825,7 +825,9 @@ def run_multi_structure_pygranso_pipeline():
             if trial == 0:
                 ax.set_ylabel(f'{structure_name}', fontsize=14, weight='bold')
 
-    fig.colorbar(design, ax=axes.ravel().tolist())
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    fig.colorbar(design, cax=cbar_ax)
 
     # Also, save fig
     fig.savefig(
