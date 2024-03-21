@@ -351,13 +351,13 @@ def tounn_train_and_outputs(problem, requires_flip):
 
 
 @cli.command('run-multi-structure-pipeline')
-def run_multi_structure_pipeline():
+@click.option('--model_size', default='medium')
+@click.option('--structure_size', default='medium')
+def run_multi_structure_pipeline(model_size, structure_size):
     """
     Task that will build out multiple structures and compare
     performance against known benchmarks.
     """
-    # Model size
-    model_size = 'medium'
 
     # CNN parameters
     cnn_features = (256, 128, 64, 32, 16)
@@ -415,29 +415,33 @@ def run_multi_structure_pipeline():
     wandb.init(
         # set the wandb project where this run will be logged
         project=PROJECT_NAME,
-        tags=['topology-optimization-task', model_size],
+        tags=['topology-optimization-task', model_size, structure_size],
         config=cnn_kwargs,
     )
 
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 2000
+    maxit = 5000
     max_iterations = 200
 
     # Set up the problem names
-    problem_config = [
-        # # Medium Size Problems
-        # ("mbb_beam_96x32_0.5", True, 1, 50),
-        # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-        # ("michell_centered_top_64x128_0.12", True, 1, 50),
-        # ("l_shape_0.4_128x128_0.3", True, 1, 50),
-        # Large Size Problems
-        ("l_shape_0.4_192x192_0.25", True, 1, 50),
-        ("mbb_beam_384x128_0.3", True, 1, 50),
-        ("cantilever_beam_full_384x128_0.2", True, 1, 50),
-        ("michell_centered_top_128x256_0.12", True, 1, 50),
-    ]
+    if structure_size == 'medium':
+        problem_config = [
+            # Medium Size Problems
+            ("mbb_beam_96x32_0.5", True, 1, 50),
+            ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+            ("michell_centered_top_64x128_0.12", True, 1, 50),
+            ("l_shape_0.4_128x128_0.3", True, 1, 50),
+        ]
+    elif structure_size == 'large':
+        problem_config = [
+            # Large Size Problems
+            ("l_shape_0.4_192x192_0.25", True, 1, 50),
+            ("mbb_beam_384x128_0.3", True, 1, 50),
+            ("cantilever_beam_full_384x128_0.2", True, 1, 50),
+            ("michell_centered_top_128x256_0.12", True, 1, 50),
+        ]
 
     # renaming
     name_mapping = {
@@ -559,7 +563,7 @@ def run_multi_structure_pipeline():
 
     # Create the output plots
     fig, axes = plt.subplots(
-        4, len(problem_config), figsize=(15, 7), constrained_layout=True
+        4, len(problem_config), figsize=(15, 6), constrained_layout=True
     )
     axes = axes.T.flatten()
     fig.subplots_adjust(wspace=0, hspace=0)
@@ -762,10 +766,10 @@ def run_multi_structure_pygranso_pipeline():
     # renaming
     name_mapping = {
         # Medium Size Problems
-        'mbb_beam_96x32_0.5': 'MBB Beam',
+        'mbb_beam_96x32_0.5': 'MBB \n Beam',
         'cantilever_beam_full_96x32_0.4': 'Cantilever \n Beam',
-        'michell_centered_top_64x128_0.12': 'Michell Top',
-        'l_shape_0.4_128x128_0.3': 'L-Shape 0.4',
+        'michell_centered_top_64x128_0.12': 'Michell \n Top',
+        'l_shape_0.4_128x128_0.3': 'L-Shape \n 0.4',
     }
 
     # PyGranso function
@@ -796,7 +800,7 @@ def run_multi_structure_pygranso_pipeline():
         structure_outputs.append(outputs)
 
     # Plot the different seeds
-    fig, axes = plt.subplots(len(problem_config), num_trials, figsize=(15, 7))
+    fig, axes = plt.subplots(len(problem_config), num_trials, figsize=(15, 6))
     fig.subplots_adjust(wspace=0, hspace=0)
 
     # Get the updated structure names
