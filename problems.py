@@ -666,6 +666,7 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
         "l_shape_0.4": [
             l_shape(64, 64, aspect=0.4, density=0.4, device=device),
             l_shape(128, 128, aspect=0.4, density=0.3, device=device),
+            l_shape(192, 192, aspect=0.4, density=0.25, device=device),
             l_shape(256, 256, aspect=0.4, density=0.2, device=device),
         ],
         # "crane": [
