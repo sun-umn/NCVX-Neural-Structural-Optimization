@@ -670,7 +670,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
 
     # Save the fig
     fig.savefig(
-        f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-results.png',  # noqa
+        f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-{structure_size}results.png',  # noqa
         bbox_inches='tight',
     )
 
