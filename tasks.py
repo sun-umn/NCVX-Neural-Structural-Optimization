@@ -366,33 +366,33 @@ def run_multi_structure_pipeline(model_size, structure_size):
     configs = {
         'tiny': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 16,
             'conv_filters': tuple(features // 6 for features in cnn_features),
         },
         'xsmall': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 16,
             'conv_filters': tuple(features // 5 for features in cnn_features),
         },
         'small': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 16,
             'conv_filters': tuple(features // 4 for features in cnn_features),
         },
         'medium': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 16,
             'conv_filters': tuple(features // 3 for features in cnn_features),
         },
         'large': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 16,
             'conv_filters': tuple(features // 2 for features in cnn_features),
         },
         # x-large has been our original architecture
         'xlarge': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 16,
             'conv_filters': tuple(features // 1 for features in cnn_features),
         },
     }
