@@ -127,7 +127,7 @@ class CNNModel(nn.Module):
         self.offset_scale = offset_scale
 
         # Create the filters
-        filters = dense_channels * self.h * self.w
+        filters = dense_channels * (self.h // 2) * (self.w // 2)
 
         # Create the u_matrix vector
         if train_u_matrix:

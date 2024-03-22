@@ -455,7 +455,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
         'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
         'cantilever_beam_full_384x128_0.2': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
         'michell_centered_top_128x256_0.12': 'Michell Top \n $128\\times256; v_f=0.12$',
-        'l_shape_0.4_192x192_0.2': 'L-Shape 0.4 \n $192\\times192; v_f=0.25$',
+        'l_shape_0.4_192x192_0.25': 'L-Shape 0.4 \n $192\\times192; v_f=0.25$',
     }
 
     # PyGranso function
