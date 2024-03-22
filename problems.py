@@ -101,6 +101,45 @@ def mbb_beam(
     return Problem(normals, forces, density, epsilon)
 
 
+def mbb_beam_with_cirular_ndr(
+    width=60,
+    height=20,
+    density=0.5,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
+    """Textbook beam example."""
+    normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    normals[-1, -1, Y] = 1
+    normals[0, :, X] = 1
+
+    forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
+    forces[0, 0, Y] = -1
+
+    x_center = width // 4
+    y_center = height // 2
+    radius = y_center // 2
+
+    # Initialize the grid of zeros
+    mask = np.ones((height, width))
+
+    # Iterate over each point in the grid
+    for y in range(height):
+        for x in range(width):
+            # Calculate the distance from the center
+            distance = np.sqrt((x - x_center) ** 2 + (y - y_center) ** 2)
+
+            # If the distance is within the radius, set the value to 1
+            if distance <= radius:
+                mask[y, x] = 0
+
+    mask = torch.tensor(mask)
+    mask = mask.to(device=device, dtype=dtype)
+
+    return Problem(normals, forces, density, epsilon, mask)
+
+
 def cantilever_beam_full(
     width=60,
     height=60,
@@ -615,6 +654,13 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             mbb_beam(384, 128, density=0.3, device=device),
             mbb_beam(192, 32, density=0.5, device=device),
             mbb_beam(384, 64, density=0.4, device=device),
+        ],
+        "mbb_beam_circular_ndr": [
+            mbb_beam_with_cirular_ndr(96, 32, density=0.5, device=device),
+            mbb_beam_with_cirular_ndr(192, 64, density=0.4, device=device),
+            mbb_beam_with_cirular_ndr(384, 128, density=0.3, device=device),
+            mbb_beam_with_cirular_ndr(192, 32, density=0.5, device=device),
+            mbb_beam_with_cirular_ndr(384, 64, density=0.4, device=device),
         ],
         "cantilever_beam_full": [
             cantilever_beam_full(96, 32, density=0.4, device=device),

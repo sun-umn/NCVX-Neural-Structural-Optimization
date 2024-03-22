@@ -427,12 +427,16 @@ def run_multi_structure_pipeline(model_size, structure_size):
 
     # Set up the problem names
     if structure_size == 'medium':
+        # problem_config = [
+        #     # Medium Size Problems
+        #     ("mbb_beam_96x32_0.5", True, 1, 50),
+        #     ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+        #     ("michell_centered_top_64x128_0.12", True, 1, 50),
+        #     ("l_shape_0.4_128x128_0.3", True, 1, 50),
+        # ]
         problem_config = [
             # Medium Size Problems
-            ("mbb_beam_96x32_0.5", True, 1, 50),
-            ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-            ("michell_centered_top_64x128_0.12", True, 1, 50),
-            ("l_shape_0.4_128x128_0.3", True, 1, 50),
+            ("mbb_beam_circular_ndr_96x32_0.5", True, 1, 50),
         ]
     elif structure_size == 'large':
         problem_config = [
