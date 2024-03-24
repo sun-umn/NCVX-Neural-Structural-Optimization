@@ -366,33 +366,33 @@ def run_multi_structure_pipeline(model_size, structure_size):
     configs = {
         'tiny': {
             'latent_size': 96,
-            'dense_channels': 16,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 6 for features in cnn_features),
         },
         'xsmall': {
             'latent_size': 96,
-            'dense_channels': 16,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 5 for features in cnn_features),
         },
         'small': {
             'latent_size': 96,
-            'dense_channels': 16,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 4 for features in cnn_features),
         },
         'medium': {
             'latent_size': 96,
-            'dense_channels': 16,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 3 for features in cnn_features),
         },
         'large': {
             'latent_size': 96,
-            'dense_channels': 16,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 2 for features in cnn_features),
         },
         # x-large has been our original architecture
         'xlarge': {
             'latent_size': 96,
-            'dense_channels': 16,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 1 for features in cnn_features),
         },
     }
@@ -415,7 +415,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
     wandb.init(
         # set the wandb project where this run will be logged
         project=PROJECT_NAME,
-        tags=['topology-optimization-task', model_size, structure_size],
+        tags=['topology-optimization-task', model_size, f'{structure_size}-structures'],
         config=cnn_kwargs,
     )
 
@@ -427,17 +427,17 @@ def run_multi_structure_pipeline(model_size, structure_size):
 
     # Set up the problem names
     if structure_size == 'medium':
-        # problem_config = [
-        #     # Medium Size Problems
-        #     ("mbb_beam_96x32_0.5", True, 1, 50),
-        #     ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-        #     ("michell_centered_top_64x128_0.12", True, 1, 50),
-        #     ("l_shape_0.4_128x128_0.3", True, 1, 50),
-        # ]
         problem_config = [
             # Medium Size Problems
-            ("mbb_beam_circular_ndr_96x32_0.5", True, 1, 50),
+            ("mbb_beam_96x32_0.5", True, 1, 50),
+            ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+            ("michell_centered_top_64x128_0.12", True, 1, 50),
+            ("l_shape_0.4_128x128_0.3", True, 1, 50),
         ]
+        # problem_config = [
+        #     # Medium Size Problems
+        #     ("mbb_beam_circular_ndr_96x32_0.5", True, 1, 50),
+        # ]
     elif structure_size == 'large':
         problem_config = [
             # Large Size Problems
