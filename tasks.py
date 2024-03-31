@@ -351,13 +351,13 @@ def tounn_train_and_outputs(problem, requires_flip):
 
 
 @cli.command('run-multi-structure-pipeline')
-def run_multi_structure_pipeline():
+@click.option('--model_size', default='medium')
+@click.option('--structure_size', default='medium')
+def run_multi_structure_pipeline(model_size, structure_size):
     """
     Task that will build out multiple structures and compare
     performance against known benchmarks.
     """
-    # Model size
-    model_size = 'medium'
 
     # CNN parameters
     cnn_features = (256, 128, 64, 32, 16)
@@ -366,33 +366,33 @@ def run_multi_structure_pipeline():
     configs = {
         'tiny': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 6 for features in cnn_features),
         },
         'xsmall': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 5 for features in cnn_features),
         },
         'small': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 4 for features in cnn_features),
         },
         'medium': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 3 for features in cnn_features),
         },
         'large': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 2 for features in cnn_features),
         },
         # x-large has been our original architecture
         'xlarge': {
             'latent_size': 96,
-            'dense_channels': 32,
+            'dense_channels': 24,
             'conv_filters': tuple(features // 1 for features in cnn_features),
         },
     }
@@ -415,29 +415,38 @@ def run_multi_structure_pipeline():
     wandb.init(
         # set the wandb project where this run will be logged
         project=PROJECT_NAME,
-        tags=['topology-optimization-task', model_size],
+        tags=['topology-optimization-task', model_size, f'{structure_size}-structures'],
         config=cnn_kwargs,
     )
 
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 2000
+    maxit = 5000
     max_iterations = 200
 
     # Set up the problem names
-    problem_config = [
-        # # Medium Size Problems
-        # ("mbb_beam_96x32_0.5", True, 1, 50),
-        # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-        # ("michell_centered_top_64x128_0.12", True, 1, 50),
-        # ("l_shape_0.4_128x128_0.3", True, 1, 50),
-        ("cantilever_beam_two_point_128x96_0.3", True, 1, 50)
-        # # Large Size Problems
-        # ("mbb_beam_384x128_0.3", True, 1, 50),
-        # ("cantilever_beam_full_384x128_0.2", True, 1, 50),
-        # ("michell_centered_top_128x256_0.12", True, 1, 50),
-    ]
+    if structure_size == 'medium':
+        problem_config = [
+            # # Medium Size Problems
+            # ("mbb_beam_96x32_0.5", True, 1, 50),
+            # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+            # ("michell_centered_top_64x128_0.12", True, 1, 50),
+            # ("l_shape_0.4_128x128_0.3", True, 1, 50),
+            ("cantilever_beam_two_point_128x96_0.3", True, 1, 50)
+        ]
+        # problem_config = [
+        #     # Medium Size Problems
+        #     ("mbb_beam_circular_ndr_96x32_0.5", True, 1, 50),
+        # ]
+    elif structure_size == 'large':
+        problem_config = [
+            # Large Size Problems
+            ("l_shape_0.4_192x192_0.25", True, 1, 50),
+            ("mbb_beam_384x128_0.3", True, 1, 50),
+            ("cantilever_beam_full_384x128_0.2", True, 1, 50),
+            ("michell_centered_top_128x256_0.12", True, 1, 50),
+        ]
 
     # renaming
     name_mapping = {
@@ -452,6 +461,7 @@ def run_multi_structure_pipeline():
         'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
         'cantilever_beam_full_384x128_0.2': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
         'michell_centered_top_128x256_0.12': 'Michell Top \n $128\\times256; v_f=0.12$',
+        'l_shape_0.4_192x192_0.25': 'L-Shape 0.4 \n $192\\times192; v_f=0.25$',
     }
 
     # PyGranso function
@@ -569,10 +579,10 @@ def run_multi_structure_pipeline():
 
     # Create the color map
     color_map = {
-        0: ('gold', 'black'),  # Best
-        1: ('darkorange', 'black'),
-        2: ('maroon', 'black'),
-        3: ('silver', 'black'),  # Worst
+        0: ('yellow', 'black'),  # Best
+        1: ('orange', 'black'),
+        2: ('maroon', 'white'),
+        3: ('navy', 'white'),  # Worst
     }
 
     # Get the best to worst
@@ -651,14 +661,14 @@ def run_multi_structure_pipeline():
             text,
             ha='center',
             va='center',
-            fontsize=9,
+            fontsize=10,
             color=fontcolor,
             weight='bold',
         )
 
     # Save the fig
     fig.savefig(
-        f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-results.png',  # noqa
+        f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-{structure_size}results.png',  # noqa
         bbox_inches='tight',
     )
 
@@ -739,7 +749,7 @@ def run_multi_structure_pygranso_pipeline():
 
     # Get the device to be used
     device = utils.get_devices()
-    num_trials = 4
+    num_trials = 5
     maxit = 1500
 
     # Set up the problem names
@@ -754,10 +764,10 @@ def run_multi_structure_pygranso_pipeline():
     # renaming
     name_mapping = {
         # Medium Size Problems
-        'mbb_beam_96x32_0.5': 'MBB Beam',
+        'mbb_beam_96x32_0.5': 'MBB \n Beam',
         'cantilever_beam_full_96x32_0.4': 'Cantilever \n Beam',
-        'michell_centered_top_64x128_0.12': 'Michell Top',
-        'l_shape_0.4_128x128_0.3': 'L-Shape 0.4',
+        'michell_centered_top_64x128_0.12': 'Michell \n Top',
+        'l_shape_0.4_128x128_0.3': 'L-Shape \n 0.4',
     }
 
     # PyGranso function
@@ -788,7 +798,7 @@ def run_multi_structure_pygranso_pipeline():
         structure_outputs.append(outputs)
 
     # Plot the different seeds
-    fig, axes = plt.subplots(len(problem_config), num_trials, figsize=(15, 8))
+    fig, axes = plt.subplots(len(problem_config), num_trials, figsize=(15, 6))
     fig.subplots_adjust(wspace=0, hspace=0)
 
     # Get the updated structure names
@@ -805,19 +815,21 @@ def run_multi_structure_pygranso_pipeline():
         losses = losses.iloc[-1, :]
         print(f'All losses {losses}')
         print('\n')
-        print(f'Avg loss for {structure_name}; {losses.mean()}')
+        print(f'Median loss for {structure_name}; {np.median(losses)}')
 
         for trial in range(num_trials):
             ax = axes[index, trial]
             design = designs[trial, :, :]
             design = np.hstack((design[:, ::-1], design))
-            ax.imshow(design, cmap='Greys', aspect='auto')
+            im = ax.imshow(design, cmap='jet', aspect='auto', vmin=0, vmax=1)
             ax.set_xticks([])
             ax.set_yticks([])
 
             # Add the ylabel (structure name)
             if trial == 0:
                 ax.set_ylabel(f'{structure_name}', fontsize=14, weight='bold')
+
+    fig.colorbar(im, ax=axes.ravel().tolist())
 
     # Also, save fig
     fig.savefig(
