@@ -45,5 +45,6 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
         "filter_width": 2,
         "epsilon": problem.epsilon,
         'ndof': len(alldofs),
+        'tounn_mask': problem.tounn_mask,
     }
     return params
