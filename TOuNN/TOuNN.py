@@ -177,14 +177,14 @@ class TopologyOptimizer:
                         and (xy[ctr, 1] > nonDesignRegion['Rect']['y>'])
                     ):
                         # nonDesignIdx.append(ctr);
-                        nonDesignIdx[ctr] = 1
+                        nonDesignIdx[ctr] = 0
                 if nonDesignRegion['Circ'] is not None:
                     if (
                         (xy[ctr, 0] - nonDesignRegion['Circ']['center'][0]) ** 2
                         + (xy[ctr, 1] - nonDesignRegion['Circ']['center'][1]) ** 2
                     ) <= nonDesignRegion['Circ']['rad'] ** 2:
                         # nonDesignIdx.append(ctr);
-                        nonDesignIdx[ctr] = 1
+                        nonDesignIdx[ctr] = 0
                 if nonDesignRegion['Annular'] is not None:
                     locn = (
                         xy[ctr, 0] - nonDesignRegion['Annular']['center'][0]
@@ -193,7 +193,7 @@ class TopologyOptimizer:
                         locn > nonDesignRegion['Annular']['rad_in'] ** 2
                     ):
                         # nonDesignIdx.append(ctr);
-                        nonDesignIdx[ctr] = 1
+                        nonDesignIdx[ctr] = 0
                 ctr += 1
         xy = torch.tensor(xy, requires_grad=True).float().view(-1, 2).to(device)
         return xy, nonDesignIdx

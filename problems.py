@@ -17,7 +17,7 @@
 """A suite of topology optimization problems."""
 # third party
 import dataclasses
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 import skimage
@@ -54,6 +54,7 @@ class Problem:
     density: float  # noqa
     epsilon: float  # noqa
     mask: Union[torch.Tensor, float] = 1  # noqa
+    tounn_mask: Union[None, Dict[str, int]] = None
     name: Optional[str] = None  # noqa
     width: int = dataclasses.field(init=False)  # noqa
     height: int = dataclasses.field(init=False)  # noqa
@@ -310,7 +311,15 @@ def l_shape(
     mask = torch.ones((width, height)).to(device=device, dtype=dtype)
     mask[round(height * aspect) :, : round(width * (1 - aspect))] = 0  # noqa
 
-    return Problem(normals, forces, density, epsilon, mask.T)
+    # For TOuNN
+    min_x = round(height * aspect)
+    max_x = height
+    min_y = 0
+    max_y = round(width * (1 - aspect))
+
+    tounn_mask = {'x>': min_x, 'x<': max_x, 'y>': min_y, 'y<': max_y}
+
+    return Problem(normals, forces, density, epsilon, mask.T, tounn_mask)
 
 
 def crane(
