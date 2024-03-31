@@ -428,10 +428,11 @@ def run_multi_structure_pipeline():
     # Set up the problem names
     problem_config = [
         # # Medium Size Problems
-        ("mbb_beam_96x32_0.5", True, 1, 50),
-        ("cantilever_beam_full_96x32_0.4", True, 1, 50),
-        ("michell_centered_top_64x128_0.12", True, 1, 50),
-        ("l_shape_0.4_128x128_0.3", True, 1, 50),
+        # ("mbb_beam_96x32_0.5", True, 1, 50),
+        # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
+        # ("michell_centered_top_64x128_0.12", True, 1, 50),
+        # ("l_shape_0.4_128x128_0.3", True, 1, 50),
+        ("cantilever_beam_two_point_128x96_0.3", True, 1, 50)
         # # Large Size Problems
         # ("mbb_beam_384x128_0.3", True, 1, 50),
         # ("cantilever_beam_full_384x128_0.2", True, 1, 50),
@@ -446,6 +447,7 @@ def run_multi_structure_pipeline():
         'michell_centered_top_64x128_0.12': 'Michell Top \n $64\\times128; v_f=0.12$',
         'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n $128\\times128; v_f=0.2$',  # noqa
         'l_shape_0.4_128x128_0.3': 'L-Shape 0.4 \n $128\\times128; v_f=0.3$',
+        'cantilever_beam_two_point_128x96_0.3': 'Cantilever Beam Two Point \n $128\\times96; v_f=0.3$',  # noqa
         # Large Size Problems
         'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
         'cantilever_beam_full_384x128_0.2': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
@@ -557,7 +559,7 @@ def run_multi_structure_pipeline():
 
     # Create the output plots
     fig, axes = plt.subplots(
-        4, len(problem_config), figsize=(13, 6), constrained_layout=True
+        4, len(problem_config), figsize=(6, 6), constrained_layout=True
     )
     axes = axes.T.flatten()
     fig.subplots_adjust(wspace=0, hspace=0)
@@ -566,14 +568,6 @@ def run_multi_structure_pipeline():
     structure_outputs["ax"] = axes
 
     # Create the color map
-    # color_map = {
-    #     0: ('yellow', 'black'),  # Best
-    #     1: ('orange', 'black'),
-    #     2: ('darkviolet', 'white'),
-    #     3: ('navy', 'white'),  # Worst
-    # }
-
-    # Minnesota color map
     color_map = {
         0: ('gold', 'black'),  # Best
         1: ('darkorange', 'black'),

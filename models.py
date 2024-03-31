@@ -98,7 +98,6 @@ class CNNModel(nn.Module):
         latent_scale=1.0,
         dense_init_scale=1.0,
         random_seed=0,
-        train_u_matrix=False,
     ):
         super().__init__()
         set_seed(random_seed)
@@ -128,12 +127,6 @@ class CNNModel(nn.Module):
 
         # Create the filters
         filters = dense_channels * self.h * self.w
-
-        # Create the u_matrix vector
-        if train_u_matrix:
-            distribution = torch.distributions.uniform.Uniform(-5500.0, 500.0)
-            sample = distribution.sample(torch.Size([len(args["freedofs"])]))
-            self.u_matrix = nn.Parameter(sample.double())
 
         # Create the first dense layer
         self.dense = nn.Linear(latent_size, filters)

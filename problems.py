@@ -126,6 +126,7 @@ def cantilever_beam_two_point(
     density=0.5,
     support_position=0.25,
     force_position=0.5,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -137,7 +138,7 @@ def cantilever_beam_two_point(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, round((1 - force_position) * height), Y] = -1
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def pure_bending_moment(
@@ -622,12 +623,12 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             cantilever_beam_full(384, 128, density=0.2, device=device),
             cantilever_beam_full(384, 128, density=0.15, device=device),
         ],
-        # "cantilever_beam_two_point": [
-        #     cantilever_beam_two_point(64, 48, density=0.4, device=device),
-        #     cantilever_beam_two_point(128, 96, density=0.3, device=device),
-        #     cantilever_beam_two_point(256, 192, density=0.2, device=device),
-        #     cantilever_beam_two_point(256, 192, density=0.15, device=device),
-        # ],
+        "cantilever_beam_two_point": [
+            cantilever_beam_two_point(64, 48, density=0.4, device=device),
+            cantilever_beam_two_point(128, 96, density=0.3, device=device),
+            cantilever_beam_two_point(256, 192, density=0.2, device=device),
+            cantilever_beam_two_point(256, 192, density=0.15, device=device),
+        ],
         # "pure_bending_moment": [
         #     pure_bending_moment(32, 64, density=0.15, device=device),
         #     pure_bending_moment(64, 128, density=0.125, device=device),
