@@ -3,7 +3,6 @@ import gc
 from typing import Any, Dict, List
 
 # third party
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -105,7 +104,6 @@ def train_pygranso(
     requires_flip,
     total_frames,
     cnn_kwargs=None,
-    neptune_logging=None,
     *,
     num_trials=50,
     mu=1.0,
@@ -251,23 +249,6 @@ def train_pygranso(
         log_f = pd.Series(log.f) * initial_compliance.cpu().numpy()
 
         # Save the data from each trial
-        fig = None
-        if neptune_logging is not None:
-            for f_value in log.f:
-                neptune_logging[f"trial = {index} / loss"].log(f_value)
-
-            best_score = np.round(final_f, 2)
-            fig = utils.build_final_design(
-                problem.name,
-                final_design,
-                best_score,
-                requires_flip,
-                total_frames,
-                figsize=(10, 6),
-            )
-            neptune_logging[f"trial={index}-{problem.name}-final-design"].upload(fig)
-            plt.close()
-
         # trials
         trials_designs[index, :, :] = final_design
         trials_losses[: len(log_f), index] = log_f.values  # noqa
@@ -277,6 +258,8 @@ def train_pygranso(
 
         binary_constraint_arr = np.asarray(binary_constraint)
         trials_binary_constraint[: len(log_f), index] = binary_constraint_arr[indexes]
+
+        # TODO: Add here if symmetry constraint
 
         # Remove all variables for the next round
         del (
@@ -289,7 +272,6 @@ def train_pygranso(
             soln,
             log,
             final_design,
-            fig,
             final_f,
             log_f,
             volume_constraint,

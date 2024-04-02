@@ -275,7 +275,7 @@ def tounn_train_and_outputs(problem, requires_flip):
     numLayers = 5
     numNeuronsPerLyr = 20
     minEpochs = 20
-    maxEpochs = 2000
+    maxEpochs = 20
     useSavedNet = False
 
     # Run the pipeline
@@ -498,7 +498,6 @@ def run_multi_structure_pipeline(model_size, structure_size):
             requires_flip=requires_flip,
             total_frames=total_frames,
             cnn_kwargs=cnn_kwargs,
-            neptune_logging=None,
             num_trials=num_trials,
             maxit=maxit,
         )

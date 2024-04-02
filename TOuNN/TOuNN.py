@@ -46,14 +46,14 @@ def set_seed(manualSeed):
     random.seed(manualSeed)
 
 
-def calculate_binary_constraint(design, mask, epsilon):
+def calculate_binary_constraint(design, epsilon):
     """
     Function to compute the binary constraint
     """
     return np.round(np.mean(design * (1 - design)) - epsilon, 4)
 
 
-def calculate_volume_constraint(design, mask, volume):
+def calculate_volume_constraint(design, volume):
     """
     Function that computes the volume constraint
     """
@@ -308,8 +308,8 @@ class TopologyOptimizer:
                 relGreyElements = 1
 
             # Here we need to get the exact arguments for our constraints
-            best_final_design = nn_rho.copy()
-            plotResolution = 1.0
+            best_final_design = rho_np
+            plotResolution = 1
 
             # The final design needs to be reshaped and transposed
             best_final_design = best_final_design.reshape(
