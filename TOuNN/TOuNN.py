@@ -46,6 +46,20 @@ def set_seed(manualSeed):
     random.seed(manualSeed)
 
 
+def calculate_binary_constraint(design, mask, epsilon):
+    """
+    Function to compute the binary constraint
+    """
+    return np.round(np.mean(design * (1 - design)) - epsilon, 4)
+
+
+def calculate_volume_constraint(design, mask, volume):
+    """
+    Function that computes the volume constraint
+    """
+    return np.round(np.mean(design) / volume - 1.0, 4)
+
+
 # Neural network
 class TopNet(nn.Module):
     inputDim = 2
@@ -140,6 +154,7 @@ class TopologyOptimizer:
         nonDesignRegion=None,
         Emin=1e-6,
         Emax=1.0,
+        args=None,
     ):
         self.exampleName = exampleName
         self.nelx = nelx
@@ -153,6 +168,7 @@ class TopologyOptimizer:
         self.xyPlot, self.nonDesignPlotIdx = self.generatePoints(
             nelx, nely, self.boundaryResolution, nonDesignRegion
         )
+        self.args = args
 
     def generatePoints(
         self, nx, ny, resolution=1, nonDesignRegion=None
@@ -290,6 +306,27 @@ class TopologyOptimizer:
                 relGreyElements = greyElements / len(rho_np)
             else:
                 relGreyElements = 1
+
+            # Here we need to get the exact arguments for our constraints
+            best_final_design = nn_rho.copy()
+            plotResolution = 1.0
+
+            # The final design needs to be reshaped and transposed
+            best_final_design = best_final_design.reshape(
+                plotResolution * self.FE.nelx, plotResolution * self.FE.nely
+            )
+            best_final_design = best_final_design.T
+
+            # Now compute our values
+            binary_constraint = calculate_binary_constraint(
+                design=best_final_design,
+                epsilon=self.args['epsilon'],
+            )
+            volume_constraint = calculate_volume_constraint(
+                design=best_final_design,
+                volume=self.args['volfrac'],
+            )
+
             self.convergenceHistory.append(
                 [
                     self.objective.item(),
@@ -298,6 +335,8 @@ class TopologyOptimizer:
                     relGreyElements,
                     # We need to compare the unscaled compliance
                     self.objective.item() * self.obj0,
+                    binary_constraint,
+                    volume_constraint,
                 ]
             )
 

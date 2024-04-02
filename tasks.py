@@ -279,7 +279,7 @@ def tounn_train_and_outputs(problem, requires_flip):
     useSavedNet = False
 
     # Run the pipeline
-    topOpt = TopologyOptimizer()
+    topOpt = TopologyOptimizer(args=args)
 
     # Initialize the FE (Finite element) solver
     topOpt.initializeFE(problem.name, nelx, nely, force, fixed, penal, nonDesignRegion)
@@ -425,7 +425,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 1500
+    maxit = 15
     max_iterations = 10
 
     # Set up the problem names
