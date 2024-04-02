@@ -123,7 +123,7 @@ def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e
     # Create metrics
     metrics = {
         'loss': outputs["losses"],
-        'volume_constraint': outputs['volumnes'],
+        'volume_constraint': outputs['volumes'],
         'binary_constraint': outputs['binary_constraint'],
     }
 
