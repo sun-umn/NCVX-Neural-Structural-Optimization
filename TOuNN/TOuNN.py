@@ -274,6 +274,7 @@ class TopologyOptimizer:
             nn_rho = torch.flatten(self.topNet(batch_x, self.nonDesignIdx)).to(device)
 
             # TODO: This is where we need to apply a mask for non-design regions
+            # Pass and create the mask and then flatten
 
             rho_np = nn_rho.cpu().detach().numpy()
             # move tensor to numpy array

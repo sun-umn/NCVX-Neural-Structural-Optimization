@@ -138,6 +138,9 @@ def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=
     # Select the final step from the xarray
     final_designs = ds.design.sel(step=200, method="nearest").data
 
+    import pdb
+
+    pdb.set_trace()
     # CNN final design
     cnn_final_design = final_designs[0, :, :]
     cnn_binary_constraint = calculate_binary_constraint(
@@ -294,9 +297,6 @@ def tounn_train_and_outputs(problem, requires_flip):
     # Run the optimization
     topOpt.optimizeDesign(maxEpochs, minEpochs, useSavedNet)
 
-    import pdb
-
-    pdb.set_trace()
     # After everything is fitted we need to extract the final information
     # Set the plotResolution to 1
     plotResolution = 1
@@ -355,7 +355,14 @@ def tounn_train_and_outputs(problem, requires_flip):
                 [best_final_design, best_final_design[:, ::-1]] * 2
             )
 
-    return best_final_design, best_score, binary_constraint, volume_constraint
+    # Here will create a dict to save the losses
+    metrics = {
+        'loss': topOpt.convergenceHistory[4],
+        'volume_constraint': topOpt.convergenceHistory[5],
+        'binary_constraint': topOpt.convergenceHistory[6],
+    }
+
+    return best_final_design, best_score, binary_constraint, volume_constraint, metrics
 
 
 @cli.command('run-multi-structure-pipeline')
