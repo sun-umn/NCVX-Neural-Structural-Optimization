@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # stdlib
-import gc
 import os
 import pickle
 import warnings
@@ -13,7 +12,6 @@ import pandas as pd
 import torch
 import wandb
 import xarray
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from neural_structural_optimization import models as google_models
 from neural_structural_optimization import topo_api as google_topo_api
 from neural_structural_optimization import train as google_train
@@ -534,21 +532,21 @@ def run_multi_structure_pipeline(model_size, structure_size):
             ("michell_centered_top_128x256_0.12", True, 1, 50),
         ]
 
-    # renaming
-    name_mapping = {
-        # Medium Size Problems
-        'mbb_beam_96x32_0.5': 'MBB Beam \n $96\\times32; v_f = 0.5$',
-        'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n $96\\times32; v_f=0.4$',
-        'michell_centered_top_64x128_0.12': 'Michell Top \n $64\\times128; v_f=0.12$',
-        'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n $128\\times128; v_f=0.2$',  # noqa
-        'l_shape_0.4_128x128_0.3': 'L-Shape 0.4 \n $128\\times128; v_f=0.3$',
-        'cantilever_beam_two_point_128x96_0.3': 'Cantilever Beam Two Point \n $128\\times96; v_f=0.3$',  # noqa
-        # Large Size Problems
-        'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
-        'cantilever_beam_full_384x128_0.2': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
-        'michell_centered_top_128x256_0.12': 'Michell Top \n $128\\times256; v_f=0.12$',
-        'l_shape_0.4_192x192_0.25': 'L-Shape 0.4 \n $192\\times192; v_f=0.25$',
-    }
+    # # renaming
+    # name_mapping = {
+    #     # Medium Size Problems
+    #     'mbb_beam_96x32_0.5': 'MBB Beam \n $96\\times32; v_f = 0.5$',
+    #     'cantilever_beam_full_96x32_0.4': 'Cantilever Beam \n $96\\times32; v_f=0.4$',
+    #     'michell_centered_top_64x128_0.12': 'Michell Top \n $64\\times128; v_f=0.12$',
+    #     'thin_support_bridge_128x128_0.2': 'Thin Support Bridge \n $128\\times128; v_f=0.2$',  # noqa
+    #     'l_shape_0.4_128x128_0.3': 'L-Shape 0.4 \n $128\\times128; v_f=0.3$',
+    #     'cantilever_beam_two_point_128x96_0.3': 'Cantilever Beam Two Point \n $128\\times96; v_f=0.3$',  # noqa
+    #     # Large Size Problems
+    #     'mbb_beam_384x128_0.3': 'MBB Beam \n $384\\times128; v_f = 0.3$',
+    #     'cantilever_beam_full_384x128_0.2': 'Cantilever Beam \n $384\\times128; v_f=0.2$',  # noqa
+    #     'michell_centered_top_128x256_0.12': 'Michell Top \n $128\\times256; v_f=0.12$',  # noqa
+    #     'l_shape_0.4_192x192_0.25': 'L-Shape 0.4 \n $192\\times192; v_f=0.25$',
+    # }
 
     # PyGranso function
     comb_fn = train.volume_constrained_structural_optimization_function
@@ -558,7 +556,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
 
     # For running this we only want one trial
     # with maximum iterations 1000
-    structure_outputs = []
+    # structure_outputs = []
     for problem_name, requires_flip, total_frames, cax_size in problem_config:
         print(f"Building structure: {problem_name}")
         problem = PYGRANSO_PROBLEMS_BY_NAME.get(problem_name)
@@ -623,8 +621,8 @@ def run_multi_structure_pipeline(model_size, structure_size):
         )
 
         # Zip the results together to create a dataframe
-        google_cnn_outputs = benchmark_outputs["google-cnn"]
-        mma_outputs = benchmark_outputs["mma"]
+        # google_cnn_outputs = benchmark_outputs["google-cnn"]
+        # mma_outputs = benchmark_outputs["mma"]
 
         # For each output lets save it
         # Save PyGranso Results
@@ -642,133 +640,129 @@ def run_multi_structure_pipeline(model_size, structure_size):
         with open(google_filepath, 'wb') as handle:
             handle.dump(benchmark_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        import pdb
+    #     # All outputs
+    #     outputs = pd.DataFrame(
+    #         zip(
+    #             pygranso_outputs,
+    #             tounn_outputs,
+    #             google_cnn_outputs,
+    #             mma_outputs,
+    #         ),
+    #     )
+    #     outputs = outputs.transpose()
+    #     outputs.columns = ["designs", "loss", "binary_constraint", "volume_constraint"]  # noqa
+    #     outputs["problem_name"] = problem_name
 
-        pdb.set_trace()
+    #     # Add titles
+    #     titles = ["PG", "TOuNN", "Google", "MMA"]
+    #     outputs["titles"] = titles
+    #     outputs["cax_size"] = cax_size
+    #     structure_outputs.append(outputs)
 
-        # All outputs
-        outputs = pd.DataFrame(
-            zip(
-                pygranso_outputs,
-                tounn_outputs,
-                google_cnn_outputs,
-                mma_outputs,
-            ),
-        )
-        outputs = outputs.transpose()
-        outputs.columns = ["designs", "loss", "binary_constraint", "volume_constraint"]
-        outputs["problem_name"] = problem_name
+    #     gc.collect()
+    #     torch.cuda.empty_cache()
 
-        # Add titles
-        titles = ["PG", "TOuNN", "Google", "MMA"]
-        outputs["titles"] = titles
-        outputs["cax_size"] = cax_size
-        structure_outputs.append(outputs)
+    # print('Building and saving outputs, hang tight! ⏳')
+    # # Concat all structures
+    # structure_outputs = pd.concat(structure_outputs)
+    # structure_outputs["loss"] = structure_outputs["loss"].astype(float)
 
-        gc.collect()
-        torch.cuda.empty_cache()
+    # # Create the output plots
+    # fig, axes = plt.subplots(
+    #     4, len(problem_config), figsize=(6, 6), constrained_layout=True
+    # )
+    # axes = axes.T.flatten()
+    # fig.subplots_adjust(wspace=0, hspace=0)
 
-    print('Building and saving outputs, hang tight! ⏳')
-    # Concat all structures
-    structure_outputs = pd.concat(structure_outputs)
-    structure_outputs["loss"] = structure_outputs["loss"].astype(float)
+    # # add the axes to the dataframe
+    # structure_outputs["ax"] = axes
 
-    # Create the output plots
-    fig, axes = plt.subplots(
-        4, len(problem_config), figsize=(6, 6), constrained_layout=True
-    )
-    axes = axes.T.flatten()
-    fig.subplots_adjust(wspace=0, hspace=0)
+    # # Create the color map
+    # color_map = {
+    #     0: ('yellow', 'black'),  # Best
+    #     1: ('orange', 'black'),
+    #     2: ('maroon', 'white'),
+    #     3: ('navy', 'white'),  # Worst
+    # }
 
-    # add the axes to the dataframe
-    structure_outputs["ax"] = axes
+    # # Get the best to worst
+    # structure_outputs["initial_order"] = structure_outputs.groupby(
+    #     "problem_name"
+    # ).cumcount()
+    # structure_outputs = structure_outputs.sort_values(
+    #     ["problem_name", "loss"]
+    # ).reset_index(drop=True)
+    # structure_outputs["order"] = structure_outputs.groupby("problem_name").cumcount()
+    # structure_outputs = structure_outputs.sort_values(
+    #     ["problem_name", "initial_order"]
+    # )  # noqa
+    # structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
 
-    # Create the color map
-    color_map = {
-        0: ('yellow', 'black'),  # Best
-        1: ('orange', 'black'),
-        2: ('maroon', 'white'),
-        3: ('navy', 'white'),  # Worst
-    }
+    # # Save the data
+    # structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
+    #     os.path.join(save_path, 'structure_outputs.csv'), index=False
+    # )
 
-    # Get the best to worst
-    structure_outputs["initial_order"] = structure_outputs.groupby(
-        "problem_name"
-    ).cumcount()
-    structure_outputs = structure_outputs.sort_values(
-        ["problem_name", "loss"]
-    ).reset_index(drop=True)
-    structure_outputs["order"] = structure_outputs.groupby("problem_name").cumcount()
-    structure_outputs = structure_outputs.sort_values(
-        ["problem_name", "initial_order"]
-    )  # noqa
-    structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
+    # # Sort the structures and algorithms
+    # structure_outputs = structure_outputs.sort_values(
+    #     ['problem_name', 'titles']
+    # ).reset_index(drop=True)
+    # structure_outputs['problem_name'] = structure_outputs['problem_name'].map(
+    #     name_mapping
+    # )
 
-    # Save the data
-    structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
-        os.path.join(save_path, 'structure_outputs.csv'), index=False
-    )
+    # for index, data in enumerate(structure_outputs.itertuples()):
+    #     ax = axes[index]
+    #     ax.imshow(data.designs, cmap='Greys', aspect='auto')
+    #     ax.set_xticks([])
+    #     ax.set_yticks([])
 
-    # Sort the structures and algorithms
-    structure_outputs = structure_outputs.sort_values(
-        ['problem_name', 'titles']
-    ).reset_index(drop=True)
-    structure_outputs['problem_name'] = structure_outputs['problem_name'].map(
-        name_mapping
-    )
+    #     # Set y-labels
+    #     if index in [0, 1, 2, 3]:
+    #         ax.set_ylabel(data.titles, fontsize=9, weight='bold')
 
-    for index, data in enumerate(structure_outputs.itertuples()):
-        ax = axes[index]
-        ax.imshow(data.designs, cmap='Greys', aspect='auto')
-        ax.set_xticks([])
-        ax.set_yticks([])
+    #     # Set x-labels
+    #     if index in [0, 4, 8, 12, 16]:
+    #         ax.set_title(data.problem_name, weight='bold', fontsize=9)
 
-        # Set y-labels
-        if index in [0, 1, 2, 3]:
-            ax.set_ylabel(data.titles, fontsize=9, weight='bold')
+    #     # Add the colors box for the scoring
+    #     divider = make_axes_locatable(ax)
 
-        # Set x-labels
-        if index in [0, 4, 8, 12, 16]:
-            ax.set_title(data.problem_name, weight='bold', fontsize=9)
+    #     cax = divider.append_axes("bottom", size="40%", pad=0.01)
+    #     cax.get_xaxis().set_visible(False)
+    #     cax.get_yaxis().set_visible(False)
 
-        # Add the colors box for the scoring
-        divider = make_axes_locatable(ax)
+    #     formatting = data.formatting
+    #     facecolor = formatting[0]
+    #     fontcolor = formatting[1]
 
-        cax = divider.append_axes("bottom", size="40%", pad=0.01)
-        cax.get_xaxis().set_visible(False)
-        cax.get_yaxis().set_visible(False)
+    #     # Set the face color of the box
+    #     cax.set_facecolor(facecolor)
+    #     cax.spines["bottom"].set_color(facecolor)
+    #     cax.spines["top"].set_color(facecolor)
+    #     cax.spines["right"].set_color(facecolor)
+    #     cax.spines["left"].set_color(facecolor)
 
-        formatting = data.formatting
-        facecolor = formatting[0]
-        fontcolor = formatting[1]
+    #     text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
+    #     cax.text(
+    #         0.5,
+    #         0.5,
+    #         text,
+    #         ha='center',
+    #         va='center',
+    #         fontsize=10,
+    #         color=fontcolor,
+    #         weight='bold',
+    #     )
 
-        # Set the face color of the box
-        cax.set_facecolor(facecolor)
-        cax.spines["bottom"].set_color(facecolor)
-        cax.spines["top"].set_color(facecolor)
-        cax.spines["right"].set_color(facecolor)
-        cax.spines["left"].set_color(facecolor)
+    # # Save the fig
+    # fig.savefig(
+    #     f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-{structure_size}results.png',  # noqa
+    #     bbox_inches='tight',
+    # )
 
-        text = f"{data.loss} / {data.binary_constraint} / {data.volume_constraint}"
-        cax.text(
-            0.5,
-            0.5,
-            text,
-            ha='center',
-            va='center',
-            fontsize=10,
-            color=fontcolor,
-            weight='bold',
-        )
-
-    # Save the fig
-    fig.savefig(
-        f'/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results/{model_size}-{structure_size}results.png',  # noqa
-        bbox_inches='tight',
-    )
-
-    # Save figure to weights and biases
-    wandb.log({'plot': wandb.Image(fig)})
+    # # Save figure to weights and biases
+    # wandb.log({'plot': wandb.Image(fig)})
 
     print('Run completed! 🎉')
 
