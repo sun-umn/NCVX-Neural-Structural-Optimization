@@ -630,15 +630,15 @@ def run_multi_structure_pipeline(model_size, structure_size):
             save_path, f'{problem_name}-pygranso-cnn.pickle'
         )
         with open(pygranso_filepath, 'wb') as handle:
-            handle.dump(pygranso_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(pygranso_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         tounn_filepath = os.path.join(save_path, f'{problem_name}-tounn.pickle')
         with open(tounn_filepath, 'wb') as handle:
-            handle.dump(tounn_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(tounn_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         google_filepath = os.path.join(save_path, f'{problem_name}-google.pickle')
         with open(google_filepath, 'wb') as handle:
-            handle.dump(benchmark_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(benchmark_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     #     # All outputs
     #     outputs = pd.DataFrame(
