@@ -335,7 +335,7 @@ def tounn_train_and_outputs(problem, requires_flip):
     numLayers = 5
     numNeuronsPerLyr = 20
     minEpochs = 20
-    maxEpochs = 20
+    maxEpochs = 1500
     useSavedNet = False
 
     # Run the pipeline
@@ -422,9 +422,9 @@ def tounn_train_and_outputs(problem, requires_flip):
     return best_final_design, best_score, binary_constraint, volume_constraint, metrics
 
 
-# @cli.command('run-multi-structure-pipeline')
-# @click.option('--model_size', default='medium')
-# @click.option('--structure_size', default='medium')
+@cli.command('run-multi-structure-pipeline')
+@click.option('--model_size', default='medium')
+@click.option('--structure_size', default='medium')
 def run_multi_structure_pipeline(model_size, structure_size):
     """
     Task that will build out multiple structures and compare
@@ -510,8 +510,8 @@ def run_multi_structure_pipeline(model_size, structure_size):
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 15
-    max_iterations = 10
+    maxit = 1500
+    max_iterations = 200
 
     # Set up the problem names
     if structure_size == 'medium':
