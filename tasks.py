@@ -279,10 +279,12 @@ def tounn_train_and_outputs(problem, requires_flip):
     useSavedNet = False
 
     # Run the pipeline
-    topOpt = TopologyOptimizer(args=args)
+    topOpt = TopologyOptimizer()
 
     # Initialize the FE (Finite element) solver
-    topOpt.initializeFE(problem.name, nelx, nely, force, fixed, penal, nonDesignRegion)
+    topOpt.initializeFE(
+        problem.name, nelx, nely, force, fixed, penal, nonDesignRegion, args=args
+    )
 
     # Initialize the optimizer
     topOpt.initializeOptimizer(
