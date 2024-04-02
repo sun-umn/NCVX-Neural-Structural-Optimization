@@ -2,6 +2,7 @@
 # stdlib
 import gc
 import os
+import pickle
 import warnings
 
 # third party
@@ -513,16 +514,12 @@ def run_multi_structure_pipeline(model_size, structure_size):
     if structure_size == 'medium':
         problem_config = [
             # # Medium Size Problems
-            # ("mbb_beam_96x32_0.5", True, 1, 50),
+            ("mbb_beam_96x32_0.5", True, 1, 50),
             # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
             # ("michell_centered_top_64x128_0.12", True, 1, 50),
             # ("l_shape_0.4_128x128_0.3", True, 1, 50),
-            ("cantilever_beam_two_point_128x96_0.3", True, 1, 50)
+            # ("cantilever_beam_two_point_128x96_0.3", True, 1, 50)
         ]
-        # problem_config = [
-        #     # Medium Size Problems
-        #     ("mbb_beam_circular_ndr_96x32_0.5", True, 1, 50),
-        # ]
     elif structure_size == 'large':
         problem_config = [
             # Large Size Problems
@@ -624,9 +621,26 @@ def run_multi_structure_pipeline(model_size, structure_size):
         google_cnn_outputs = benchmark_outputs["google-cnn"]
         mma_outputs = benchmark_outputs["mma"]
 
+        # For each output lets save it
+        # Save PyGranso Results
+        pygranso_filepath = os.path.join(
+            save_path, f'{problem_name}-pygranso-cnn.pickle'
+        )
+        with open(pygranso_filepath, 'wb') as handle:
+            handle.dump(pygranso_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        tounn_filepath = os.path.join(save_path, f'{problem_name}-tounn.pickle')
+        with open(tounn_filepath, 'wb') as handle:
+            handle.dump(tounn_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        google_filepath = os.path.join(save_path, f'{problem_name}-google.pickle')
+        with open(google_filepath, 'wb') as handle:
+            handle.dump(benchmark_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
         import pdb
 
         pdb.set_trace()
+
         # All outputs
         outputs = pd.DataFrame(
             zip(
