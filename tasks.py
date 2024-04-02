@@ -504,7 +504,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
 
     # Write the configuration
     config_filepath = os.path.join(save_path, 'config.txt')
-    with open(config_filepath, 'wb') as f:
+    with open(config_filepath, 'w') as f:
         f.write(f'model size = {model_size}; structure size = {structure_size}')
 
     # Get the device to be used
