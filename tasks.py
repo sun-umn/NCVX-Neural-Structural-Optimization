@@ -425,7 +425,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
     # Get the device to be used
     device = utils.get_devices()
     num_trials = 1
-    maxit = 10
+    maxit = 1500
     max_iterations = 10
 
     # Set up the problem names
