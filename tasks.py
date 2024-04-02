@@ -294,6 +294,9 @@ def tounn_train_and_outputs(problem, requires_flip):
     # Run the optimization
     topOpt.optimizeDesign(maxEpochs, minEpochs, useSavedNet)
 
+    import pdb
+
+    pdb.set_trace()
     # After everything is fitted we need to extract the final information
     # Set the plotResolution to 1
     plotResolution = 1
