@@ -196,7 +196,7 @@ def build_google_outputs(
     cnn_binary_constraint_trajectory = []
     mma_volume_constraint_trajectory = []
     mma_binary_constraint_trajectory = []
-    for i in iterations:
+    for i in range(iterations):
         # Get the intermediate designs
         design = ds.design.sel(step=i, method="nearest").data
 
