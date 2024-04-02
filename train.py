@@ -68,6 +68,16 @@ def volume_constrained_structural_optimization_function(
     binary_constraint = x_phys[mask] * (1 - x_phys[mask])
     ce.c2 = torch.mean(binary_constraint) - epsilon
 
+    # What if we enforce a symmetry constraint as well?
+    midpoint = x_phys.shape[0] // 2
+    x_phys_top = x_phys[:midpoint, :]
+    x_phys_bottom = x_phys[midpoint:, :]
+
+    symmetry_constraint = (
+        torch.norm(x_phys_top - torch.flip(x_phys_bottom, [0]), p=1) / x_phys.numel()
+    )
+    ce.c3 = symmetry_constraint - epsilon
+
     # We need to save the information from the trials about volume
     volume_value = np.round(float(torch.mean(x_phys[mask]).detach().cpu().numpy()), 2)
     volume_constraint_list.append(volume_value)

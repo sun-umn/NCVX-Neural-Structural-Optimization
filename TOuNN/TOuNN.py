@@ -257,6 +257,8 @@ class TopologyOptimizer:
             self.optimizer.zero_grad()
             nn_rho = torch.flatten(self.topNet(batch_x, self.nonDesignIdx)).to(device)
 
+            # TODO: This is where we need to apply a mask for non-design regions
+
             rho_np = nn_rho.cpu().detach().numpy()
             # move tensor to numpy array
             u, Jelem = self.FE.solve88(rho_np)
