@@ -121,10 +121,19 @@ def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e
     # last row, first column (-1, 0)
     best_score = np.round(losses_df.iloc[-1, 0], 2)
 
-    return best_final_design, best_score, binary_constraint, volume_constraint
+    # Create metrics
+    metrics = {
+        'loss': outputs["losses"],
+        'volume_constraint': outputs['volumnes'],
+        'binary_constraint': outputs['binary_constraint'],
+    }
+
+    return best_final_design, best_score, binary_constraint, volume_constraint, metrics
 
 
-def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=1e-3):
+def build_google_outputs(
+    problem_name, iterations, ds, mask, volume, requires_flip, epsilon=1e-3
+):
     """
     Build the google outputs.
     TODO: I think I will want to extend this for multiple
@@ -138,9 +147,6 @@ def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=
     # Select the final step from the xarray
     final_designs = ds.design.sel(step=200, method="nearest").data
 
-    import pdb
-
-    pdb.set_trace()
     # CNN final design
     cnn_final_design = final_designs[0, :, :]
     cnn_binary_constraint = calculate_binary_constraint(
@@ -186,18 +192,70 @@ def build_google_outputs(problem_name, ds, mask, volume, requires_flip, epsilon=
                 [mma_final_design, mma_final_design[:, ::-1]] * 2
             )
 
+    # Here compute the trajectories
+    cnn_volume_constraint_trajectory = []
+    cnn_binary_constraint_trajectory = []
+    mma_volume_constraint_trajectory = []
+    mma_binary_constraint_trajectory = []
+    for i in iterations:
+        # Get the intermediate designs
+        design = ds.design.sel(step=i, method="nearest").data
+
+        # CNN final design
+        cnn_design = design[0, :, :]
+        cnn_binary_constraint = calculate_binary_constraint(
+            design=cnn_design, mask=mask, epsilon=epsilon
+        )
+        cnn_volume_constraint = calculate_volume_constraint(
+            design=cnn_design,
+            mask=mask,
+            volume=volume,
+        )
+        cnn_volume_constraint_trajectory.append(cnn_volume_constraint)
+        cnn_binary_constraint_trajectory.append(cnn_binary_constraint)
+
+        # MMA final design
+        mma_design = design[1, :, :]
+        mma_binary_constraint = calculate_binary_constraint(
+            design=mma_design,
+            mask=mask,
+            epsilon=epsilon,
+        )
+        mma_volume_constraint = calculate_volume_constraint(
+            design=mma_design,
+            mask=mask,
+            volume=volume,
+        )
+        mma_volume_constraint_trajectory.append(mma_volume_constraint)
+        mma_binary_constraint_trajectory.append(mma_binary_constraint)
+
+    # Create the trajectories
+    cnn_metrics = {
+        'loss': losses["cnn-lbfgs"],
+        'volume_constraint': cnn_volume_constraint_trajectory,
+        'binary_constraint': cnn_binary_constraint_trajectory,
+    }
+
+    mma_metrics = {
+        'loss': losses["mma"],
+        'volume_constraint': mma_volume_constraint_trajectory,
+        'binary_constraint': mma_binary_constraint_trajectory,
+    }
+
     return {
         "google-cnn": (
             cnn_final_design,
             cnn_loss,
             cnn_binary_constraint,
             cnn_volume_constraint,
+            cnn_metrics,
         ),
         "mma": (
             mma_final_design,
             mma_loss,
             mma_binary_constraint,
             mma_volume_constraint,
+            mma_metrics,
         ),
     }
 
@@ -365,9 +423,9 @@ def tounn_train_and_outputs(problem, requires_flip):
     return best_final_design, best_score, binary_constraint, volume_constraint, metrics
 
 
-@cli.command('run-multi-structure-pipeline')
-@click.option('--model_size', default='medium')
-@click.option('--structure_size', default='medium')
+# @cli.command('run-multi-structure-pipeline')
+# @click.option('--model_size', default='medium')
+# @click.option('--structure_size', default='medium')
 def run_multi_structure_pipeline(model_size, structure_size):
     """
     Task that will build out multiple structures and compare
@@ -433,6 +491,17 @@ def run_multi_structure_pipeline(model_size, structure_size):
         tags=['topology-optimization-task', model_size, f'{structure_size}-structures'],
         config=cnn_kwargs,
     )
+
+    # Will create directories for saving models
+    save_path = os.path.join(
+        '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
+        f'{wandb.run.id}',
+    )
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        print(f"The directory {save_path} was created.")
+    else:
+        print(f"The directory {save_path} already exists.")
 
     # Get the device to be used
     device = utils.get_devices()
@@ -544,6 +613,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
         # Get google outputs
         benchmark_outputs = build_google_outputs(
             problem_name=problem_name,
+            iterations=max_iterations,
             ds=ds,
             mask=mask,
             volume=volume,
@@ -554,6 +624,9 @@ def run_multi_structure_pipeline(model_size, structure_size):
         google_cnn_outputs = benchmark_outputs["google-cnn"]
         mma_outputs = benchmark_outputs["mma"]
 
+        import pdb
+
+        pdb.set_trace()
         # All outputs
         outputs = pd.DataFrame(
             zip(
@@ -611,17 +684,6 @@ def run_multi_structure_pipeline(model_size, structure_size):
         ["problem_name", "initial_order"]
     )  # noqa
     structure_outputs["formatting"] = structure_outputs["order"].map(color_map)
-
-    # Will create directories for saving models
-    save_path = os.path.join(
-        '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
-        f'{wandb.run.id}',
-    )
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-        print(f"The directory {save_path} was created.")
-    else:
-        print(f"The directory {save_path} already exists.")
 
     # Save the data
     structure_outputs[["problem_name", "loss", "initial_order", "formatting"]].to_csv(
