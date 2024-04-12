@@ -79,7 +79,7 @@ def volume_constrained_structural_optimization_function(
 
     # We need to save the information from the trials about volume
     volume_value = (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0
-    volume_constraint_list.append(volume_value)
+    volume_constraint_list.append(volume_value.detach().cpu().numpy())
 
     # Binary constraint
     binary_constraint_value = torch.mean(binary_constraint) - epsilon
