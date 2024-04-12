@@ -375,7 +375,7 @@ def tounn_train_and_outputs(problem, requires_flip):
     best_final_design = best_final_design.T
 
     # get the best score
-    best_score = np.round(topOpt.convergenceHistory[-1][-1], 2)
+    best_score = np.round(topOpt.convergenceHistory[-1][4], 2)
 
     # Return everything
     mask = (torch.broadcast_to(args["mask"], (nely, nelx)) > 0).cpu().numpy()
