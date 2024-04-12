@@ -423,10 +423,10 @@ def tounn_train_and_outputs(problem, requires_flip):
             [value for _, _, _, _, value, _, _ in topOpt.convergenceHistory]
         ),
         'volume_constraint': np.array(
-            [value for _, _, _, _, value, _ in topOpt.convergenceHistory]
+            [value for _, _, _, _, _, value, _ in topOpt.convergenceHistory]
         ),
         'binary_constraint': np.array(
-            [value for _, _, _, _, _, value in topOpt.convergenceHistory]
+            [value for _, _, _, _, _, _, value in topOpt.convergenceHistory]
         ),
     }
 
