@@ -418,6 +418,17 @@ def tounn_train_and_outputs(problem, requires_flip):
         'volume_constraint': topOpt.convergenceHistory[5],
         'binary_constraint': topOpt.convergenceHistory[6],
     }
+    metrics = {
+        'loss': np.array(
+            [value for _, _, _, _, value, _, _ in topOpt.convergenceHistory]
+        ),
+        'volume_constraint': np.array(
+            [value for _, _, _, _, value, _ in topOpt.convergenceHistory]
+        ),
+        'binary_constraint': np.array(
+            [value for _, _, _, _, _, value in topOpt.convergenceHistory]
+        ),
+    }
 
     return best_final_design, best_score, binary_constraint, volume_constraint, metrics
 
