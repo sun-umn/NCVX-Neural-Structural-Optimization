@@ -525,14 +525,15 @@ def run_multi_structure_pipeline(model_size, structure_size):
     max_iterations = 200
 
     # Set up the problem names
+    # Last element is to include symmetry
     if structure_size == 'medium':
         problem_config = [
             # # Medium Size Problems
-            ("mbb_beam_96x32_0.5", True, 1, 50),
+            # ("mbb_beam_96x32_0.5", True, 1, 50),
             # ("cantilever_beam_full_96x32_0.4", True, 1, 50),
             # ("michell_centered_top_64x128_0.12", True, 1, 50),
             # ("l_shape_0.4_128x128_0.3", True, 1, 50),
-            # ("cantilever_beam_two_point_128x96_0.3", True, 1, 50)
+            ("cantilever_beam_two_point_96x96_0.4", True, 1, 50, True)
         ]
     elif structure_size == 'large':
         problem_config = [
@@ -568,7 +569,13 @@ def run_multi_structure_pipeline(model_size, structure_size):
     # For running this we only want one trial
     # with maximum iterations 1000
     # structure_outputs = []
-    for problem_name, requires_flip, total_frames, cax_size in problem_config:
+    for (
+        problem_name,
+        requires_flip,
+        total_frames,
+        cax_size,
+        include_symmetry,
+    ) in problem_config:
         print(f"Building structure: {problem_name}")
         problem = PYGRANSO_PROBLEMS_BY_NAME.get(problem_name)
 
@@ -590,6 +597,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
             cnn_kwargs=cnn_kwargs,
             num_trials=num_trials,
             maxit=maxit,
+            include_symmetry=include_symmetry,
         )
 
         # Build the outputs

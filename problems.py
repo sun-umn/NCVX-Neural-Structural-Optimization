@@ -680,6 +680,7 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
         ],
         "cantilever_beam_two_point": [
             cantilever_beam_two_point(64, 48, density=0.4, device=device),
+            cantilever_beam_two_point(96, 96, density=0.4, device=device),
             cantilever_beam_two_point(128, 96, density=0.3, device=device),
             cantilever_beam_two_point(256, 192, density=0.2, device=device),
             cantilever_beam_two_point(256, 192, density=0.15, device=device),

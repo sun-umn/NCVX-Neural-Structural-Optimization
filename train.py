@@ -30,6 +30,7 @@ def volume_constrained_structural_optimization_function(
     args,
     volume_constraint_list,
     binary_constraint_list,
+    symmetry_constraint_list,
     iter_counter,
     trial_index,
     device,
@@ -53,7 +54,6 @@ def volume_constrained_structural_optimization_function(
         model, ke, args, device, dtype
     )
     f = 1.0 / initial_compliance * unscaled_compliance
-    # print(initial_compliance, unscaled_compliance)
 
     # Run this problem with no inequality constraints
     ci = None
@@ -63,19 +63,30 @@ def volume_constrained_structural_optimization_function(
     ce.c1 = (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0  # noqa
 
     # Directly handle the volume constraint
+    total_elements = x_phys[mask].numel()
     epsilon = args["epsilon"]
     binary_constraint = x_phys[mask] * (1 - x_phys[mask])
-    ce.c2 = torch.mean(binary_constraint) - epsilon
+    ce.c2 = torch.norm(binary_constraint, p=1) / total_elements - epsilon
 
-    # # What if we enforce a symmetry constraint as well?
-    # midpoint = x_phys.shape[0] // 2
-    # x_phys_top = x_phys[:midpoint, :]
-    # x_phys_bottom = x_phys[midpoint:, :]
+    # What if we enforce a symmetry constraint as well?
+    midpoint = x_phys.shape[0] // 2
+    x_phys_top = x_phys[:midpoint, :]
+    x_phys_bottom = x_phys[midpoint:, :]
 
-    # symmetry_constraint = (
-    #     torch.norm(x_phys_top - torch.flip(x_phys_bottom, [0]), p=1) / x_phys.numel()
-    # )
-    # ce.c3 = symmetry_constraint - epsilon
+    # For this part we will need to ignore the mask for now
+    if symmetry_constraint_list is not None:
+        symmetry_constraint = (
+            torch.norm(x_phys_top - torch.flip(x_phys_bottom, [0]), p=1)
+            / x_phys.numel()
+        )
+        ce.c3 = symmetry_constraint - epsilon
+
+        # Add the data to the list
+        symmetry_constraint_value = symmetry_constraint - epsilon
+        symmetry_constraint_value = float(
+            symmetry_constraint_value.detach().cpu().numpy()
+        )
+        symmetry_constraint_list.append(symmetry_constraint_value)
 
     # We need to save the information from the trials about volume
     volume_value = (torch.mean(x_phys[mask]) / args["volfrac"]) - 1.0
@@ -109,6 +120,7 @@ def train_pygranso(
     mu=1.0,
     maxit=500,
     epsilon=1e-3,
+    include_symmetry=False,
 ) -> Dict[str, Any]:
     """
     Function to train structural optimization pygranso
@@ -132,6 +144,7 @@ def train_pygranso(
     trials_losses = np.full((maxit + 1, num_trials), np.nan)
     trials_volumes = np.full((maxit + 1, num_trials), np.nan)
     trials_binary_constraint = np.full((maxit + 1, num_trials), np.nan)
+    trials_symmetry_constraint = np.full((maxit + 1, num_trials), np.nan)
     trials_initial_volumes = []
 
     for index, seed in enumerate(range(0, num_trials)):
@@ -182,6 +195,10 @@ def train_pygranso(
         volume_constraint: List[float] = []  # noqa
         binary_constraint: List[float] = []  # noqa
 
+        symmetry_constraint = None
+        if include_symmetry:
+            symmetry_constraint = []  # type: ignore
+
         comb_fn = lambda model: pygranso_combined_function(  # noqa
             cnn_model,  # noqa
             initial_compliance,
@@ -189,6 +206,7 @@ def train_pygranso(
             args,
             volume_constraint_list=volume_constraint,  # noqa
             binary_constraint_list=binary_constraint,  # noqa
+            symmetry_constraint_list=symmetry_constraint,  # noqa
             iter_counter=counter,
             trial_index=index,
             device=device,
@@ -259,7 +277,11 @@ def train_pygranso(
         binary_constraint_arr = np.asarray(binary_constraint)
         trials_binary_constraint[: len(log_f), index] = binary_constraint_arr[indexes]
 
-        # TODO: Add here if symmetry constraint
+        if include_symmetry:
+            symmetry_constraint_arr = np.asarray(symmetry_constraint)
+            trials_symmetry_constraint[: len(log_f), index] = symmetry_constraint_arr[
+                indexes
+            ]
 
         # Remove all variables for the next round
         del (
@@ -276,15 +298,19 @@ def train_pygranso(
             log_f,
             volume_constraint,
             binary_constraint,
+            symmetry_constraint,
         )
         gc.collect()
         torch.cuda.empty_cache()
 
+    # If symmetry is NOT included then the array will just
+    # be nan
     outputs = {
         "designs": trials_designs,
         "losses": trials_losses,
         "volumes": trials_volumes,
         "binary_constraint": trials_binary_constraint,
+        "symmetry_constraint": trials_symmetry_constraint,
         # Convert to numpy array
         "trials_initial_volumes": np.array(trials_initial_volumes),
     }
