@@ -148,7 +148,7 @@ def train_pygranso(
     trials_initial_volumes = []
 
     for index, seed in enumerate(range(0, num_trials)):
-        models.set_seed(seed * 100)
+        models.set_seed((seed + 1) * 100)
         counter = 0
         # np.random.seed(seed)
         # torch.random.manual_seed(seed)

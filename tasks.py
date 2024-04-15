@@ -540,8 +540,8 @@ def run_multi_structure_pipeline(model_size, structure_size):
         problem_config = [
             # Large Size Problems
             # ("l_shape_0.4_192x192_0.25", False, 1, 50, False),
-            ("mbb_beam_384x128_0.5", False, 1, 50, False),
-            # ("cantilever_beam_full_384x128_0.2", False, 1, 50, False),
+            # ("mbb_beam_384x128_0.5", False, 1, 50, False),
+            ("cantilever_beam_full_384x128_0.4", False, 1, 50, False),
         ]
 
     # PyGranso function
