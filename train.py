@@ -156,6 +156,9 @@ def train_pygranso(
         # torch.backends.cudnn.deterministic = True
         # torch.backends.cudnn.benchmark = False
 
+        # Run the pixel model
+        # cnn_model = models.PixelModel(args=args)
+
         # Initialize the CNN Model
         if cnn_kwargs is not None:
             cnn_model = models.CNNModel(args, random_seed=seed, **cnn_kwargs)  # type: ignore  # noqa

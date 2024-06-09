@@ -80,6 +80,28 @@ class AddOffset(nn.Module):
         return x + (self.scale * self.bias)
 
 
+class PixelModel(nn.Module):
+    """
+    Class that implements an extremely simple model that only
+    utilizes the design domain for optimization instead of a DIP
+    """
+
+    def __init__(  # noqa
+        self,
+        args,
+    ):
+        super().__init__()
+
+        # Get the height and the width
+        height = args['nely']
+        width = args['nelx']
+
+        self.design_domain = nn.Parameter(torch.randn(height, width))
+
+    def forward(self, inputs=None):
+        return self.design_domain
+
+
 class CNNModel(nn.Module):
     """
     Class that implements the CNN model from the structural
