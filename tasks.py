@@ -538,7 +538,8 @@ def run_multi_structure_pipeline(model_size, structure_size):
             # ("cantilever_beam_full_96x32_0.4", False, 1, 50, False),
             # ("michell_centered_top_64x128_0.12", True, 1, 50, False),
             # ("l_shape_0.4_128x128_0.3", False, 1, 50, False),
-            ("cantilever_beam_two_point_96x96_0.4", False, 1, 50, True)
+            # ("cantilever_beam_two_point_96x96_0.4", False, 1, 50, True),
+            ("suspended_bridge_128x128_0.1", True, 1, 50),
         ]
     elif structure_size == 'large':
         problem_config = [
