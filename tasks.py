@@ -445,6 +445,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
 
     # CNN parameters
     cnn_features = (256, 128, 64, 32, 16)
+    kernel_size = (12, 12)
 
     # Configurations
     configs = {
@@ -462,16 +463,19 @@ def run_multi_structure_pipeline(model_size, structure_size):
             'latent_size': 96,
             'dense_channels': 24,
             'conv_filters': tuple(features // 4 for features in cnn_features),
+            'kernel_size': kernel_size,
         },
         'medium': {
             'latent_size': 96,
             'dense_channels': 24,
             'conv_filters': tuple(features // 3 for features in cnn_features),
+            'kernel_size': kernel_size,
         },
         'large': {
             'latent_size': 96,
             'dense_channels': 24,
             'conv_filters': tuple(features // 2 for features in cnn_features),
+            'kernel_size': kernel_size,
         },
         # x-large has been our original architecture
         'xlarge': {
@@ -718,11 +722,12 @@ def run_multi_structure_pygranso_pipeline():
 
     # Set up the problem names
     problem_config = [
-        # # Medium Size Problems
+        # Medium Size Problems
         ("mbb_beam_96x32_0.5", True, 1, 50),
         ("cantilever_beam_full_96x32_0.4", True, 1, 50),
         ("michell_centered_top_64x128_0.12", True, 1, 50),
         ("l_shape_0.4_128x128_0.3", True, 1, 50),
+        ("suspended_bridge_128x128_0.1", True, 1, 50),
     ]
 
     # renaming
@@ -732,6 +737,7 @@ def run_multi_structure_pygranso_pipeline():
         'cantilever_beam_full_96x32_0.4': 'Cantilever \n Beam',
         'michell_centered_top_64x128_0.12': 'Michell \n Top',
         'l_shape_0.4_128x128_0.3': 'L-Shape \n 0.4',
+        "suspended_bridge_128x128_0.1": "Anchored Suspended \n Bridge",
     }
 
     # PyGranso function

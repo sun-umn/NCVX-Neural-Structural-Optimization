@@ -94,7 +94,7 @@ class CNNModel(nn.Module):
         resizes=(1, 2, 2, 2, 1),
         conv_filters=(128 * 2 // 3, 64 * 2 // 3, 32 * 2 // 3, 16 * 2 // 3, 8 * 2 // 3),
         offset_scale=10.0,
-        kernel_size=(5, 5),
+        kernel_size=(12, 12),
         latent_scale=1.0,
         dense_init_scale=1.0,
         random_seed=0,
@@ -203,6 +203,7 @@ class CNNModel(nn.Module):
             # output = torch.tanh(output)
 
             output = torch.sin(self.omega_0 * output)
+            # output = torch.nn.Softplus()(output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct

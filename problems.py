@@ -442,6 +442,7 @@ def suspended_bridge(
     anchored=False,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
+    epsilon=1e-3,
 ):
     """A bridge above the ground, with supports at lower corners."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -452,7 +453,7 @@ def suspended_bridge(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, -1, Y] = -1 / width
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def canyon_bridge(
@@ -676,6 +677,7 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
         "cantilever_beam_full": [
             cantilever_beam_full(96, 32, density=0.4, device=device),
             cantilever_beam_full(192, 64, density=0.3, device=device),
+            cantilever_beam_full(352, 96, density=0.4, device=device),
             cantilever_beam_full(384, 128, density=0.4, device=device),
             cantilever_beam_full(384, 128, density=0.2, device=device),
             cantilever_beam_full(384, 128, density=0.15, device=device),
@@ -784,20 +786,30 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
         #     suspended_bridge(256, 256, density=0.075, anchored=False, device=device),
         #     suspended_bridge(256, 256, density=0.05, anchored=False, device=device),
         # ],
-        # "anchored_suspended_bridge": [
-        #     suspended_bridge(
-        #         64, 64, density=0.15, span_position=0.1, anchored=True, device=device
-        #     ),
-        #     suspended_bridge(
-        #         128, 128, density=0.1, span_position=0.1, anchored=True, device=device
-        #     ),
-        #     suspended_bridge(
-        #         256, 256, density=0.075, span_position=0.1, anchored=True, device=device  # noqa
-        #     ),
-        #     suspended_bridge(
-        #         256, 256, density=0.05, span_position=0.1, anchored=True, device=device  # noqa
-        #     ),
-        # ],
+        "anchored_suspended_bridge": [
+            suspended_bridge(
+                64, 64, density=0.15, span_position=0.1, anchored=True, device=device
+            ),
+            suspended_bridge(
+                128, 128, density=0.1, span_position=0.1, anchored=True, device=device
+            ),
+            suspended_bridge(
+                256,
+                256,
+                density=0.075,
+                span_position=0.1,
+                anchored=True,
+                device=device,  # noqa
+            ),
+            suspended_bridge(
+                256,
+                256,
+                density=0.05,
+                span_position=0.1,
+                anchored=True,
+                device=device,  # noqa
+            ),
+        ],
         # "canyon_bridge": [
         #     canyon_bridge(64, 64, density=0.16, device=device),
         #     canyon_bridge(128, 128, density=0.12, device=device),
