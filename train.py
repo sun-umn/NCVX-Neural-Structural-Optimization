@@ -150,11 +150,11 @@ def train_pygranso(
     for index, seed in enumerate(range(0, num_trials)):
         models.set_seed((seed + 1) * 100)
         counter = 0
-        # np.random.seed(seed)
-        # torch.random.manual_seed(seed)
-        # torch.cuda.manual_seed(seed)
-        # torch.backends.cudnn.deterministic = True
-        # torch.backends.cudnn.benchmark = False
+        np.random.seed(seed)
+        torch.random.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
         # Run the pixel model
         # cnn_model = models.PixelModel(args=args)
