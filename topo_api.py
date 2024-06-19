@@ -55,6 +55,8 @@ def specified_task(problem, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
 def multi_material_tip_cantilever_task(
     nelx: int,
     nely: int,
+    e_materials: torch.Tensor,
+    material_density_weight: torch.Tensor,
     combined_frac: float,
     epsilon=1e-3,
     device=DEFAULT_DEVICE,
