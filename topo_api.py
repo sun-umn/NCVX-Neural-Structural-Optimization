@@ -104,6 +104,8 @@ def multi_material_tip_cantilever_task(
         "penal": 3.0,
         "filter_width": 2,
         "epsilon": epsilon,
-        'ndof': len(alldofs_array),
+        "ndof": len(alldofs_array),
+        "e_materials": e_materials,
+        "material_density_weight": material_density_weight,
     }
     return params
