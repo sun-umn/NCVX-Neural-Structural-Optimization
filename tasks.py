@@ -547,7 +547,7 @@ def run_multi_structure_pipeline(model_size, structure_size):
             # ("l_shape_0.4_192x192_0.25", False, 1, 50, False),
             # ("mbb_beam_384x128_0.5", False, 1, 50, False),
             # ("cantilever_beam_full_384x128_0.4", False, 1, 50, False),
-            ("anchored_suspended_bridge_256x256_0.075", True, 1, 50, False),
+            ("anchored_suspended_bridge_192x192_0.0875", True, 1, 50, False),
         ]
 
     # PyGranso function
@@ -729,7 +729,7 @@ def run_multi_structure_pygranso_pipeline():
         ("cantilever_beam_full_96x32_0.4", True, 1, 50),
         ("michell_centered_top_64x128_0.12", True, 1, 50),
         ("l_shape_0.4_128x128_0.3", True, 1, 50),
-        ("suspended_bridge_128x128_0.1", True, 1, 50),
+        ("suspended_bridge_192x192_0.0875", True, 1, 50),
     ]
 
     # renaming

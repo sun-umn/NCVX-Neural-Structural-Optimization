@@ -794,6 +794,14 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
                 128, 128, density=0.1, span_position=0.1, anchored=True, device=device
             ),
             suspended_bridge(
+                192,
+                192,
+                density=0.0875,
+                span_position=0.1,
+                anchored=True,
+                device=device,
+            ),
+            suspended_bridge(
                 256,
                 256,
                 density=0.075,
