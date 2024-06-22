@@ -28,34 +28,31 @@ def finite_element(nelx, nely, E_Interpolation, KE):
     F = lil_matrix((2 * (nely + 1) * (nelx + 1), 1))
     U = np.zeros((2 * (nely + 1) * (nelx + 1), 1))
 
-    for elx in range(1, nelx + 1):
-        for ely in range(1, nely + 1):
-            n1 = (nely + 1) * (elx - 1) + ely
-            n2 = (nely + 1) * elx + ely
-            edof = (
-                np.array(
-                    [
-                        2 * n1 - 1,
-                        2 * n1,
-                        2 * n2 - 1,
-                        2 * n2,
-                        2 * n2 + 1,
-                        2 * n2 + 2,
-                        2 * n1 + 1,
-                        2 * n1 + 2,
-                    ]
-                )
-                - 1
+    for elx in range(nelx):
+        for ely in range(nely):
+            n1 = (nely) * elx + ely
+            n2 = (nely) * (elx + 1) + ely
+            edof = np.array(
+                [
+                    2 * n1 - 1,
+                    2 * n1,
+                    2 * n2 - 1,
+                    2 * n2,
+                    2 * n2 + 1,
+                    2 * n2 + 2,
+                    2 * n1 + 1,
+                    2 * n1 + 2,
+                ]
             )
-            K[edof[:, np.newaxis], edof] += E_Interpolation[ely - 1, elx - 1] * KE
+            K[edof[:, np.newaxis], edof] += E_Interpolation[ely, elx] * KE
 
     # Define loads (F) and supports (fixeddofs)
-    F[2 * (nely + 1) * int(nelx / 4), 0] = -1
-    F[2 * (nely + 1) * int(2 * nelx / 4), 0] = -2
-    F[2 * (nely + 1) * int(3 * nelx / 4), 0] = -1
+    F[2 * (nely + 1) * int(nelx // 4 + 1) - 1, 0] = -1
+    F[2 * (nely + 1) * int(2 * nelx // 4 + 1) - 1, 0] = -2
+    F[2 * (nely + 1) * int(3 * nelx // 4 + 1) - 1, 0] = -1
     fixeddofs = np.union1d(
-        np.array([2 * (nely + 1) - 1, 2 * (nely + 1)]),
-        np.arange(2 * (nelx + 1) * (nely + 1)),
+        np.array([2 * (nely + 1) - 1 - 1, 2 * (nely + 1) - 1]),
+        np.arange(2 * (nelx + 1) * (nely + 1) - 1),
     )
 
     # Define all degrees of freedom and free degrees of freedom
