@@ -461,7 +461,7 @@ def mmtounn_train_and_outputs(
         combined_frac=combined_frac,
     )
 
-    fixed = args['fixdofs']
+    fixed = args['fixdofs'].numpy()
     force = args['forces'].numpy()
 
     # e_materials and material_density_weight need to be numpy arrays
