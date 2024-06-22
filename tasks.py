@@ -655,6 +655,7 @@ def run_multi_material_pipeline():
     Function to run the multi-material pipeline
     """
     device = torch.device('cpu')
+    maxit = 10
 
     # For testing we will run two experimentation trackers
     API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
@@ -753,7 +754,7 @@ def run_multi_material_pipeline():
         )
 
         train.train_pygranso_mmto(
-            model=model, comb_fn=comb_fn, maxit=350, device=device
+            model=model, comb_fn=comb_fn, maxit=maxit, device=device
         )
 
         # Train PyGranso MMTO - Second Stage
@@ -768,7 +769,7 @@ def run_multi_material_pipeline():
         )
 
         train.train_pygranso_mmto(
-            model=model, comb_fn=comb_fn, maxit=350, device=device
+            model=model, comb_fn=comb_fn, maxit=maxit, device=device
         )
 
         # Get the final design
