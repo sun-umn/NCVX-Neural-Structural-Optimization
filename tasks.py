@@ -23,6 +23,7 @@ import topo_api
 import topo_physics
 import train
 import utils
+from MMTOuNN.neuralTO_MM import TopologyOptimizer as MMTO
 from TOuNN.TOuNN import TopologyOptimizer
 
 # Filter warnings
@@ -435,6 +436,90 @@ def tounn_train_and_outputs(problem, requires_flip):
     return best_final_design, best_score, binary_constraint, volume_constraint, metrics
 
 
+def mmtounn_train_and_outputs(
+    nelx, nely, e_materials, material_density_weight, combined_frac
+):
+    """
+    Function that will run the TOuNN pipeline
+    """
+    elemArea = 1.0
+
+    # Network config
+    numLayers = 5
+    # the depth of the NN
+    numNeuronsPerLyr = 20
+    # the height of the NN
+
+    # problem
+    exampleName = 'TipCantilever'
+    ndof = 2 * (nelx + 1) * (nely + 1)
+    force = np.zeros((ndof, 1))
+    dofs = np.arange(ndof)
+    fixed = dofs[0 : 2 * (nely + 1) : 1]
+    force[2 * (nelx + 1) * (nely + 1) - 2 * nely + 1, 0] = -1
+
+    args = topo_api.multi_material_tip_cantilever_task(
+        nelx=nelx,
+        nely=nely,
+        e_materials=e_materials,
+        material_density_weight=material_density_weight,
+        combined_frac=combined_frac,
+    )
+
+    ndof = args['ndof']
+    fixed = args['fixdofs']
+    force = args['forces']
+
+    nonDesignRegion = None
+    symXAxis = False
+    symYAxis = False
+
+    # Additional config
+    minEpochs = 50
+    maxEpochs = 500
+    penal = 1.0
+    useSavedNet = False
+    device = 'cpu'
+
+    # Compute the topology
+    topOpt = MMTO()
+    topOpt.initializeFE(
+        exampleName,
+        nelx,
+        nely,
+        elemArea,
+        force,
+        fixed,
+        device,
+        penal,
+        nonDesignRegion,
+        e_materials,
+    )
+    topOpt.initializeOptimizer(
+        numLayers,
+        numNeuronsPerLyr,
+        combined_frac,
+        material_density_weight,
+        symXAxis,
+        symYAxis,
+    )
+
+    # Run the optimization
+    _ = topOpt.train(maxEpochs, minEpochs, useSavedNet)
+
+    # Get the density outputs
+    plotResolution = 1
+    xyPlot, nonDesignPlotIdx = topOpt.generatePoints(
+        topOpt.FE.nelx, topOpt.FE.nely, plotResolution, topOpt.nonDesignRegion
+    )
+
+    # Compute the final density
+    density = topOpt.topNet(xyPlot, nonDesignPlotIdx)
+    density = density.detach().cpu().numpy()
+
+    return density
+
+
 @cli.command('run-multi-structure-pipeline')
 @click.option('--model_size', default='medium')
 @click.option('--structure_size', default='medium')
@@ -782,6 +867,8 @@ def run_multi_material_pipeline():
         mmto_filepath = os.path.join(save_path, f'mmto-{seed}.pickle')
         with open(mmto_filepath, 'wb') as handle:
             pickle.dump(final_design, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Run MM-TOuNN Pipeline
 
 
 @cli.command('run-multi-structure-pygranso-pipeline')
