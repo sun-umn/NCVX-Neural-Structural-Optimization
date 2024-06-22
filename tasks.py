@@ -861,7 +861,7 @@ def run_multi_material_pipeline():
         compliance, final_design, _ = topo_physics.calculate_multi_material_compliance(
             model, ke, args, device, torch.double
         )
-        final_design = final_design.detach().numpy().cpu()
+        final_design = final_design.detach().numpy()
 
         # Compute the final design and save to experiments
         mmto_filepath = os.path.join(save_path, f'mmto-{seed}.pickle')
