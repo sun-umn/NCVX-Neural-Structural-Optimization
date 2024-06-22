@@ -452,11 +452,6 @@ def mmtounn_train_and_outputs(
 
     # problem
     exampleName = 'TipCantilever'
-    ndof = 2 * (nelx + 1) * (nely + 1)
-    force = np.zeros((ndof, 1))
-    dofs = np.arange(ndof)
-    fixed = dofs[0 : 2 * (nely + 1) : 1]
-    force[2 * (nelx + 1) * (nely + 1) - 2 * nely + 1, 0] = -1
 
     args = topo_api.multi_material_tip_cantilever_task(
         nelx=nelx,
@@ -466,9 +461,12 @@ def mmtounn_train_and_outputs(
         combined_frac=combined_frac,
     )
 
-    ndof = args['ndof']
     fixed = args['fixdofs']
     force = args['forces']
+
+    # e_materials and material_density_weight need to be numpy arrays
+    e_materials = e_materials.numpy()
+    material_density_weight = material_density_weight.numpy()
 
     nonDesignRegion = None
     symXAxis = False
