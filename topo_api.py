@@ -100,7 +100,7 @@ def multi_material_tip_cantilever_task(
         "nely": torch.tensor(nely),
         "freedofs": freedofs,
         "fixdofs": fixdofs,
-        "forces": forces.ravel(),
+        "forces": forces,
         "penal": 3.0,
         "filter_width": 2,
         "epsilon": epsilon,

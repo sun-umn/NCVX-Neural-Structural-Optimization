@@ -783,6 +783,7 @@ def run_multi_material_pipeline():
 
     # Set penal to 1.0
     args['penal'] = 1.0
+    args['forces'] = args['forces'].ravel()
 
     # Create the stiffness matrix
     ke = topo_physics.get_stiffness_matrix(
