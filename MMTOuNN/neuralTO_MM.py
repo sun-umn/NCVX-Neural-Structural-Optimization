@@ -349,33 +349,33 @@ class TopologyOptimizer:
             )
             self.numIter = self.numIter + 1
             alpha = min(100, alpha + alphaIncrement)
-            if epoch % 24 == 0:
-                self.plotMaterialContour(epoch)
-                print(
-                    "{:d} p {:.3F} J0 {:.3F};  loss {:.3F}; massCons {:.3F}; relGray {:.3F}".format(  # noqa
-                        epoch,
-                        self.FE.penal,
-                        self.objective.item(),
-                        loss.item(),
-                        self.massConstraint,
-                        relGreyElements,
-                    )
-                )
+            # if epoch % 24 == 0:
+            #     self.plotMaterialContour(epoch)
+            #     print(
+            #         "{:d} p {:.3F} J0 {:.3F};  loss {:.3F}; massCons {:.3F}; relGray {:.3F}".format(  # noqa
+            #             epoch,
+            #             self.FE.penal,
+            #             self.objective.item(),
+            #             loss.item(),
+            #             self.massConstraint,
+            #             relGreyElements,
+            #         )
+            #     )
             if (
                 (epoch > minEpochs)
                 and (np.abs(self.massConstraint) < 0.05)
                 and (relGreyElements < 0.035)
             ):
-                print(
-                    "{:d} p {:.3F} J0 {:.3F};  loss {:.3F}; massCons {:.3F}; relGray {:.3F}".format(  # noqa
-                        epoch,
-                        self.FE.penal,
-                        self.objective.item(),
-                        loss.item(),
-                        self.massConstraint,
-                        relGreyElements,
-                    )
-                )
+                # print(
+                #     "{:d} p {:.3F} J0 {:.3F};  loss {:.3F}; massCons {:.3F}; relGray {:.3F}".format(  # noqa
+                #         epoch,
+                #         self.FE.penal,
+                #         self.objective.item(),
+                #         loss.item(),
+                #         self.massConstraint,
+                #         relGreyElements,
+                #     )
+                # )
                 break
         # self.FE.plotFE()
         torch.save(self.topNet, savedNetFileName)
