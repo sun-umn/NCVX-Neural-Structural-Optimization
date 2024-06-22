@@ -437,11 +437,13 @@ def tounn_train_and_outputs(problem, requires_flip):
 
 
 def mmtounn_train_and_outputs(
-    nelx, nely, e_materials, material_density_weight, combined_frac
+    nelx, nely, e_materials, material_density_weight, combined_frac, seed=1234
 ):
     """
     Function that will run the TOuNN pipeline
     """
+    # Set a different seed?
+
     elemArea = 1.0
 
     # Network config
@@ -500,6 +502,7 @@ def mmtounn_train_and_outputs(
         massDensityMaterials=material_density_weight,
         symXAxis=symXAxis,
         symYAxis=symYAxis,
+        seed=seed,
     )
 
     # Run the optimization

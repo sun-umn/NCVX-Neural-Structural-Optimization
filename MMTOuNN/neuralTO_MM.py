@@ -240,9 +240,9 @@ class TopologyOptimizer:
         self.objective = 0.0
         self.massConstraint = 0.0
         self.lossHistory = []
-        self.topFig = plt.figure()
-        self.topAx = self.topFig.gca()
-        plt.ion()
+        # self.topFig = plt.figure()
+        # self.topAx = self.topFig.gca()
+        # plt.ion()
 
     def setDesiredMass(
         self, desMass
@@ -388,7 +388,7 @@ class TopologyOptimizer:
                 # )
                 break
         # self.FE.plotFE()
-        torch.save(self.topNet, savedNetFileName)
+        # torch.save(self.topNet, savedNetFileName)
         return lossHistory
 
     # %% plots
