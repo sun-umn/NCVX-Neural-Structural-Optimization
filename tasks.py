@@ -640,6 +640,8 @@ def run_classical_mmto(
 
         change = np.max(np.abs(x - xold))
 
+        print(f'Compliance = {c}')
+
     return x
 
 
