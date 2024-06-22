@@ -764,7 +764,7 @@ def run_multi_material_pipeline():
     Function to run the multi-material pipeline
     """
     device = torch.device('cpu')
-    maxit = 5
+    maxit = 500
 
     # For testing we will run two experimentation trackers
     API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
