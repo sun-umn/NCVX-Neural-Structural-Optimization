@@ -602,7 +602,7 @@ def run_classical_mmto(
                 n1 = (nely + 1) * elx + ely
                 n2 = (nely + 1) * (elx + 1) + ely
 
-                Ue = U[
+                edof = np.array(
                     [
                         2 * n1 - 1,
                         2 * n1,
@@ -612,7 +612,12 @@ def run_classical_mmto(
                         2 * n2 + 2,
                         2 * n1 + 1,
                         2 * n1 + 2,
-                    ],
+                    ]
+                )
+                edof = edof + 1
+
+                Ue = U[
+                    edof,
                     0,
                 ]
 

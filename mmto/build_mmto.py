@@ -32,17 +32,20 @@ def finite_element(nelx, nely, E_Interpolation, KE):
         for ely in range(nely):
             n1 = (nely + 1) * elx + ely
             n2 = (nely + 1) * (elx + 1) + ely
-            edof = np.array(
-                [
-                    2 * n1 - 1,
-                    2 * n1,
-                    2 * n2 - 1,
-                    2 * n2,
-                    2 * n2 + 1,
-                    2 * n2 + 2,
-                    2 * n1 + 1,
-                    2 * n1 + 2,
-                ]
+            edof = (
+                np.array(
+                    [
+                        2 * n1 - 1,
+                        2 * n1,
+                        2 * n2 - 1,
+                        2 * n2,
+                        2 * n2 + 1,
+                        2 * n2 + 2,
+                        2 * n1 + 1,
+                        2 * n1 + 2,
+                    ]
+                )
+                + 1
             )
             K[edof[:, np.newaxis], edof] += E_Interpolation[ely, elx] * KE
 
