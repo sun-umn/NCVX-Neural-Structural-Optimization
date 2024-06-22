@@ -343,6 +343,8 @@ class TopologyOptimizer:
                     self.objective.item(),
                     loss.item(),
                     [np.mean(nnPred_np[:, i]) for i in range(self.FE.numMaterials)],
+                    # We need to compare the unscaled compliance
+                    self.objective.item() * self.obj0,
                 ]
             )
             self.numIter = self.numIter + 1

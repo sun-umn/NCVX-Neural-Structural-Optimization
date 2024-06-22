@@ -496,12 +496,12 @@ def mmtounn_train_and_outputs(
         e_materials,
     )
     topOpt.initializeOptimizer(
-        numLayers,
-        numNeuronsPerLyr,
-        combined_frac,
-        material_density_weight,
-        symXAxis,
-        symYAxis,
+        numLayers=numLayers,
+        numNeuronsPerLyr=numNeuronsPerLyr,
+        desiredMassFraction=combined_frac,
+        massDensityMaterials=material_density_weight,
+        symXAxis=symXAxis,
+        symYAxis=symYAxis,
     )
 
     # Run the optimization
@@ -517,7 +517,7 @@ def mmtounn_train_and_outputs(
     density = topOpt.topNet(xyPlot, nonDesignPlotIdx)
     density = density.detach().cpu().numpy()
 
-    return density
+    return topOpt, density
 
 
 @cli.command('run-multi-structure-pipeline')
