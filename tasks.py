@@ -23,6 +23,12 @@ import topo_api
 import topo_physics
 import train
 import utils
+from mmto.build_mmto import (
+    check,
+    finite_element,
+    optimality_criterion,
+    ordered_simp_interpolation,
+)
 from MMTOuNN.neuralTO_MM import TopologyOptimizer as MMTO
 from TOuNN.TOuNN import TopologyOptimizer
 
@@ -545,11 +551,96 @@ def mmtounn_train_and_outputs(
 
 
 def run_classical_mmto(
-    nelx, nely, x0, volfrac, costfrac, penal, rmin, D, E, P, MColor, MName, MinMove
+    nelx, nely, ke, x0, volfrac, costfrac, penal, rmin, D, E, P, MColor, MName, MinMove
 ) -> None:
     """
     Function to run classical MMTO
     """
+    # Initialize a grid
+    x = np.ones((nely, nelx)) * x0
+
+    # We will loop until converged
+    loop = 0
+    change = 1.0
+
+    while change > 1.01 * MinMove:
+        loop = loop + 1
+        xold = x
+
+        # Run through the interpolation and FE
+        E_, dE_ = ordered_simp_interpolation(
+            nelx=nelx,
+            nely=nely,
+            x=x,
+            penal=penal,
+            X=D,
+            Y=E,
+        )
+        P_, dP_ = ordered_simp_interpolation(
+            nelx=nelx,
+            nely=nely,
+            x=x,
+            penal=(1 / penal),
+            X=D,
+            Y=P,
+        )
+
+        # Get the displacement vector
+        U = finite_element(
+            nelx=nelx,
+            nely=nely,
+            E_Interpolation=E_,
+            KE=ke,
+        )
+
+        # Objective function and sensitivity analysis
+        c = 0.0
+        dc = np.zeros((nely, nelx))
+
+        for ely in range(nely):
+            for elx in range(nelx):
+                n1 = (nely + 1) * (elx) + ely + 1  # MATLAB uses 1-based indexing
+                n2 = (nely + 1) * (elx + 1) + ely + 1
+
+                Ue = U[
+                    [
+                        2 * n1 - 1,
+                        2 * n1,
+                        2 * n2 - 1,
+                        2 * n2,
+                        2 * n2 + 1,
+                        2 * n2 + 2,
+                        2 * n1 + 1,
+                        2 * n1 + 2,
+                    ],
+                    0,
+                ]
+
+                c += E_[ely, elx] * np.dot(Ue.T, np.dot(ke, Ue))
+                dc[ely, elx] = -dE_[ely, elx] * np.dot(Ue.T, np.dot(ke, Ue))
+
+        # Filtering of sensitivities
+        dc = check(nelx=nelx, nely=nely, rmin=rmin, x=x, dc=dc)
+
+        # Update the design with the optimality criterion
+        x = optimality_criterion(
+            nelx=nelx,
+            nely=nely,
+            x=x,
+            volfrac=volfrac,
+            costfrac=costfrac,
+            dc=dc,
+            E_=E_,
+            dE_=dE_,
+            P_=P_,
+            dP_=dP_,
+            loop=loop,
+            MinMove=MinMove,
+        )
+
+        change = np.max(np.abs(x - xold))
+
+    return x
 
 
 @cli.command('run-multi-structure-pipeline')
