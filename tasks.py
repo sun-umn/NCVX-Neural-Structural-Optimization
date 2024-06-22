@@ -616,10 +616,7 @@ def run_classical_mmto(
                 )
                 edof = edof + 1
 
-                Ue = U[
-                    edof,
-                    0,
-                ]
+                Ue = U[edof, 0]
 
                 c += E_[ely, elx] * np.dot(Ue.T, np.dot(ke, Ue))
                 dc[ely, elx] = -dE_[ely, elx] * np.dot(Ue.T, np.dot(ke, Ue))
@@ -644,8 +641,9 @@ def run_classical_mmto(
         )
 
         change = np.max(np.abs(x - xold))
+        mass_fraction = np.sum(x) / (nelx * nely)
 
-        print(f'Compliance = {c}')
+        print(f'Iteration = {loop}; Compliance = {c}; Mass Fraction = {mass_fraction}')
 
     return x
 
