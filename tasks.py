@@ -544,6 +544,14 @@ def mmtounn_train_and_outputs(
     return topOpt, density
 
 
+def run_classical_mmto(
+    nelx, nely, x0, volfrac, costfrac, penal, rmin, D, E, P, MColor, MName, MinMove
+) -> None:
+    """
+    Function to run classical MMTO
+    """
+
+
 @cli.command('run-multi-structure-pipeline')
 @click.option('--model_size', default='medium')
 @click.option('--structure_size', default='medium')
