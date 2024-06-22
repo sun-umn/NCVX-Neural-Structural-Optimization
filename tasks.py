@@ -41,6 +41,27 @@ def cli():  # noqa
     pass
 
 
+def calculate_mass_constraint(
+    design, nelx, nely, material_density_weight, combined_frac
+):
+    """
+    Compute the total mass constraint from a final design
+    """
+    material_density_weight = np.array(material_density_weight)
+    total_mass = (
+        np.max(material_density_weight)
+        * design.shape[0]  # Expecting (nelx * nely, material) outputs
+        * combined_frac
+    )
+
+    num_materials = len(material_density_weight)
+    mass_constraint = np.zeros(num_materials)
+    for index, density_weight in enumerate(material_density_weight):
+        mass_constraint[index] = density_weight * torch.sum(design[:, index + 1])
+
+    return mass_constraint.sum() / total_mass - 1.0
+
+
 def calculate_binary_constraint(design, mask, epsilon):
     """
     Function to compute the binary constraint
@@ -805,7 +826,7 @@ def run_multi_material_pipeline():
     }
 
     # Trials and seeds
-    seeds = [0, 10, 20, 30, 40]
+    seeds = [0]
     for seed in seeds:
         # Intialize random seed
         utils.build_random_seed(seed)
@@ -865,12 +886,59 @@ def run_multi_material_pipeline():
         )
         final_design = final_design.detach().numpy()
 
+        # Compute mass constraint
+        ntopco_mass_constraint = calculate_mass_constraint(
+            design=final_design,
+            nelx=nelx,
+            nely=nely,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+        )
+
+        # TODO: Extract all of the relevant information
+        ntopco_outputs = {
+            'final_design': final_design,
+            'compliance': compliance,
+            'mass_constraint': ntopco_mass_constraint,
+        }
+
         # Compute the final design and save to experiments
-        mmto_filepath = os.path.join(save_path, f'mmto-{seed}.pickle')
-        with open(mmto_filepath, 'wb') as handle:
-            pickle.dump(final_design, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        ntopco_filepath = os.path.join(save_path, f'ntopco-{seed}.pickle')
+        with open(ntopco_filepath, 'wb') as handle:
+            pickle.dump(ntopco_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         # Run MM-TOuNN Pipeline
+        topOpt, mmtounn_final_design = mmtounn_train_and_outputs(
+            nelx=nelx,
+            nely=nely,
+            e_materials=e_materials,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+            seed=seed,
+        )
+
+        # Final compliance
+        mmtounn_compliance = topOpt.convergenceHistory[-1][-1]
+
+        # Compute mass constraint
+        mmtounn_mass_constraint = calculate_mass_constraint(
+            design=mmtounn_final_design,
+            nelx=nelx,
+            nely=nely,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+        )
+
+        mmtounn_outputs = {
+            'final_design': mmtounn_final_design,
+            'compliance': mmtounn_compliance,
+            'mass_constraint': mmtounn_mass_constraint,
+        }
+
+        # Compute the final design and save to experiments
+        mmtounn_filepath = os.path.join(save_path, f'mmtounn-{seed}.pickle')
+        with open(mmtounn_filepath, 'wb') as handle:
+            pickle.dump(mmtounn_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 @cli.command('run-multi-structure-pygranso-pipeline')
