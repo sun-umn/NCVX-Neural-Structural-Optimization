@@ -2,6 +2,7 @@
 import gc
 import os
 import warnings
+from typing import Any, Dict, Tuple
 
 # third party
 import autograd
@@ -33,6 +34,39 @@ except ImportError:
 # Default device
 DEFAULT_DEVICE = torch.device("cpu")
 DEFAULT_DTYPE = torch.double
+
+
+def build_random_seed(seed: int):
+    """
+    Initialize random seeds
+    """
+    np.random.seed(seed)
+    torch.random.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def compute_mmto_design(
+    design: torch.Tensor, args: Dict[str, Any]
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Function to compute the MMTO final design
+    """
+    num_materials = len(args['e_materials'] + 1)
+    final_design = torch.zeros(args['nely'], args['nelx'], num_materials)
+
+    for material in range(num_materials):
+        final_design[:, :, material] = (
+            design[:, material].reshape(args['nelx'], args['nely']).T
+        )
+
+    final_combined_material_design = np.array(
+        np.argmax(final_design.numpy(), axis=2)[::-1, :]
+    )
+    final_np_design = np.array(final_design.detach().numpy())
+
+    return final_combined_material_design, final_np_design
 
 
 class SparseSolver(Function):

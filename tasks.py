@@ -20,6 +20,7 @@ from neural_structural_optimization import train as google_train
 import models
 import problems
 import topo_api
+import topo_physics
 import train
 import utils
 from TOuNN.TOuNN import TopologyOptimizer
@@ -646,6 +647,140 @@ def run_multi_structure_pipeline(model_size, structure_size):
             pickle.dump(benchmark_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     print('Run completed! 🎉')
+
+
+@cli.command('run-multi-material-pipeline')
+def run_multi_material_pipeline():
+    """
+    Function to run the multi-material pipeline
+    """
+    device = torch.device('cpu')
+
+    # For testing we will run two experimentation trackers
+    API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
+    PROJECT_NAME = 'Topology-Optimization'
+
+    # Enable wandb
+    wandb.login(key=API_KEY)
+
+    # Initalize wandb
+    # TODO: Save training and validation curves per fold
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project=PROJECT_NAME,
+        tags=['ntopco-mmto-task'],
+    )
+
+    # Will create directories for saving models
+    save_path = os.path.join(
+        '/home/jusun/dever120/NCVX-Neural-Structural-Optimization/results',
+        f'{wandb.run.id}',
+    )
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+        print(f"The directory {save_path} was created.")
+    else:
+        print(f"The directory {save_path} already exists.")
+
+    # Problem specifications
+    nelx = 64
+    nely = 32
+    combined_frac = 0.6
+    e_materials = torch.tensor([3.0, 2.0, 1.0], dtype=torch.double)
+    material_density_weight = torch.tensor([1.0, 0.7, 0.4])
+
+    args = topo_api.multi_material_tip_cantilever_task(
+        nelx=nelx,
+        nely=nely,
+        e_materials=e_materials,
+        material_density_weight=material_density_weight,
+        combined_frac=combined_frac,
+    )
+
+    # Set penal to 1.0
+    args['penal'] = 1.0
+
+    # Create the stiffness matrix
+    ke = topo_physics.get_stiffness_matrix(
+        young=args['young'],
+        poisson=args['poisson'],
+        device=device,
+    ).double()
+
+    # DIP Setup
+    conv_filters = (256, 128, 64, 32)
+    cnn_kwargs = {
+        'latent_size': 128,
+        'dense_channels': 96,
+        'kernel_size': (5, 5),
+        'conv_filters': conv_filters,
+    }
+
+    # Trials and seeds
+    seeds = [0, 10, 20, 30, 40]
+    for seed in seeds:
+        # Intialize random seed
+        utils.build_random_seed(seed)
+
+        model = models.MultiMaterialCNNModel(args, **cnn_kwargs).to(
+            device=device, dtype=torch.double
+        )
+
+        # Calculate the initial compliance
+        model.eval()
+        with torch.no_grad():
+            initial_compliance, x_phys, _ = (
+                topo_physics.calculate_multi_material_compliance(
+                    model, ke, args, device, torch.double
+                )
+            )
+
+        # Detach calculation and use it for scaling in PyGranso
+        initial_compliance = (
+            torch.ceil(initial_compliance.to(torch.float64).detach()) + 1.0
+        )
+
+        # Train PyGranso MMTO - First Stage
+        # Setup the combined function for PyGranso
+        comb_fn = lambda model: multi_material_constraint_function(  # noqa
+            model,
+            initial_compliance,
+            ke,
+            args,
+            add_constraints=False,
+            device=device,
+            dtype=torch.double,
+        )
+
+        train.train_pygranso_mmto(
+            model=model, comb_fn=comb_fn, maxit=350, device=device
+        )
+
+        # Train PyGranso MMTO - Second Stage
+        comb_fn = lambda model: multi_material_constraint_function(  # noqa
+            model,
+            initial_compliance,
+            ke,
+            args,
+            add_constraints=True,
+            device=device,
+            dtype=torch.double,
+        )
+
+        train.train_pygranso_mmto(
+            model=model, comb_fn=comb_fn, maxit=350, device=device
+        )
+
+        # Get the final design
+        compliance, final_design, _ = topo_physics.calculate_multi_material_compliance(
+            model, ke, args, device, torch.double
+        )
+        final_design = final_design.detach().numpy().cpu()
+
+        # Compute the final design and save to experiments
+        mmto_filepath = os.path.join(save_path, f'mmto-{seed}.pickle')
+        with open(mmto_filepath, 'wb') as handle:
+            pickle.dump(final_design, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 @cli.command('run-multi-structure-pygranso-pipeline')
