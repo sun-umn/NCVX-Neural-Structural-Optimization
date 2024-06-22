@@ -47,6 +47,8 @@ def calculate_mass_constraint(
     """
     Compute the total mass constraint from a final design
     """
+    design = np.array(design)
+
     material_density_weight = np.array(material_density_weight)
     total_mass = (
         np.max(material_density_weight)
@@ -57,7 +59,7 @@ def calculate_mass_constraint(
     num_materials = len(material_density_weight)
     mass_constraint = np.zeros(num_materials)
     for index, density_weight in enumerate(material_density_weight):
-        mass_constraint[index] = density_weight * torch.sum(design[:, index + 1])
+        mass_constraint[index] = density_weight * np.sum(design[:, index + 1])
 
     return mass_constraint.sum() / total_mass - 1.0
 
@@ -762,7 +764,7 @@ def run_multi_material_pipeline():
     Function to run the multi-material pipeline
     """
     device = torch.device('cpu')
-    maxit = 500
+    maxit = 5
 
     # For testing we will run two experimentation trackers
     API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
