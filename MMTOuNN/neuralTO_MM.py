@@ -50,7 +50,15 @@ def set_seed(manualSeed):
 # %% init NN
 class TopNet(nn.Module):
     def __init__(
-        self, numLayers, numNeuronsPerLyr, nelx, nely, numMaterials, symXAxis, symYAxis
+        self,
+        numLayers,
+        numNeuronsPerLyr,
+        nelx,
+        nely,
+        numMaterials,
+        symXAxis,
+        symYAxis,
+        seed,
     ):
         self.inputDim = 2
         # x and y coordn of the point
@@ -65,7 +73,7 @@ class TopNet(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList()
         current_dim = self.inputDim
-        set_seed(1234)
+        set_seed(seed)
         # NN are seeded manually
 
         for lyr in range(numLayers):
@@ -205,6 +213,7 @@ class TopologyOptimizer:
         massDensityMaterials,
         symXAxis=False,
         symYAxis=False,
+        seed=1234,
     ):
         self.desiredMassFraction = desiredMassFraction
         self.desiredMass = (
@@ -226,6 +235,7 @@ class TopologyOptimizer:
             self.FE.numMaterials,
             symXAxis,
             symYAxis,
+            seed=seed,
         ).to(self.device)
         self.objective = 0.0
         self.massConstraint = 0.0
