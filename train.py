@@ -18,6 +18,91 @@ import topo_physics
 import utils
 
 
+# Incorporating Multi-Material Designs
+def multi_material_constraint_function(
+    model, initial_compliance, ke, args, add_constraints, device, dtype
+):
+    """
+    Function to implement MMTO constraints for our framework
+    """
+    model.eval()
+    unscaled_compliance, x_phys, mask = (
+        topo_physics.calculate_multi_material_compliance(model, ke, args, device, dtype)
+    )
+
+    model.train()
+    f = 1.0 / initial_compliance * unscaled_compliance
+
+    # Run this problem with no inequality constraints
+    ci = None
+
+    ce = pygransoStruct()
+    num_materials = len(args['e_materials'])
+    total_mass = (
+        torch.max(args['material_density_weight'])
+        * args['nelx']
+        * args['nely']
+        * args['combined_frac']
+    )
+    # Pixel total here will be the number of rows
+    pixel_total = x_phys.shape[0]
+
+    mass_constraint = torch.zeros(num_materials)
+    for index, density_weight in enumerate(args['material_density_weight']):
+        mass_constraint[index] = density_weight * torch.sum(x_phys[:, index + 1])
+
+    c1 = (torch.sum(mass_constraint) / total_mass) - 1.0
+    ce.c1 = c1  # noqa
+
+    # For MMTO we are finding that a two-stage process works very well
+    if add_constraints:
+        # Directly binary constraint
+        binary_constraint = x_phys * (1 - x_phys)
+        binary_constraint = torch.norm(binary_constraint, p=1) / pixel_total
+        ce.c2 = binary_constraint
+
+        # Sparsity constraint
+        sparsity_constraint = ((x_phys**2).sum(axis=1).sum() / pixel_total) - 1.0
+        ce.c3 = sparsity_constraint
+
+    # Let's try and clear as much stuff as we can to preserve memory
+    del x_phys, mask, ke
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    return f, ci, ce
+
+
+def train_pygranso_mmto(model, comb_fn, maxit, device) -> None:
+    # Initalize the opts
+    opts = pygransoStruct()
+
+    # Set the device
+    opts.torch_device = device
+
+    # Setup the intitial inputs for the solver
+    nvar = getNvarTorch(model.parameters())
+    opts.x0 = (
+        torch.nn.utils.parameters_to_vector(model.parameters())
+        .detach()
+        .reshape(nvar, 1)
+    ).to(device=device, dtype=torch.double)
+
+    # Additional pygranso options
+    opts.limited_mem_size = 100
+    opts.torch_device = device
+    opts.double_precision = True
+    opts.mu0 = 1.0
+    opts.maxit = maxit
+    opts.print_frequency = 1
+    opts.stat_l2_model = False
+    opts.viol_eq_tol = 1e-4
+    opts.opt_tol = 1e-4
+
+    # Main algorithm with logging enabled.
+    _ = pygranso(var_spec=model, combined_fn=comb_fn, user_opts=opts)
+
+
 # Updated Section for training PyGranso with Direct Volume constraints
 # TODO: We will want to create a more generalized format for training our PyGranso
 # problems for for now we will have a separate training process for the volume
