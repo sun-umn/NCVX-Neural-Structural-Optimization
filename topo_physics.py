@@ -27,10 +27,10 @@ def young_modulus_multi_material(
     Function that will compute the young's modulus for multiple materials
     """
     num_materials = len(e_materials)
-    penalized_materials = e_min + x**p
+    penalized_materials = x**p
 
     # Reshaping for matrix multiplication
-    e_materials = e_materials.reshape(num_materials, 1).T - e_min
+    e_materials = e_materials.reshape(num_materials, 1).T
     young_modulus = (e_materials * penalized_materials).sum(axis=1).flatten()
     return young_modulus.to(device=device, dtype=dtype)
 
