@@ -30,8 +30,8 @@ def finite_element(nelx, nely, E_Interpolation, KE):
 
     for elx in range(nelx):
         for ely in range(nely):
-            n1 = (nely) * elx + ely
-            n2 = (nely) * (elx + 1) + ely
+            n1 = (nely + 1) * elx + ely
+            n2 = (nely + 1) * (elx + 1) + ely
             edof = np.array(
                 [
                     2 * n1 - 1,
