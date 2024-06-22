@@ -828,7 +828,7 @@ def run_multi_material_pipeline():
 
         # Train PyGranso MMTO - First Stage
         # Setup the combined function for PyGranso
-        comb_fn = lambda model: multi_material_constraint_function(  # noqa
+        comb_fn = lambda model: train.multi_material_constraint_function(  # noqa
             model,
             initial_compliance,
             ke,
@@ -843,7 +843,7 @@ def run_multi_material_pipeline():
         )
 
         # Train PyGranso MMTO - Second Stage
-        comb_fn = lambda model: multi_material_constraint_function(  # noqa
+        comb_fn = lambda model: train.multi_material_constraint_function(  # noqa
             model,
             initial_compliance,
             ke,
