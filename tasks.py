@@ -599,7 +599,7 @@ def run_classical_mmto(
 
         for ely in range(nely):
             for elx in range(nelx):
-                n1 = (nely + 1) * (elx) + ely
+                n1 = (nely + 1) * elx + ely
                 n2 = (nely + 1) * (elx + 1) + ely
 
                 Ue = U[
