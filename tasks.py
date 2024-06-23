@@ -652,7 +652,7 @@ def run_classical_mmto(
         print(f'Iteration = {loop}; Compliance = {c}; Mass Fraction = {mass_fraction}')
 
         # Early stopping
-        if loop >= 500:
+        if loop >= 1:
             break
 
     return x, c, mass_fraction
