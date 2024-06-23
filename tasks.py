@@ -972,6 +972,9 @@ def run_multi_material_pipeline(problem_name):
         'final_design': cmmto_x_phys,
         'compliance': cmmto_compliance,
         'mass_constraint': cmmto_mass_constraint,
+        'material_density_weight': material_density_weight,
+        'nelx': nelx,
+        'nely': nely,
     }
 
     cmmto_filepath = os.path.join(save_path, 'cmmto.pickle')
@@ -1073,6 +1076,9 @@ def run_multi_material_pipeline(problem_name):
             'final_design': final_design,
             'compliance': compliance,
             'mass_constraint': ntopco_mass_constraint,
+            'material_density_weight': material_density_weight,
+            'nelx': nelx,
+            'nely': nely,
         }
 
         # Compute the final design and save to experiments
@@ -1108,6 +1114,9 @@ def run_multi_material_pipeline(problem_name):
             'final_design': mmtounn_final_design,
             'compliance': mmtounn_compliance,
             'mass_constraint': mmtounn_mass_constraint,
+            'material_density_weight': material_density_weight,
+            'nelx': nelx,
+            'nely': nely,
         }
 
         # Compute the final design and save to experiments
