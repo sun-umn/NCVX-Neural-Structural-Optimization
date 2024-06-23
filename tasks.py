@@ -475,13 +475,13 @@ def mmtounn_train_and_outputs(
     # problem
     exampleName = 'TipCantilever'
 
-    args = topo_api.multi_material_tip_cantilever_task(
-        nelx=nelx,
-        nely=nely,
-        e_materials=e_materials,
-        material_density_weight=material_density_weight,
-        combined_frac=combined_frac,
-    )
+    # args = topo_api.multi_material_tip_cantilever_task(
+    #     nelx=nelx,
+    #     nely=nely,
+    #     e_materials=e_materials,
+    #     material_density_weight=material_density_weight,
+    #     combined_frac=combined_frac,
+    # )
 
     fixed = args['fixdofs'].numpy().astype(int)
     force = args['forces'].numpy().astype(np.float64)
@@ -652,7 +652,7 @@ def run_classical_mmto(
         print(f'Iteration = {loop}; Compliance = {c}; Mass Fraction = {mass_fraction}')
 
         # Early stopping
-        if loop >= 5:
+        if loop >= 500:
             break
 
     return x, c, mass_fraction
@@ -872,8 +872,8 @@ def run_multi_structure_pipeline(model_size, structure_size):
     print('Run completed! 🎉')
 
 
-# @cli.command('run-multi-material-pipeline')
-# @click.option('--problem_name', default='tip_cantilever_beam')
+@cli.command('run-multi-material-pipeline')
+@click.option('--problem_name', default='tip_cantilever_beam')
 def run_multi_material_pipeline(problem_name):
     """
     Function to run the multi-material pipeline
@@ -1081,6 +1081,7 @@ def run_multi_material_pipeline(problem_name):
 
         # Run MM-TOuNN Pipeline
         topOpt, mmtounn_final_design = mmtounn_train_and_outputs(
+            args=args,
             nelx=nelx,
             nely=nely,
             e_materials=e_materials,
@@ -1088,6 +1089,7 @@ def run_multi_material_pipeline(problem_name):
             combined_frac=combined_frac,
             seed=seed,
         )
+        print('MM-TOuNN Completed! 🎉')
 
         # Final compliance
         mmtounn_compliance = topOpt.convergenceHistory[-1][-1]
@@ -1111,6 +1113,8 @@ def run_multi_material_pipeline(problem_name):
         mmtounn_filepath = os.path.join(save_path, f'mmtounn-{seed}.pickle')
         with open(mmtounn_filepath, 'wb') as handle:
             pickle.dump(mmtounn_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print('Multi-Material Pipeline Completed! 🏆')
 
 
 @cli.command('run-multi-structure-pygranso-pipeline')
