@@ -652,7 +652,7 @@ def run_classical_mmto(
         print(f'Iteration = {loop}; Compliance = {c}; Mass Fraction = {mass_fraction}')
 
         # Early stopping
-        if loop >= 1:
+        if loop >= 500:
             break
 
     return x, c, mass_fraction
@@ -982,6 +982,11 @@ def run_multi_material_pipeline(problem_name):
     args['forces'] = torch.tensor(args['forces'].ravel())
     args['fixdofs'] = torch.tensor(args['fixdofs'])
     args['freedofs'] = torch.tensor(args['freedofs'])
+
+    # After running Classical method we need to update e_materials
+    # and material_density_weight
+    e_materials = e_materials[1:]
+    material_density_weight = material_density_weight[1:]
 
     # DIP Setup
     conv_filters = (256, 128, 64, 32)
