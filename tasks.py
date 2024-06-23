@@ -3,6 +3,7 @@
 import os
 import pickle
 import warnings
+from typing import Tuple
 
 # third party
 import click
@@ -543,7 +544,7 @@ def mmtounn_train_and_outputs(
 
 def run_classical_mmto(
     args, nelx, nely, ke, x0, volfrac, costfrac, penal, rmin, D, E, P, MinMove
-) -> None:
+) -> Tuple[np.ndarray, float, float]:
     """
     Function to run classical MMTO
     """
@@ -654,7 +655,7 @@ def run_classical_mmto(
         if loop >= 500:
             break
 
-    return x
+    return x, c, mass_fraction
 
 
 @cli.command('run-multi-structure-pipeline')
@@ -871,8 +872,8 @@ def run_multi_structure_pipeline(model_size, structure_size):
     print('Run completed! 🎉')
 
 
-# @cli.command('run-multi-material-pipeline')
-# @click.option('--problem_name', default='tip_cantilever_beam')
+@cli.command('run-multi-material-pipeline')
+@click.option('--problem_name', default='tip_cantilever_beam')
 def run_multi_material_pipeline(problem_name):
     """
     Function to run the multi-material pipeline
@@ -914,6 +915,7 @@ def run_multi_material_pipeline(problem_name):
         e_materials = torch.tensor([0.0, 3.0, 2.0, 1.0], dtype=torch.double)
         material_density_weight = torch.tensor([0.0, 1.0, 0.7, 0.4])
         P = torch.tensor([1.0, 1.0, 1.0, 1.0])
+        costfrac = 1.0
 
         args = topo_api.multi_material_tip_cantilever_task(
             nelx=nelx,
@@ -930,6 +932,7 @@ def run_multi_material_pipeline(problem_name):
         e_materials = torch.tensor([0.0, 0.2, 0.6, 1.0], dtype=torch.double)
         material_density_weight = torch.tensor([0.0, 0.4, 0.7, 1.0])
         P = torch.tensor([1.0, 1.0, 1.0, 1.0])
+        costfrac = 1.0
 
         args = topo_api.multi_material_bridge_task(
             nelx=nelx,
@@ -946,14 +949,16 @@ def run_multi_material_pipeline(problem_name):
         device=device,
     ).double()
 
-    cmmto_x_phys = run_classical_mmto(
+    # When running the classical method it is deterministic so we do not need
+    # multiple runs
+    cmmto_x_phys, cmmto_compliance, cmmto_mass_constraint = run_classical_mmto(
         args=args,
         nelx=nelx,
         nely=nely,
         ke=ke,
         x0=0.5,
         volfrac=combined_frac,
-        costfrac=1.0,
+        costfrac=costfrac,
         penal=3.0,
         rmin=2.5,
         D=material_density_weight,
@@ -962,135 +967,143 @@ def run_multi_material_pipeline(problem_name):
         MinMove=0.001,
     )
 
-    return cmmto_x_phys
+    cmmto_outputs = {
+        'final_design': cmmto_x_phys,
+        'compliance': cmmto_compliance,
+        'mass_constraint': cmmto_mass_constraint,
+    }
 
-    # # Setup for our method
-    # args['penal'] = 1.0
-    # args['forces'] = args['forces'].ravel()
+    cmmto_filepath = os.path.join(save_path, 'cmmto.pickle')
+    with open(cmmto_filepath, 'wb') as handle:
+        pickle.dump(cmmto_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    # # DIP Setup
-    # conv_filters = (256, 128, 64, 32)
-    # cnn_kwargs = {
-    #     'latent_size': 128,
-    #     'dense_channels': 96,
-    #     'kernel_size': (5, 5),
-    #     'conv_filters': conv_filters,
-    # }
+    # Setup for our method
+    args['penal'] = 1.0
+    args['forces'] = args['forces'].ravel()
 
-    # # Trials and seeds
-    # seeds = [0, 10, 20, 30, 40]
-    # for seed in seeds:
-    #     # Intialize random seed
-    #     utils.build_random_seed(seed)
+    # DIP Setup
+    conv_filters = (256, 128, 64, 32)
+    cnn_kwargs = {
+        'latent_size': 128,
+        'dense_channels': 96,
+        'kernel_size': (5, 5),
+        'conv_filters': conv_filters,
+    }
 
-    #     model = models.MultiMaterialCNNModel(args, **cnn_kwargs).to(
-    #         device=device, dtype=torch.double
-    #     )
+    # Trials and seeds
+    seeds = [0]
+    for seed in seeds:
+        # Intialize random seed
+        utils.build_random_seed(seed)
 
-    #     # Calculate the initial compliance
-    #     model.eval()
-    #     with torch.no_grad():
-    #         initial_compliance, x_phys, _ = (
-    #             topo_physics.calculate_multi_material_compliance(
-    #                 model, ke, args, device, torch.double
-    #             )
-    #         )
+        model = models.MultiMaterialCNNModel(args, **cnn_kwargs).to(
+            device=device, dtype=torch.double
+        )
 
-    #     # Detach calculation and use it for scaling in PyGranso
-    #     initial_compliance = (
-    #         torch.ceil(initial_compliance.to(torch.float64).detach()) + 1.0
-    #     )
+        # Calculate the initial compliance
+        model.eval()
+        with torch.no_grad():
+            initial_compliance, x_phys, _ = (
+                topo_physics.calculate_multi_material_compliance(
+                    model, ke, args, device, torch.double
+                )
+            )
 
-    #     # Train PyGranso MMTO - First Stage
-    #     # Setup the combined function for PyGranso
-    #     comb_fn = lambda model: train.multi_material_constraint_function(  # noqa
-    #         model,
-    #         initial_compliance,
-    #         ke,
-    #         args,
-    #         add_constraints=False,
-    #         device=device,
-    #         dtype=torch.double,
-    #     )
+        # Detach calculation and use it for scaling in PyGranso
+        initial_compliance = (
+            torch.ceil(initial_compliance.to(torch.float64).detach()) + 1.0
+        )
 
-    #     train.train_pygranso_mmto(
-    #         model=model, comb_fn=comb_fn, maxit=maxit, device=device
-    #     )
+        # Train PyGranso MMTO - First Stage
+        # Setup the combined function for PyGranso
+        comb_fn = lambda model: train.multi_material_constraint_function(  # noqa
+            model,
+            initial_compliance,
+            ke,
+            args,
+            add_constraints=False,
+            device=device,
+            dtype=torch.double,
+        )
 
-    #     # Train PyGranso MMTO - Second Stage
-    #     comb_fn = lambda model: train.multi_material_constraint_function(  # noqa
-    #         model,
-    #         initial_compliance,
-    #         ke,
-    #         args,
-    #         add_constraints=True,
-    #         device=device,
-    #         dtype=torch.double,
-    #     )
+        train.train_pygranso_mmto(
+            model=model, comb_fn=comb_fn, maxit=maxit, device=device
+        )
 
-    #     train.train_pygranso_mmto(
-    #         model=model, comb_fn=comb_fn, maxit=maxit, device=device
-    #     )
+        # Train PyGranso MMTO - Second Stage
+        comb_fn = lambda model: train.multi_material_constraint_function(  # noqa
+            model,
+            initial_compliance,
+            ke,
+            args,
+            add_constraints=True,
+            device=device,
+            dtype=torch.double,
+        )
 
-    #     # Get the final design
-    #     compliance, final_design, _ = topo_physics.calculate_multi_material_compliance(
-    #         model, ke, args, device, torch.double
-    #     )
-    #     final_design = final_design.detach().numpy()
+        train.train_pygranso_mmto(
+            model=model, comb_fn=comb_fn, maxit=maxit, device=device
+        )
 
-    #     # Compute mass constraint
-    #     ntopco_mass_constraint = calculate_mass_constraint(
-    #         design=final_design,
-    #         nelx=nelx,
-    #         nely=nely,
-    #         material_density_weight=material_density_weight,
-    #         combined_frac=combined_frac,
-    #     )
+        # Get the final design
+        compliance, final_design, _ = topo_physics.calculate_multi_material_compliance(
+            model, ke, args, device, torch.double
+        )
+        final_design = final_design.detach().numpy()
 
-    #     # TODO: Extract all of the relevant information
-    #     ntopco_outputs = {
-    #         'final_design': final_design,
-    #         'compliance': compliance,
-    #         'mass_constraint': ntopco_mass_constraint,
-    #     }
+        # Compute mass constraint
+        ntopco_mass_constraint = calculate_mass_constraint(
+            design=final_design,
+            nelx=nelx,
+            nely=nely,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+        )
 
-    #     # Compute the final design and save to experiments
-    #     ntopco_filepath = os.path.join(save_path, f'ntopco-{seed}.pickle')
-    #     with open(ntopco_filepath, 'wb') as handle:
-    #         pickle.dump(ntopco_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # TODO: Extract all of the relevant information
+        ntopco_outputs = {
+            'final_design': final_design,
+            'compliance': compliance,
+            'mass_constraint': ntopco_mass_constraint,
+        }
 
-    #     # Run MM-TOuNN Pipeline
-    #     topOpt, mmtounn_final_design = mmtounn_train_and_outputs(
-    #         nelx=nelx,
-    #         nely=nely,
-    #         e_materials=e_materials,
-    #         material_density_weight=material_density_weight,
-    #         combined_frac=combined_frac,
-    #         seed=seed,
-    #     )
+        # Compute the final design and save to experiments
+        ntopco_filepath = os.path.join(save_path, f'ntopco-{seed}.pickle')
+        with open(ntopco_filepath, 'wb') as handle:
+            pickle.dump(ntopco_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    #     # Final compliance
-    #     mmtounn_compliance = topOpt.convergenceHistory[-1][-1]
+        # Run MM-TOuNN Pipeline
+        topOpt, mmtounn_final_design = mmtounn_train_and_outputs(
+            nelx=nelx,
+            nely=nely,
+            e_materials=e_materials,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+            seed=seed,
+        )
 
-    #     # Compute mass constraint
-    #     mmtounn_mass_constraint = calculate_mass_constraint(
-    #         design=mmtounn_final_design,
-    #         nelx=nelx,
-    #         nely=nely,
-    #         material_density_weight=material_density_weight,
-    #         combined_frac=combined_frac,
-    #     )
+        # Final compliance
+        mmtounn_compliance = topOpt.convergenceHistory[-1][-1]
 
-    #     mmtounn_outputs = {
-    #         'final_design': mmtounn_final_design,
-    #         'compliance': mmtounn_compliance,
-    #         'mass_constraint': mmtounn_mass_constraint,
-    #     }
+        # Compute mass constraint
+        mmtounn_mass_constraint = calculate_mass_constraint(
+            design=mmtounn_final_design,
+            nelx=nelx,
+            nely=nely,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+        )
 
-    #     # Compute the final design and save to experiments
-    #     mmtounn_filepath = os.path.join(save_path, f'mmtounn-{seed}.pickle')
-    #     with open(mmtounn_filepath, 'wb') as handle:
-    #         pickle.dump(mmtounn_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        mmtounn_outputs = {
+            'final_design': mmtounn_final_design,
+            'compliance': mmtounn_compliance,
+            'mass_constraint': mmtounn_mass_constraint,
+        }
+
+        # Compute the final design and save to experiments
+        mmtounn_filepath = os.path.join(save_path, f'mmtounn-{seed}.pickle')
+        with open(mmtounn_filepath, 'wb') as handle:
+            pickle.dump(mmtounn_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 @cli.command('run-multi-structure-pygranso-pipeline')
