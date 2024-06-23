@@ -371,8 +371,8 @@ class MultiMaterialCNNModel(nn.Module):
 
         layer_loop = zip(self.resizes, self.conv_filters)
         for idx, (resize, filters) in enumerate(layer_loop):
-            # output = torch.sin(output)
-            output = nn.Softplus()(output)
+            output = torch.sin(output)
+            # output = nn.Softplus()(output)
             # After a lot of investigation the outputs of the upsample need
             # to be reconfigured to match the same expectation as tensorflow
             # so we will do that here. Also, interpolate is teh correct
