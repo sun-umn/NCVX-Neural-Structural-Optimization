@@ -652,7 +652,7 @@ def run_classical_mmto(
         print(f'Iteration = {loop}; Compliance = {c}; Mass Fraction = {mass_fraction}')
 
         # Early stopping
-        if loop >= 500:
+        if loop >= 1:
             break
 
     return x, c, mass_fraction
@@ -979,7 +979,9 @@ def run_multi_material_pipeline(problem_name):
 
     # Setup for our method
     args['penal'] = 1.0
-    args['forces'] = args['forces'].ravel()
+    args['forces'] = torch.tensor(args['forces'].ravel())
+    args['fixdofs'] = torch.tensor(args['fixdofs'])
+    args['freedofs'] = torch.tensor(args['freedofs'])
 
     # DIP Setup
     conv_filters = (256, 128, 64, 32)
@@ -991,7 +993,7 @@ def run_multi_material_pipeline(problem_name):
     }
 
     # Trials and seeds
-    seeds = [0]
+    seeds = [1234, 1985, 1986, 2009]
     for seed in seeds:
         # Intialize random seed
         utils.build_random_seed(seed)
