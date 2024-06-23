@@ -996,13 +996,13 @@ def run_multi_material_pipeline(problem_name):
     conv_filters = (256, 128, 64, 32)
     cnn_kwargs = {
         'latent_size': 128,
-        'dense_channels': 96,
+        'dense_channels': 32,
         'kernel_size': (5, 5),
         'conv_filters': conv_filters,
     }
 
     # Trials and seeds
-    seeds = [1234, 1985, 1986, 2009]
+    seeds = [1234]  # , 1985, 1986, 2009]
     for seed in seeds:
         # Intialize random seed
         utils.build_random_seed(seed)
