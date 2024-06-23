@@ -61,9 +61,9 @@ def multi_material_constraint_function(
         binary_constraint = torch.norm(binary_constraint, p=1) / pixel_total
         ce.c2 = binary_constraint
 
-        # Sparsity constraint
-        sparsity_constraint = ((x_phys**2).sum(axis=1).sum() / pixel_total) - 1.0
-        ce.c3 = sparsity_constraint
+        # # Sparsity constraint
+        # sparsity_constraint = ((x_phys**2).sum(axis=1).sum() / pixel_total) - 1.0
+        # ce.c3 = sparsity_constraint
 
     # Let's try and clear as much stuff as we can to preserve memory
     del x_phys, mask, ke
