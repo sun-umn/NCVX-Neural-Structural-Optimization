@@ -484,7 +484,7 @@ def mmtounn_train_and_outputs(
 
     fixed = args['fixdofs'].numpy().astype(int)
     force = args['forces'].numpy().astype(np.float64)
-    force = force[...,np.newaxis]
+    force = force[..., np.newaxis]
 
     # e_materials and material_density_weight need to be numpy arrays
     e_materials = e_materials.numpy()
@@ -909,6 +909,7 @@ def run_multi_material_pipeline(problem_name):
         combined_frac = 0.6
         e_materials = torch.tensor([0.0, 3.0, 2.0, 1.0], dtype=torch.double)
         material_density_weight = torch.tensor([0.0, 1.0, 0.7, 0.4])
+        P = torch.tensor([1.0, 1.0, 1.0, 1.0])
 
         args = topo_api.multi_material_tip_cantilever_task(
             nelx=nelx,
