@@ -456,7 +456,7 @@ def tounn_train_and_outputs(problem, requires_flip):
 
 
 def mmtounn_train_and_outputs(
-    nelx, nely, e_materials, material_density_weight, combined_frac, seed=1234
+    args, nelx, nely, e_materials, material_density_weight, combined_frac, seed=1234
 ):
     """
     Function that will run the TOuNN pipeline
@@ -548,6 +548,19 @@ def run_classical_mmto(
     """
     # Initialize a grid
     x = np.ones((nely, nelx)) * x0
+
+    # The incoming variables will need to be converted to
+    # numpy arrays
+    D = np.array(D)
+    E = np.array(E)
+    P = np.array(P)
+
+    # Make sure arguments important for args are also
+    # converted
+    ke = np.array(ke)
+    args['forces'] = np.array(args['forces'])
+    args['fixdofs'] = np.array(args['fixdofs'])
+    args['freedofs'] = np.array(args['freedofs'])
 
     # We will loop until converged
     loop = 0
