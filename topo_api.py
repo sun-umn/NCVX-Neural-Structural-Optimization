@@ -109,3 +109,68 @@ def multi_material_tip_cantilever_task(
         "material_density_weight": material_density_weight,
     }
     return params
+
+
+def multi_material_bridge_task(
+    nelx: int,
+    nely: int,
+    e_materials: torch.Tensor,
+    material_density_weight: torch.Tensor,
+    combined_frac: float,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+) -> Dict[str, Any]:
+    """
+    Function that will create the design space for the multi
+    material tip cantilever structure
+    """
+    ndof = 2 * (nelx + 1) * (nely + 1)
+
+    # Forces on the system
+    forces = torch.zeros((ndof, 1))
+
+    forces[2 * (nely + 1) * int(nelx // 4 + 1) - 1, 0] = -1
+    forces[2 * (nely + 1) * int(2 * nelx // 4 + 1) - 1, 0] = -2
+    forces[2 * (nely + 1) * int(3 * nelx // 4 + 1) - 1, 0] = -1
+
+    # Degrees of freedom
+    alldofs_array = np.arange(ndof)
+
+    # Fixed dofs
+    fixdofs_array = np.union1d(
+        np.array([2 * (nely + 1) - 1 - 1, 2 * (nely + 1) - 1]),
+        np.array([2 * (nelx + 1) * (nely + 1) - 1]),
+    )
+
+    # Free dofs
+    freedofs_array = np.sort(list(set(alldofs_array) - set(fixdofs_array)))
+
+    # Convert to torch tensorse)
+    freedofs = torch.tensor(freedofs_array).to(device=device, dtype=torch.long)
+    fixdofs = torch.tensor(fixdofs_array).to(device=device, dtype=torch.long)
+
+    params = {
+        # material properties
+        "young": 1.0,
+        "young_min": 1e-9,
+        "poisson": 0.3,
+        "g": 0.0,
+        # constraints
+        "combined_frac": combined_frac,
+        "xmin": 0.001,
+        "xmax": 1.0,
+        # input parameters
+        "nelx": torch.tensor(nelx),
+        "nely": torch.tensor(nely),
+        "freedofs": freedofs,
+        "fixdofs": fixdofs,
+        "forces": forces,
+        "penal": 3.0,
+        "filter_width": 2,
+        "epsilon": epsilon,
+        "ndof": len(alldofs_array),
+        "e_materials": e_materials,
+        "material_density_weight": material_density_weight,
+    }
+    return params
