@@ -872,8 +872,8 @@ def run_multi_structure_pipeline(model_size, structure_size):
     print('Run completed! 🎉')
 
 
-@cli.command('run-multi-material-pipeline')
-@click.option('--problem_name', default='tip_cantilever_beam')
+# @cli.command('run-multi-material-pipeline')
+# @click.option('--problem_name', default='tip_cantilever_beam')
 def run_multi_material_pipeline(problem_name):
     """
     Function to run the multi-material pipeline
