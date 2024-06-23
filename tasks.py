@@ -484,6 +484,7 @@ def mmtounn_train_and_outputs(
 
     fixed = args['fixdofs'].numpy().astype(int)
     force = args['forces'].numpy().astype(np.float64)
+    force = force[...,np.newaxis]
 
     # e_materials and material_density_weight need to be numpy arrays
     e_materials = e_materials.numpy()
@@ -947,7 +948,7 @@ def run_multi_material_pipeline(problem_name):
         ke=ke,
         x0=0.5,
         volfrac=combined_frac,
-        costfrac=0.3,
+        costfrac=0.5,
         penal=3.0,
         rmin=2.5,
         D=material_density_weight,
@@ -959,13 +960,6 @@ def run_multi_material_pipeline(problem_name):
     # # Setup for our method
     # args['penal'] = 1.0
     # args['forces'] = args['forces'].ravel()
-
-    # # Create the stiffness matrix
-    # ke = topo_physics.get_stiffness_matrix(
-    #     young=args['young'],
-    #     poisson=args['poisson'],
-    #     device=device,
-    # ).double()
 
     # # DIP Setup
     # conv_filters = (256, 128, 64, 32)
