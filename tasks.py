@@ -926,8 +926,8 @@ def run_multi_material_pipeline(problem_name):
         )
 
     elif problem_name == 'bridge':
-        nelx = 100
-        nely = 50
+        nelx = 104
+        nely = 52
         combined_frac = 0.4
         e_materials = torch.tensor([0.0, 0.2, 0.6, 1.0], dtype=torch.double)
         material_density_weight = torch.tensor([0.0, 0.4, 0.7, 1.0])
