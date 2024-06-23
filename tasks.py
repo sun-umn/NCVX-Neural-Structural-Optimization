@@ -878,6 +878,7 @@ def run_multi_material_pipeline(problem_name):
     """
     Function to run the multi-material pipeline
     """
+    print(f'Problem Name = {problem_name}')
     device = torch.device('cpu')
     maxit = 500
 
