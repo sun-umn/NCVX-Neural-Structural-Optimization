@@ -650,6 +650,10 @@ def run_classical_mmto(
 
         print(f'Iteration = {loop}; Compliance = {c}; Mass Fraction = {mass_fraction}')
 
+        # Early stopping
+        if loop >= 500:
+            break
+
     return x
 
 
@@ -949,7 +953,7 @@ def run_multi_material_pipeline(problem_name):
         ke=ke,
         x0=0.5,
         volfrac=combined_frac,
-        costfrac=0.5,
+        costfrac=1.0,
         penal=3.0,
         rmin=2.5,
         D=material_density_weight,
@@ -957,6 +961,8 @@ def run_multi_material_pipeline(problem_name):
         P=P,
         MinMove=0.001,
     )
+
+    return cmmto_x_phys
 
     # # Setup for our method
     # args['penal'] = 1.0
