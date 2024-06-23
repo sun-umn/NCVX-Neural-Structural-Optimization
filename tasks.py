@@ -926,8 +926,8 @@ def run_multi_material_pipeline(problem_name):
         )
 
     elif problem_name == 'bridge':
-        nelx = 104
-        nely = 52
+        nelx = 128
+        nely = 64
         combined_frac = 0.4
         e_materials = torch.tensor([0.0, 0.2, 0.6, 1.0], dtype=torch.double)
         material_density_weight = torch.tensor([0.0, 0.4, 0.7, 1.0])
@@ -949,33 +949,33 @@ def run_multi_material_pipeline(problem_name):
         device=device,
     ).double()
 
-    # # When running the classical method it is deterministic so we do not need
-    # # multiple runs
-    # cmmto_x_phys, cmmto_compliance, cmmto_mass_constraint = run_classical_mmto(
-    #     args=args,
-    #     nelx=nelx,
-    #     nely=nely,
-    #     ke=ke,
-    #     x0=0.5,
-    #     volfrac=combined_frac,
-    #     costfrac=costfrac,
-    #     penal=3.0,
-    #     rmin=2.5,
-    #     D=material_density_weight,
-    #     E=e_materials,
-    #     P=P,
-    #     MinMove=0.001,
-    # )
+    # When running the classical method it is deterministic so we do not need
+    # multiple runs
+    cmmto_x_phys, cmmto_compliance, cmmto_mass_constraint = run_classical_mmto(
+        args=args,
+        nelx=nelx,
+        nely=nely,
+        ke=ke,
+        x0=0.5,
+        volfrac=combined_frac,
+        costfrac=costfrac,
+        penal=3.0,
+        rmin=2.5,
+        D=material_density_weight,
+        E=e_materials,
+        P=P,
+        MinMove=0.001,
+    )
 
-    # cmmto_outputs = {
-    #     'final_design': cmmto_x_phys,
-    #     'compliance': cmmto_compliance,
-    #     'mass_constraint': cmmto_mass_constraint,
-    # }
+    cmmto_outputs = {
+        'final_design': cmmto_x_phys,
+        'compliance': cmmto_compliance,
+        'mass_constraint': cmmto_mass_constraint,
+    }
 
-    # cmmto_filepath = os.path.join(save_path, 'cmmto.pickle')
-    # with open(cmmto_filepath, 'wb') as handle:
-    #     pickle.dump(cmmto_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    cmmto_filepath = os.path.join(save_path, 'cmmto.pickle')
+    with open(cmmto_filepath, 'wb') as handle:
+        pickle.dump(cmmto_outputs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # Setup for our method
     args['penal'] = 1.0
