@@ -17,28 +17,18 @@ from neural_structural_optimization import topo_api as google_topo_api
 from neural_structural_optimization import train as google_train
 
 # first party
+import mmto.build_mmto as cmmto  # noqa
 import models
 import problems
 import topo_api
 import topo_physics
 import train
 import utils
-from mmto.build_mmto import (
-    check,
-    finite_element,
-    optimality_criterion,
-    ordered_simp_interpolation,
-)
 from MMTOuNN.neuralTO_MM import TopologyOptimizer as MMTO
 from TOuNN.TOuNN import TopologyOptimizer
 
 # Filter warnings
 warnings.filterwarnings('ignore')
-
-# NOTES:
-# Keep these imports
-# from matplotlib.offsetbox import AnchoredText
-# from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 # Define the cli group
@@ -568,7 +558,7 @@ def run_classical_mmto(
         xold = x
 
         # Run through the interpolation and FE
-        E_, dE_ = ordered_simp_interpolation(
+        E_, dE_ = cmmto.ordered_simp_interpolation(
             nelx=nelx,
             nely=nely,
             x=x,
@@ -576,7 +566,7 @@ def run_classical_mmto(
             X=D,
             Y=E,
         )
-        P_, dP_ = ordered_simp_interpolation(
+        P_, dP_ = cmmto.ordered_simp_interpolation(
             nelx=nelx,
             nely=nely,
             x=x,
@@ -586,7 +576,7 @@ def run_classical_mmto(
         )
 
         # Get the displacement vector
-        U = finite_element(
+        U = cmmto.finite_element(
             nelx=nelx,
             nely=nely,
             E_Interpolation=E_,
@@ -622,10 +612,10 @@ def run_classical_mmto(
                 dc[ely, elx] = -dE_[ely, elx] * np.dot(Ue.T, np.dot(ke, Ue))
 
         # Filtering of sensitivities
-        dc = check(nelx=nelx, nely=nely, rmin=rmin, x=x, dc=dc)
+        dc = cmmto.check(nelx=nelx, nely=nely, rmin=rmin, x=x, dc=dc)
 
         # Update the design with the optimality criterion
-        x = optimality_criterion(
+        x = cmmto.optimality_criterion(
             nelx=nelx,
             nely=nely,
             x=x,
@@ -932,7 +922,7 @@ def run_multi_material_pipeline():
     }
 
     # Trials and seeds
-    seeds = [0]
+    seeds = [0, 10, 20, 30, 40]
     for seed in seeds:
         # Intialize random seed
         utils.build_random_seed(seed)
