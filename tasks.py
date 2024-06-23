@@ -866,8 +866,9 @@ def run_multi_structure_pipeline(model_size, structure_size):
     print('Run completed! 🎉')
 
 
-@cli.command('run-multi-material-pipeline')
-def run_multi_material_pipeline():
+# @cli.command('run-multi-material-pipeline')
+# @click.option('--problem_name', default='tip_cantilever_beam')
+def run_multi_material_pipeline(problem_name):
     """
     Function to run the multi-material pipeline
     """
@@ -900,42 +901,37 @@ def run_multi_material_pipeline():
     else:
         print(f"The directory {save_path} already exists.")
 
-    # # Problem specifications
-    # nelx = 64
-    # nely = 32
-    # combined_frac = 0.6
-    # e_materials = torch.tensor([3.0, 2.0, 1.0], dtype=torch.double)
-    # material_density_weight = torch.tensor([1.0, 0.7, 0.4])
+    # Problem specifications
+    if problem_name == 'tip_cantilever_beam':
+        nelx = 64
+        nely = 32
+        combined_frac = 0.6
+        e_materials = torch.tensor([0.0, 3.0, 2.0, 1.0], dtype=torch.double)
+        material_density_weight = torch.tensor([0.0, 1.0, 0.7, 0.4])
 
-    # args = topo_api.multi_material_tip_cantilever_task(
-    #     nelx=nelx,
-    #     nely=nely,
-    #     e_materials=e_materials,
-    #     material_density_weight=material_density_weight,
-    #     combined_frac=combined_frac,
-    # )
+        args = topo_api.multi_material_tip_cantilever_task(
+            nelx=nelx,
+            nely=nely,
+            e_materials=e_materials,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+        )
 
-    # # Set penal to 1.0
-    # args['penal'] = 1.0
-    # args['forces'] = args['forces'].ravel()
+    elif problem_name == 'bridge':
+        nelx = 100
+        nely = 50
+        combined_frac = 0.4
+        e_materials = torch.tensor([0.0, 0.2, 0.6, 1.0], dtype=torch.double)
+        material_density_weight = torch.tensor([0.0, 0.4, 0.7, 1.0])
+        P = torch.tensor([1.0, 1.0, 1.0, 1.0])
 
-    nelx = 100
-    nely = 50
-    combined_frac = 0.6
-    e_materials = torch.tensor([0.2, 0.6, 1.0], dtype=torch.double)
-    material_density_weight = torch.tensor([0.4, 0.7, 1.0])
-
-    args = topo_api.multi_material_bridge_task(
-        nelx=nelx,
-        nely=nely,
-        e_materials=e_materials,
-        material_density_weight=material_density_weight,
-        combined_frac=combined_frac,
-    )
-
-    # Set penal to 1.0
-    args['penal'] = 1.0
-    args['forces'] = args['forces'].ravel()
+        args = topo_api.multi_material_bridge_task(
+            nelx=nelx,
+            nely=nely,
+            e_materials=e_materials,
+            material_density_weight=material_density_weight,
+            combined_frac=combined_frac,
+        )
 
     # Create the stiffness matrix
     ke = topo_physics.get_stiffness_matrix(
@@ -943,6 +939,33 @@ def run_multi_material_pipeline():
         poisson=args['poisson'],
         device=device,
     ).double()
+
+    cmmto_x_phys = run_classical_mmto(
+        args=args,
+        nelx=nelx,
+        nely=nely,
+        ke=ke,
+        x0=0.5,
+        volfrac=combined_frac,
+        costfrac=0.3,
+        penal=3.0,
+        rmin=2.5,
+        D=material_density_weight,
+        E=e_materials,
+        P=P,
+        MinMove=0.001,
+    )
+
+    # # Setup for our method
+    # args['penal'] = 1.0
+    # args['forces'] = args['forces'].ravel()
+
+    # # Create the stiffness matrix
+    # ke = topo_physics.get_stiffness_matrix(
+    #     young=args['young'],
+    #     poisson=args['poisson'],
+    #     device=device,
+    # ).double()
 
     # # DIP Setup
     # conv_filters = (256, 128, 64, 32)
