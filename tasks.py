@@ -991,6 +991,8 @@ def run_multi_material_pipeline(problem_name):
     # and material_density_weight
     e_materials = e_materials[1:]
     material_density_weight = material_density_weight[1:]
+    args['e_materials'] = e_materials
+    args['material_density_weight'] = material_density_weight
 
     # DIP Setup
     conv_filters = (256, 128, 64, 32)
