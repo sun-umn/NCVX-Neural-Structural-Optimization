@@ -497,7 +497,7 @@ def mmtounn_train_and_outputs(
 
     # Additional config
     minEpochs = 50
-    maxEpochs = 500
+    maxEpochs = 1000
     penal = 1.0
     useSavedNet = False
     device = 'cpu'
@@ -971,7 +971,7 @@ def run_multi_material_pipeline(problem_name):
     cmmto_outputs = {
         'final_design': cmmto_x_phys,
         'compliance': cmmto_compliance,
-        'mass_constraint': cmmto_mass_constraint,
+        'mass_constraint': cmmto_mass_constraint - combined_frac,
         'material_density_weight': material_density_weight,
         'nelx': nelx,
         'nely': nely,
@@ -1004,7 +1004,7 @@ def run_multi_material_pipeline(problem_name):
     }
 
     # Trials and seeds
-    seeds = [1234]  # , 1985, 1986, 2009]
+    seeds = [1234, 1985, 1986, 2009]
     for seed in seeds:
         # Intialize random seed
         utils.build_random_seed(seed)
