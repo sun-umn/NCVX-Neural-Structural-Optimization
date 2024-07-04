@@ -880,7 +880,8 @@ def run_multi_material_pipeline(problem_name):
     """
     print(f'Problem Name = {problem_name}')
     device = torch.device('cpu')
-    maxit = 500
+    first_stage_maxit = 5
+    second_stage_maxit = 500
 
     # For testing we will run two experimentation trackers
     API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
@@ -1004,10 +1005,11 @@ def run_multi_material_pipeline(problem_name):
     }
 
     # Trials and seeds
-    seeds = [1234, 1985, 1986, 2009]
+    seeds = [1234, 1985]
     for seed in seeds:
         # Intialize random seed
         utils.build_random_seed(seed)
+        cnn_kwargs['random_seed'] = seed
 
         model = models.MultiMaterialCNNModel(args, **cnn_kwargs).to(
             device=device, dtype=torch.double
@@ -1040,7 +1042,7 @@ def run_multi_material_pipeline(problem_name):
         )
 
         train.train_pygranso_mmto(
-            model=model, comb_fn=comb_fn, maxit=maxit, device=device
+            model=model, comb_fn=comb_fn, maxit=first_stage_maxit, device=device
         )
 
         # Train PyGranso MMTO - Second Stage
@@ -1055,7 +1057,7 @@ def run_multi_material_pipeline(problem_name):
         )
 
         train.train_pygranso_mmto(
-            model=model, comb_fn=comb_fn, maxit=maxit, device=device
+            model=model, comb_fn=comb_fn, maxit=second_stage_maxit, device=device
         )
 
         # Get the final design
