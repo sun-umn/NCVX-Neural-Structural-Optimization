@@ -45,6 +45,4 @@ or with an MSI job:
 sbatch jobs/multi_structure_outputs.slurm
 ```
 
-Testing Push From New Computer
-
 
