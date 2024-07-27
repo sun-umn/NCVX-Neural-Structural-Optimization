@@ -195,7 +195,6 @@ class CNNModel(nn.Module):
         self.z = torch.mean(self.z, axis=0)
 
         self.z = nn.Parameter(self.z)
-        self.softplus = nn.Softplus()
 
     def forward(self, x=None):  # noqa
         # Create the model
@@ -227,7 +226,6 @@ class CNNModel(nn.Module):
 
         # # Squeeze the result in the first axis just like in the
         # # tensorflow code
-        output = self.softplus(output)
         output = torch.mean(output, axis=1)  # Along the feature dimension
         output = torch.squeeze(output)
 
