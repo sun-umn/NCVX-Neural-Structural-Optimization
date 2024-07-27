@@ -144,17 +144,17 @@ def volume_constrained_structural_optimization_function(
     ci = None
 
     ce = pygransoStruct()
-    # Directly handle the binary contraint
+    # Directly handle the volume contraint
     total_elements = x_phys[mask].numel()
-    volume_constraint = torch.norm(x_phys[mask], p=1) / total_elements
-    volume_constraint = volume_constraint / args['volfrac'] - 1.0
+    volume_constraint = (
+        (torch.norm(x_phys[mask], p=1) / total_elements) / args['volfrac']
+    ) - 1.0
     ce.c1 = volume_constraint  # noqa
 
-    # Directly handle the volume constraint
-    total_elements = x_phys[mask].numel()
+    # Directly handle the binary constraint
     epsilon = args["epsilon"]
     binary_constraint = torch.norm(x_phys[mask] * (1 - x_phys[mask]), p=1)
-    ce.c2 = binary_constraint / total_elements - epsilon
+    ce.c2 = (binary_constraint / total_elements) - epsilon
 
     # What if we enforce a symmetry constraint as well?
     midpoint = x_phys.shape[0] // 2
@@ -166,10 +166,10 @@ def volume_constrained_structural_optimization_function(
         symmetry_constraint = torch.norm(
             x_phys_top - torch.flip(x_phys_bottom, [0]), p=1
         )
-        ce.c3 = symmetry_constraint / x_phys.numel() - epsilon
+        ce.c3 = (symmetry_constraint / total_elements) - epsilon
 
         # Add the data to the list
-        symmetry_constraint_value = symmetry_constraint - epsilon
+        symmetry_constraint_value = symmetry_constraint
         symmetry_constraint_value = float(
             symmetry_constraint_value.detach().cpu().numpy()
         )
