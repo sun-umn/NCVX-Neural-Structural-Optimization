@@ -118,8 +118,8 @@ def calculate_volume_constraint(design, mask, volume):
     """
     Function that computes the volume constraint
     """
-    total_elements = len(design[mask].flatten())
-    volume_constraint = (np.linalg.norm(design[mask], ord=1) / total_elements) - 1.0
+    # total_elements = len(design[mask].flatten())
+    volume_constraint = (np.mean(design[mask]) / volume) - 1.0
     return np.round(volume_constraint, 4)
 
 

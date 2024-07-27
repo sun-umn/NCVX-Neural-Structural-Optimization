@@ -146,9 +146,7 @@ def volume_constrained_structural_optimization_function(
     ce = pygransoStruct()
     # Directly handle the volume contraint
     total_elements = x_phys[mask].numel()
-    volume_constraint = (
-        (torch.norm(x_phys[mask], p=1) / total_elements) / args['volfrac']
-    ) - 1.0
+    volume_constraint = (torch.mean(x_phys[mask]) / args['volfrac']) - 1.0
     ce.c1 = volume_constraint  # noqa
 
     # Directly handle the binary constraint
