@@ -969,7 +969,7 @@ def run_multi_material_pipeline(problem_name):
 @cli.command('run-multi-structure-pipeline-v2')
 @click.option('--model_size', default='medium')
 @click.option('--problem_name', default='mbb_beam_96x32_0.5')
-@click.option('--kernel_size', default=(12, 12))
+@click.option('--kernel_size', default="12,12")
 def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     """
     Task that will build out multiple structures and compare
