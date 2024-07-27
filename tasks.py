@@ -56,7 +56,7 @@ PROBLEM_CONFIGS = {
         'include_symmetry': False,
     },
     'anchored_suspended_bridge_128x128_0.1': {
-        'includes_symmetry': False,
+        'include_symmetry': False,
     },
     'l_shape_0.4_128x128_0.3': {
         'include_symmetry': False,
