@@ -227,9 +227,9 @@ class CNNModel(nn.Module):
 
         # # Squeeze the result in the first axis just like in the
         # # tensorflow code
+        output = self.softplus(output)
         output = torch.mean(output, axis=1)  # Along the feature dimension
         output = torch.squeeze(output)
-        output = self.softplus(output)
 
         return output
 

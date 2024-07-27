@@ -39,8 +39,8 @@ MODEL_CONFIGS = {
         'conv_filters': tuple(feature // 4 for feature in CNN_FEATURES),
     },
     'medium': {
-        'latent_size': 96,
-        'dense_channels': 24,
+        'latent_size': 128,
+        'dense_channels': 32,
         'conv_filters': tuple(feature // 3 for feature in CNN_FEATURES),
     },
     'large': {
