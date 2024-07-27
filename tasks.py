@@ -988,6 +988,7 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     max_iterations = 200
 
     # CNN kwargs
+    kernel_size = tuple(int(i) for i in kernel_size.split(','))
     cnn_kwargs = MODEL_CONFIGS[model_size]
     cnn_kwargs['kernel_size'] = kernel_size
 
