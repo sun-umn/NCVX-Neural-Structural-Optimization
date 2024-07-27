@@ -1012,7 +1012,6 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
             problem_name,
             kernel_size,
         ],
-        config=cnn_kwargs,
     )
 
     # Create directory for saving the model and
