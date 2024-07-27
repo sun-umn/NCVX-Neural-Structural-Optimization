@@ -178,7 +178,7 @@ def volume_constrained_structural_optimization_function(
     volume_constraint_list.append(volume_constraint.detach().cpu().numpy())
 
     # Binary constraint
-    binary_constraint_list.append(binary_constraint)
+    binary_constraint_list.append(binary_constraint.detach().cpu().numpy())
 
     # Update the counter by one
     iter_counter += 1
