@@ -9,4 +9,4 @@
 #SBATCH --gres=gpu:a100:1
 /home/jusun/dever120/NCVX-Neural-Structural-Optimization
 export PATH=/home/jusun/dever120/miniconda3/envs/rydevera/bin:$PATH
-python -m tasks run-multi-structure-pipeline-v2 --model_size='medium' --problem_name='cantilever_beam_two_point_96x96_0.4' --kernel_size="12,12"
+python -m tasks run-multi-structure-pipeline-v2 --model_size='large' --problem_name='cantilever_beam_two_point_96x96_0.4' --kernel_size="12,12"
