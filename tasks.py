@@ -62,7 +62,7 @@ PROBLEM_CONFIGS = {
         'include_symmetry': False,
     },
     'cantilever_beam_two_point_96x96_0.4': {
-        'include_symmetry': False,
+        'include_symmetry': True,
     },
     # Large Structures
     'mbb_beam_384x128_0.5': {
