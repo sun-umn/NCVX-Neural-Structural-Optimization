@@ -987,11 +987,6 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     # Max iterations for Google-DIP
     max_iterations = 200
 
-    # CNN kwargs
-    kernel_size = tuple(int(i) for i in kernel_size.split(','))
-    cnn_kwargs = MODEL_CONFIGS[model_size]
-    cnn_kwargs['kernel_size'] = kernel_size
-
     # Set seed
     models.set_seed(0)  # Model seed is set here but results are changing?
 
@@ -1013,6 +1008,11 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
             kernel_size,
         ],
     )
+
+    # CNN kwargs
+    kernel_size = tuple(int(i) for i in kernel_size.split(','))
+    cnn_kwargs = MODEL_CONFIGS[model_size]
+    cnn_kwargs['kernel_size'] = kernel_size
 
     # Create directory for saving the model and
     # output data
