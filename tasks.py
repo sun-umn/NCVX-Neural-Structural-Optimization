@@ -1012,12 +1012,12 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
             'topology-optimization-task',
             model_size,
             problem_name,
-            kernel_size,
         ],
         config={
             'latent_size': cnn_kwargs['latent_size'],
             'dense_channels': cnn_kwargs['dense_channels'],
             'conv_filters': cnn_kwargs['conv_filters'],
+            'kernel_size': kernel_size,
         },
     )
 
