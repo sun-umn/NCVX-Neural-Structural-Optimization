@@ -68,10 +68,10 @@ PROBLEM_CONFIGS = {
     'mbb_beam_320x128_0.5': {
         'include_symmetry': False,
     },
-    'anchored_suspended_bridge_192x192_0.0875': {
+    'anchored_suspended_bridge_192x192_0.1': {
         'include_symmetry': False,
     },
-    'l_shape_0.4_192x192_0.25': {
+    'l_shape_0.4_192x192_0.3': {
         'include_symmetry': False,
     },
 }
