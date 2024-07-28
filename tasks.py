@@ -34,17 +34,17 @@ warnings.filterwarnings('ignore')
 CNN_FEATURES = (256, 128, 64, 32, 16)
 MODEL_CONFIGS = {
     'small': {
-        'latent_size': 128,
-        'dense_channels': 32,
+        'latent_size': 80,
+        'dense_channels': 24,
         'conv_filters': tuple(feature // 4 for feature in CNN_FEATURES),
     },
     'medium': {
-        'latent_size': 128,
-        'dense_channels': 32,
+        'latent_size': 80,
+        'dense_channels': 24,
         'conv_filters': tuple(feature // 3 for feature in CNN_FEATURES),
     },
     'large': {
-        'latent_size': 96,
+        'latent_size': 80,
         'dense_channels': 24,
         'conv_filters': tuple(feature // 2 for feature in CNN_FEATURES),
     },
