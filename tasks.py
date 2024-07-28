@@ -981,7 +981,7 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     device = utils.get_devices()
 
     # Total trials for PyGranso
-    num_trials = 1
+    num_trials = 2
 
     # Max iterations for PyGranso
     maxit = 1500
