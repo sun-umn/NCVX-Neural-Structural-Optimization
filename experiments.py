@@ -1,12 +1,14 @@
 # stdlib
 import os
 import pickle
-from typing import Dict
+from typing import Any, Dict
 
 # first party
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def build_optimization_trajectories(
@@ -22,7 +24,7 @@ def build_optimization_trajectories(
     """
     # Create a figure
     fig, (ax1, ax2, ax3) = plt.subplots(
-        1, 3, figsize=(12, 3), sharex=True, constrained_layout=True
+        1, 3, figsize=(12, 3), sharex=True, constrained_layout=True  # noqa
     )
 
     # PyGranso Data
@@ -141,4 +143,184 @@ def build_optimization_trajectories(
     title = title_mapping[problem_name]
     fig.suptitle(title, fontsize=16)
     img_filepath = os.path.join(path, f'{experiment_id}/{problem_name}-performance.png')
+    fig.savefig(img_filepath, bbox_inches='tight')
+
+
+def _plot_design(
+    design: np.ndarray,
+    ax: matplotlib.axes._subplots.AxesSubplot,
+    loss: float,
+    binary_constraint: float,
+    volume_constraint: float,
+    plot_configs: Dict[str, Any],
+) -> None:
+    """
+    Function that creates the design plots
+    """
+    cmap = 'Greys'
+    facecolor = plot_configs['facecolor']
+    fontcolor = plot_configs['fontcolor']
+    requires_flip = plot_configs['requires_flip']
+    title = plot_configs['title']
+
+    # Plot the design
+    if requires_flip:
+        design = np.hstack([design, design[:, ::-1]])
+
+    ax.imshow(design, aspect='auto', cmap=cmap)
+    ax.axis('off')
+    ax.set_title(title, fontsize=14)
+
+    # These methods are to nicely add the text. We can also
+    # color code the face with the legend colors
+    # Add the colors box for the scoring
+    divider = make_axes_locatable(ax)
+
+    cax = divider.append_axes("bottom", size="35%", pad=0.01)
+    cax.get_xaxis().set_visible(False)
+    cax.get_yaxis().set_visible(False)
+
+    # Set the face color of the box
+    cax.set_facecolor(facecolor)
+    cax.spines["bottom"].set_color(facecolor)
+    cax.spines["top"].set_color(facecolor)
+    cax.spines["right"].set_color(facecolor)
+    cax.spines["left"].set_color(facecolor)
+
+    text = f"{loss} / {binary_constraint} / {volume_constraint}"
+    cax.text(
+        0.5,
+        0.5,
+        text,
+        ha='center',
+        va='center',
+        fontsize=14,
+        color=fontcolor,
+    )
+
+
+def build_designs(path: str, problem_name: str, experiment_id: str) -> None:
+    """
+    Function that is used to build the final designs of TO
+    """
+    # NTO-PCO Data
+    pygranso_data_path = os.path.join(
+        path, f'{experiment_id}/{problem_name}-pygranso-cnn.pickle'
+    )
+    with open(pygranso_data_path, 'rb') as f:
+        pygranso_data = pickle.load(f)
+
+    # Google Data
+    google_data_path = os.path.join(
+        path, f'{experiment_id}/{problem_name}-google.pickle'
+    )
+    with open(google_data_path, 'rb') as f:
+        google_data = pickle.load(f)
+
+    # TOuNN Data
+    tounn_data_path = os.path.join(path, f'{experiment_id}/{problem_name}-tounn.pickle')
+    with open(tounn_data_path, 'rb') as f:
+        tounn_data = pickle.load(f)
+
+    # Initialize the subplots for the data
+    # There are 4 methods total
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(
+        1, 4, figsize=(15, 1.5), constrained_layout=True
+    )
+
+    # NTO-PCO
+    design = pygranso_data[0]
+    loss = pygranso_data[1]
+    binary_constraint = pygranso_data[2]
+    volume_constraint = pygranso_data[3]
+
+    requires_flip = False
+    if 'bridge' in problem_name:
+        requires_flip = True
+
+    # Plot Configs
+    pygranso_plot_configs = {
+        'facecolor': 'blue',
+        'fontcolor': 'white',
+        'requires_flip': requires_flip,
+        'title': 'NTO-PCO',
+    }
+
+    _plot_design(
+        design=design,
+        ax=ax1,
+        loss=loss,
+        binary_constraint=binary_constraint,
+        volume_constraint=volume_constraint,
+        plot_configs=pygranso_plot_configs,
+    )
+
+    # Google-DIP
+    design = google_data['google-cnn'][0]
+    loss = google_data['google-cnn'][1]
+    binary_constraint = google_data['google-cnn'][2]
+    volume_constraint = google_data['google-cnn'][3]
+
+    # Plot Configs
+    google_plot_configs = {
+        'facecolor': 'red',
+        'fontcolor': 'black',
+        'requires_flip': requires_flip,
+        'title': 'Google-DIP',
+    }
+
+    _plot_design(
+        design=design,
+        ax=ax2,
+        loss=loss,
+        binary_constraint=binary_constraint,
+        volume_constraint=volume_constraint,
+        plot_configs=google_plot_configs,
+    )
+
+    # TOuNN
+    design = tounn_data[0]
+    loss = tounn_data[1]
+    binary_constraint = tounn_data[2]
+    volume_constraint = tounn_data[3]
+
+    tounn_plot_configs = {
+        'facecolor': 'limegreen',
+        'fontcolor': 'black',
+        'requires_flip': requires_flip,
+        'title': 'TOuNN',
+    }
+
+    _plot_design(
+        design=design,
+        ax=ax3,
+        loss=loss,
+        binary_constraint=binary_constraint,
+        volume_constraint=volume_constraint,
+        plot_configs=tounn_plot_configs,
+    )
+
+    # Classical Method MMA
+    design = google_data['mma'][0]
+    loss = google_data['mma'][1]
+    binary_constraint = google_data['mma'][2]
+    volume_constraint = google_data['mma'][3]
+
+    mma_plot_configs = {
+        'facecolor': 'gold',
+        'fontcolor': 'black',
+        'requires_flip': requires_flip,
+        'title': 'MMA',
+    }
+
+    _plot_design(
+        design=design,
+        ax=ax4,
+        loss=loss,
+        binary_constraint=binary_constraint,
+        volume_constraint=volume_constraint,
+        plot_configs=mma_plot_configs,
+    )
+
+    img_filepath = os.path.join(path, f'{experiment_id}/{problem_name}-designs.png')
     fig.savefig(img_filepath, bbox_inches='tight')
