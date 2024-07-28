@@ -1000,9 +1000,9 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     wandb.login(key=API_KEY)
 
     # CNN kwargs
-    kernel_size = tuple(int(i) for i in kernel_size.split(','))
+    kernel_size_tuple = tuple(int(i) for i in kernel_size.split(','))
     cnn_kwargs = MODEL_CONFIGS[model_size]
-    cnn_kwargs['kernel_size'] = kernel_size
+    cnn_kwargs['kernel_size'] = kernel_size_tuple
 
     # Initalize wandb
     wandb.init(
