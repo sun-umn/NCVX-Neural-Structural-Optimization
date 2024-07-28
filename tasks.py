@@ -997,6 +997,11 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     # Enable wandb
     wandb.login(key=API_KEY)
 
+    # CNN kwargs
+    kernel_size = tuple(int(i) for i in kernel_size.split(','))
+    cnn_kwargs = MODEL_CONFIGS[model_size]
+    cnn_kwargs['kernel_size'] = kernel_size
+
     # Initalize wandb
     wandb.init(
         # set the wandb project where this run will be logged
@@ -1007,12 +1012,12 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
             problem_name,
             kernel_size,
         ],
+        config={
+            'latent_size': cnn_kwargs['latent_size'],
+            'dense_channels': cnn_kwargs['dense_channels'],
+            'conv_filters': ','.join(cnn_kwargs['conv_filters']),
+        },
     )
-
-    # CNN kwargs
-    kernel_size = tuple(int(i) for i in kernel_size.split(','))
-    cnn_kwargs = MODEL_CONFIGS[model_size]
-    cnn_kwargs['kernel_size'] = kernel_size
 
     # Create directory for saving the model and
     # output data
