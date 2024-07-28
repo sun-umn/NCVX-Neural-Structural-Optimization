@@ -662,7 +662,9 @@ def ramp(
     dtype=DEFAULT_DTYPE,
 ):
     """Support downward forces on a ramp."""
-    return staircase(width, height, density, epsilon, num_stories=1)
+    return staircase(
+        width=width, height=height, density=density, epsilon=epsilon, num_stories=1
+    )
 
 
 def staircase(
