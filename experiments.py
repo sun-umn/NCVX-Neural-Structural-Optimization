@@ -148,7 +148,7 @@ def build_optimization_trajectories(
 
 def _plot_design(
     design: np.ndarray,
-    ax: matplotlib.axes._subplots.AxesSubplot,
+    ax: matplotlib.axes._subplots.Subplot,
     loss: float,
     binary_constraint: float,
     volume_constraint: float,
