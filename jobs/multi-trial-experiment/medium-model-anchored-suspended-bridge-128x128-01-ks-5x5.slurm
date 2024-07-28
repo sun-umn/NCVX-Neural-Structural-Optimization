@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --time=16:00:00
+#SBATCH --time=48:00:00
 #SBATCH --ntasks=8
 #SBATCH --mem=65g
 #SBATCH --tmp=40g
@@ -9,4 +9,4 @@
 #SBATCH --gres=gpu:a100:1
 /home/jusun/dever120/NCVX-Neural-Structural-Optimization
 export PATH=/home/jusun/dever120/miniconda3/envs/rydevera/bin:$PATH
-python -m tasks run-multi-structure-pipeline-v2 --model_size='medium' --problem_name='anchored_suspended_bridge_128x128_0.1' --kernel_size="5,5" --num_trials=25
+python -m tasks run-multi-structure-pipeline-v2 --model_size='medium' --problem_name='anchored_suspended_bridge_128x128_0.1' --kernel_size="5,5" --num_trials=20
