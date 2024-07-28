@@ -1017,7 +1017,7 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
         config={
             'latent_size': cnn_kwargs['latent_size'],
             'dense_channels': cnn_kwargs['dense_channels'],
-            'conv_filters': ','.join(cnn_kwargs['conv_filters']),
+            'conv_filters': cnn_kwargs['conv_filters'],
         },
     )
 
