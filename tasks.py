@@ -65,7 +65,7 @@ PROBLEM_CONFIGS = {
         'include_symmetry': True,
     },
     # Large Structures
-    'mbb_beam_384x128_0.5': {
+    'mbb_beam_320x128_0.5': {
         'include_symmetry': False,
     },
     'anchored_suspended_bridge_192x192_0.0875': {
