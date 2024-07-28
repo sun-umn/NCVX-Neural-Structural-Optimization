@@ -185,6 +185,7 @@ def pure_bending_moment(
     width=60,
     height=60,
     density=0.5,
+    epsilon=1e-3,
     support_position=0.45,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
@@ -203,7 +204,7 @@ def pure_bending_moment(
     forces[0, round(height * (1 - support_position)), X] = 1
     forces[0, round(height * support_position), X] = -1
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def michell_centered_both(
@@ -232,6 +233,7 @@ def michell_centered_below(
     height=32,
     density=0.5,
     position=0.25,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -244,7 +246,7 @@ def michell_centered_below(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, 0, Y] = -1
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def michell_centered_top(
@@ -275,6 +277,7 @@ def ground_structure(
     height=32,
     density=0.5,
     force_position=0.5,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -287,7 +290,7 @@ def ground_structure(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[round(force_position * height), -1, Y] = -1
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def l_shape(
@@ -328,6 +331,7 @@ def crane(
     density=0.3,
     aspect=0.5,
     force_position=0.9,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -343,10 +347,17 @@ def crane(
     # be designed; otherwise we get outrageously high values for the compliance.
     mask[round(aspect * width) :, round(height * aspect) + 2 :] = 0  # noqa
 
-    return Problem(normals, forces, density, mask.T)
+    return Problem(normals, forces, density, epsilon, mask.T)
 
 
-def tower(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+def tower(
+    width=32,
+    height=32,
+    density=0.5,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
     """A rather boring structure supporting a single point from the ground."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[:, -1, Y] = 1
@@ -354,11 +365,16 @@ def tower(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, 0, Y] = -1
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def center_support(
-    width=32, height=32, density=0.3, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+    width=32,
+    height=32,
+    density=0.3,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
 ):
     """Support downward forces from the top from the single point."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -367,11 +383,16 @@ def center_support(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def column(
-    width=32, height=32, density=0.3, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+    width=32,
+    height=32,
+    density=0.3,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
 ):
     """Support downward forces from the top across a finite width."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -380,10 +401,17 @@ def column(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
-def roof(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+def roof(
+    width=32,
+    height=32,
+    density=0.5,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
     """Support downward forces from the top with a repeating structure."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[0, :, X] = 1
@@ -392,7 +420,7 @@ def roof(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def causeway_bridge(
@@ -400,6 +428,7 @@ def causeway_bridge(
     height=20,
     density=0.3,
     deck_level=1,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -411,7 +440,7 @@ def causeway_bridge(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, round(height * (1 - deck_level)), Y] = -1 / width
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def two_level_bridge(
@@ -419,6 +448,7 @@ def two_level_bridge(
     height=32,
     density=0.3,
     deck_height=0.2,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -431,7 +461,7 @@ def two_level_bridge(
     forces = torch.zeros((width + 1, width + 1, 2)).to(device=device, dtype=dtype)
     forces[:, round(height * (1 - deck_height) / 2), :] = -1 / (2 * width)
     forces[:, round(height * (1 + deck_height) / 2), :] = -1 / (2 * width)
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def suspended_bridge(
@@ -440,9 +470,9 @@ def suspended_bridge(
     density=0.3,
     span_position=0.2,
     anchored=False,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
-    epsilon=1e-3,
 ):
     """A bridge above the ground, with supports at lower corners."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -461,6 +491,7 @@ def canyon_bridge(
     height=20,
     density=0.3,
     deck_level=1,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -473,7 +504,7 @@ def canyon_bridge(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, deck_height, Y] = -1 / width
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def multistory_building(
@@ -500,7 +531,7 @@ def thin_support_bridge(
     height=32,
     density=0.25,
     design_width=0.25,
-    epsilon=7.5e-3,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -525,7 +556,12 @@ def thin_support_bridge(
 
 
 def drawbridge(
-    width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE
+    width=32,
+    height=32,
+    density=0.25,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
 ):
     """A bridge supported from above on the left."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -534,10 +570,17 @@ def drawbridge(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, -1, Y] = -1 / width
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
-def hoop(width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+def hoop(
+    width=32,
+    height=32,
+    density=0.25,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
     """Downward forces in a circle, supported from the ground."""
     if 2 * width != height:
         raise ValueError("hoop must be circular")
@@ -553,7 +596,7 @@ def hoop(width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT
     value = torch.tensor(value).to(device=device, dtype=dtype)
     forces[i, j, Y] = -value / (2 * np.pi * width)
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def multipoint_circle(
@@ -563,6 +606,7 @@ def multipoint_circle(
     radius=6 / 7,
     weights=(1, 0, 0, 0, 0, 0),
     num_points=12,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -588,10 +632,17 @@ def multipoint_circle(
         forces[i, j, X] = +c1 * y + c2 * x + c3 * y + c4 * x + c_x0
         forces[i, j, Y] = -c1 * x + c2 * y + c3 * x - c4 * y + c_y0
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
-def dam(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+def dam(
+    width=32,
+    height=32,
+    density=0.5,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
     """Support horizitonal forces, proportional to depth."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     normals[:, -1, X] = 1
@@ -599,12 +650,19 @@ def dam(width=32, height=32, density=0.5, device=DEFAULT_DEVICE, dtype=DEFAULT_D
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, :, X] = 2 * torch.arange(1, height + 2) / height**2
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
-def ramp(width=32, height=32, density=0.25, device=DEFAULT_DEVICE, dtype=DEFAULT_DTYPE):
+def ramp(
+    width=32,
+    height=32,
+    density=0.25,
+    epsilon=1e-3,
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+):
     """Support downward forces on a ramp."""
-    return staircase(width, height, density, num_stories=1)
+    return staircase(width, height, density, epsilon, num_stories=1)
 
 
 def staircase(
@@ -612,6 +670,7 @@ def staircase(
     height=32,
     density=0.25,
     num_stories=2,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -629,7 +688,7 @@ def staircase(
         value = torch.tensor(value).to(device=device, dtype=dtype)
         forces[i, j, Y] = torch.minimum(forces[i, j, Y], -value / (width * num_stories))
 
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def staggered_points(
@@ -638,6 +697,7 @@ def staggered_points(
     density=0.3,
     interval=16,
     break_symmetry=False,
+    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -652,7 +712,7 @@ def staggered_points(
     # intentionally break horizontal symmetry?
     forces[interval // 2 + int(break_symmetry) :: interval, ::interval, Y] = -f  # noqa
     forces[int(break_symmetry) :: interval, interval // 2 :: interval, Y] = -f  # noqa
-    return Problem(normals, forces, density)
+    return Problem(normals, forces, density, epsilon)
 
 
 def build_problems_by_name(device=DEFAULT_DEVICE):
