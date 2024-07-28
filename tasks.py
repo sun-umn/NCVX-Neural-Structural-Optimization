@@ -972,7 +972,8 @@ def run_multi_material_pipeline(problem_name):
 @click.option('--model_size', default='medium')
 @click.option('--problem_name', default='mbb_beam_96x32_0.5')
 @click.option('--kernel_size', default="12,12")
-def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
+@click.option('--num_trials', default=1)
+def run_multi_structure_pipeline(model_size, problem_name, kernel_size, num_trials):
     """
     Task that will build out multiple structures and compare
     performance against known benchmarks.
@@ -980,19 +981,13 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     # Top level config
     device = utils.get_devices()
 
-    # Total trials for PyGranso
-    num_trials = 2
-
     # Max iterations for PyGranso
-    maxit = 1500
+    maxit: int = 1500
 
     # Max iterations for Google-DIP
     max_iterations = 200
 
-    # Set seed
-    models.set_seed(0)  # Model seed is set here but results are changing?
-
-    # For testing we will run two experimentation trackers
+    # For testing, we will run two experimentation trackers
     API_KEY = '2080070c4753d0384b073105ed75e1f46669e4bf'
     PROJECT_NAME = 'Topology-Optimization'
 
@@ -1005,6 +1000,9 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     cnn_kwargs['kernel_size'] = kernel_size_tuple
 
     # Initalize wandb
+    trial_tag = 'single'
+    if num_trials > 1:
+        trial_tag = 'multi-trial'
     wandb.init(
         # set the wandb project where this run will be logged
         project=PROJECT_NAME,
@@ -1012,6 +1010,7 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
             'topology-optimization-task',
             model_size,
             problem_name,
+            trial_tag,
         ],
         config={
             'latent_size': cnn_kwargs['latent_size'],
