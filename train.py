@@ -151,8 +151,10 @@ def volume_constrained_structural_optimization_function(
 
     # Directly handle the binary constraint
     epsilon = args["epsilon"]
-    binary_constraint = torch.norm(x_phys[mask] * (1 - x_phys[mask]), p=1)
-    ce.c2 = (binary_constraint / total_elements) - epsilon
+    binary_constraint = (
+        torch.norm(x_phys[mask] * (1 - x_phys[mask]), p=1) / total_elements
+    ) - epsilon
+    ce.c2 = binary_constraint
 
     # What if we enforce a symmetry constraint as well?
     midpoint = x_phys.shape[0] // 2
@@ -161,10 +163,13 @@ def volume_constrained_structural_optimization_function(
 
     # For this part we will need to ignore the mask for now
     if symmetry_constraint_list is not None:
-        symmetry_constraint = torch.norm(
-            x_phys_top - torch.flip(x_phys_bottom, [0]), p=1
+        symmetry_constraint = (
+            torch.norm(
+                x_phys_top - torch.flip(x_phys_bottom, [0]), p=1 / total_elements
+            )
+            - epsilon
         )
-        ce.c3 = (symmetry_constraint / total_elements) - epsilon
+        ce.c3 = symmetry_constraint
 
         # Add the data to the list
         symmetry_constraint_value = symmetry_constraint

@@ -34,17 +34,17 @@ warnings.filterwarnings('ignore')
 CNN_FEATURES = (256, 128, 64, 32, 16)
 MODEL_CONFIGS = {
     'small': {
-        'latent_size': 80,
+        'latent_size': 96,
         'dense_channels': 24,
         'conv_filters': tuple(feature // 4 for feature in CNN_FEATURES),
     },
     'medium': {
-        'latent_size': 80,
+        'latent_size': 96,
         'dense_channels': 24,
         'conv_filters': tuple(feature // 3 for feature in CNN_FEATURES),
     },
     'large': {
-        'latent_size': 80,
+        'latent_size': 96,
         'dense_channels': 24,
         'conv_filters': tuple(feature // 2 for feature in CNN_FEATURES),
     },
@@ -110,17 +110,19 @@ def calculate_binary_constraint(design, mask, epsilon):
     """
     Function to compute the binary constraint
     """
-    binary_constraint = design[mask] * (1 - design[mask])
-    return np.round(np.linalg.norm(binary_constraint, ord=1))
+    total_elements = len(design[mask].flatten())
+    binary_constraint = (
+        np.linalg.norm(design[mask] * (1 - design[mask]), ord=1) / total_elements
+    ) - epsilon
+    return np.round(binary_constraint, decimals=5)
 
 
 def calculate_volume_constraint(design, mask, volume):
     """
     Function that computes the volume constraint
     """
-    # total_elements = len(design[mask].flatten())
     volume_constraint = (np.mean(design[mask]) / volume) - 1.0
-    return np.round(volume_constraint, 4)
+    return np.round(volume_constraint, decimals=5)
 
 
 def build_outputs(problem_name, outputs, mask, volume, requires_flip, epsilon=1e-3):
