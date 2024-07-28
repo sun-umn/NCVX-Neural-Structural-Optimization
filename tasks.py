@@ -1045,8 +1045,8 @@ def run_multi_structure_pipeline(model_size, problem_name, kernel_size):
     comb_fn = train.volume_constrained_structural_optimization_function
 
     # Build the problems for pygranso and google
-    PYGRANSO_PROBLEMS_BY_NAME = problems.build_problems_by_name(device=device)
-    PROBLEM_CONFIG = PROBLEM_CONFIGS[problem_name]
+    PYGRANSO_PROBLEMS_BY_NAME = problems.build_problems_by_name(device=device)  # noqa
+    PROBLEM_CONFIG = PROBLEM_CONFIGS[problem_name]  # noqa
     include_symmetry = PROBLEM_CONFIG['include_symmetry']
 
     # Old configs that need to be refactored
