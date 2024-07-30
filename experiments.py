@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 # first party
 import matplotlib
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -324,3 +325,95 @@ def build_designs(path: str, problem_name: str, experiment_id: str) -> None:
 
     img_filepath = os.path.join(path, f'{experiment_id}/{problem_name}-designs.png')
     fig.savefig(img_filepath, bbox_inches='tight')
+
+
+def build_multi_model_size_results(
+    path: str, experiment_config: dict, problem_name: str, title_mapping: dict
+):
+    """
+    Function that computes the results for the multi-trial, multi-model
+    experiments.
+
+    experiments is a list that should represent [small, medium large]
+    model experiment ids.
+    """
+    # Create data
+    data = {}
+    for model, experiment_id in experiment_config.items():
+        data_path = os.path.join(
+            path, f'{experiment_id}/{problem_name}-pygranso-cnn.pickle'
+        )
+        results = {}
+
+        with open(data_path, 'rb') as f:
+            # Final index contains all the relevant data
+            model_data = pickle.load(f)[-1]
+
+        # Loss, Binary Constraint, Volume Constraint
+        results['loss'] = model_data['loss']
+        results['binary_constraint'] = model_data['binary_constraint']
+        results['volume_constraint'] = model_data['volume_constraint']
+
+        # Add results data to data dictionary
+        data[model] = results
+
+    # Output will be a 3x3 result
+    fig, axes = plt.subplots(
+        3, 3, figsize=(11, 3.5), sharex=True, constrained_layout=True
+    )
+
+    # Colors
+    colors = ['orange', 'blue', 'limegreen']
+
+    num_trials = 20
+    for idx, (model, results) in enumerate(data.items()):
+        # Print statistic
+        trial_min_values = np.nanmin(results['loss'], axis=0)
+        median_value = np.median(trial_min_values)
+        min_value = np.min(trial_min_values)
+        max_value = np.max(trial_min_values)
+
+        print(f'{model} model loss; median={median_value}'.capitalize())
+        print(f'{model} model loss; min={min_value}'.capitalize())
+        print(f'{model} model loss; max={max_value}'.capitalize())
+        print('\n')
+
+        for result_idx, (key, values) in enumerate(results.items()):
+            ax = axes[idx, result_idx]
+            color = colors[idx]
+
+            for trial in range(num_trials):
+                values_as_series = pd.Series(np.abs(values[:, trial]))
+                values_as_series.plot(color=color, logx=True, ax=ax)
+
+            # Set titles along the x-axis
+            if idx == 0 and result_idx == 0:
+                ax.set_title('Compliance', fontsize=14)
+
+            elif idx == 0 and result_idx == 1:
+                ax.set_title('Binary Constraint', fontsize=14)
+
+            elif idx == 0 and result_idx == 2:
+                ax.set_title('Volume Constraint', fontsize=14)
+
+            if result_idx == 1 or result_idx == 2:
+                ax.text(425, 0.0, 'Goal', ha='left', va='bottom', color='Grey')
+                ax.axhline(0.0, color='Grey')
+
+            ax.grid()
+
+    fig.suptitle(title_mapping[problem_name], fontsize=14)
+
+    orange_patch = mpatches.Patch(color='orange', label='Small Model')
+    blue_patch = mpatches.Patch(color='blue', label='Medium Model')
+    green_patch = mpatches.Patch(color='limegreen', label='Large Model')
+
+    fig.legend(
+        handles=[orange_patch, blue_patch, green_patch],
+        loc='lower center',
+        bbox_to_anchor=(0.5, -0.10),
+        ncol=3,
+    )
+
+    save_image_path = os.path.join(path, f'multi-size-model-{problem_name}-results.png')
+    fig.savefig(save_image_path, bbox_inches='tight')
