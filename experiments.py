@@ -365,6 +365,7 @@ def build_multi_model_size_results(
     # Colors
     colors = ['orange', 'blue', 'limegreen']
 
+    # TODO: Currently hard-coded for our 20 trial experiments
     num_trials = 20
     for idx, (model, results) in enumerate(data.items()):
         # Print statistic
