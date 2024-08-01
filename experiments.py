@@ -426,11 +426,12 @@ def build_multi_model_size_results(
     fig.savefig(save_image_path, bbox_inches='tight')
 
 
-def build_symmetry_result(path: str, experiment_id: str, problem_name: str) -> None:
+def build_symmetry_result(path: str, experiment_id: str) -> None:
     """
     Function that computes the results for the
     symmetry constraint experiment.
     """
+    problem_name = 'cantilever_beam_two_point_96x96_0.4'
     data_path = os.path.join(
         path, f'{experiment_id}/{problem_name}-pygranso-cnn.pickle'
     )
