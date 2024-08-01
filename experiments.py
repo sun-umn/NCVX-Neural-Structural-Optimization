@@ -418,3 +418,63 @@ def build_multi_model_size_results(
 
     save_image_path = os.path.join(path, f'multi-size-model-{problem_name}-results.png')
     fig.savefig(save_image_path, bbox_inches='tight')
+
+
+def build_symmetry_result(path: str, experiment_id: str, problem_name: str) -> None:
+    """
+    Function that computes the results for the
+    symmetry constraint experiment.
+    """
+    data_path = os.path.join(
+        path, f'{experiment_id}/{problem_name}-pygranso-cnn.pickle'
+    )
+    with open(data_path, 'rb') as f:
+        model_data = pickle.load(f)
+
+    # Extract the data
+    design = model_data[0]
+
+    # Optimization trajectory data
+    trajectory_data = model_data[-1]
+    loss = pd.Series(trajectory_data['loss'].flatten())
+    binary_constraint = pd.Series(trajectory_data['binary_constraint'].flatten())
+    volume_constraint = pd.Series(trajectory_data['volume_constraint'].flatten())
+    symmetry_constraint = pd.Series(trajectory_data['symmetry_constraint'].flatten())
+
+    # Build the plot
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 2.5), constrained_layout=True)
+    ax1, ax2, ax3 = axes.flatten()
+
+    # Plot the loss
+    compliance = np.round(loss.min(), 2)
+    loss.plot(ax=ax1, color='blue', logx=True, label='Compliance')
+    ax1.set_title(f'Compliance = {compliance}', fontsize=14)
+    ax1.grid()
+
+    # Plot the constraints
+    binary_constraint.plot(ax=ax2, logx=True, color='orange', label='Binary Constraint')
+    volume_constraint.plot(
+        ax=ax2, logx=True, color='limegreen', label='Volume Constraint'
+    )
+    symmetry_constraint.plot(
+        ax=ax2, logx=True, color='cyan', label='Symmetry Constraint'
+    )
+    ax2.text(0.75, 0.0, 'Goal', ha='left', va='bottom', color='gray')
+    ax2.axhline(0.0, color='gray')
+
+    ax2.set_title('Constraints', fontsize=14)
+    ax2.grid()
+    ax2.legend()
+
+    # Show the final design
+    ax3.imshow(design, cmap='Greys', aspect='auto')
+    ax3.axhline(design.shape[0] // 2 - 1, lw=2, color='red')
+    ax3.set_title('Final Design', fontsize=14)
+    ax3.axis('off')
+
+    fig.suptitle('Two Point Cantilever Beam - 96 x 96 - $v_f$ = 0.4', fontsize=14)
+
+    fig.savefig(
+        os.path.join(path, experiment_id, 'symmetry_results.png'),
+        bbox_inches='tight',
+    )
