@@ -507,10 +507,10 @@ def build_mesh_size_results(path, experiments: List[Tuple[str, str, str]]) -> No
         problem_name = experiment[0]
         title = experiment[2]
 
-        pygranso_data_path = os.path.join(
+        data_path = os.path.join(
             path, f'{experiment_id}/{problem_name}-pygranso-cnn.pickle'
         )
-        with open(pygranso_data_path, 'rb') as f:
+        with open(data_path, 'rb') as f:
             model_data = pickle.load(f)
 
         # Display designs in black and white
@@ -524,9 +524,9 @@ def build_mesh_size_results(path, experiments: List[Tuple[str, str, str]]) -> No
         volume_constraint = model_data[3]
 
         if 'bridge' in problem_name:
-            pygranso_design = np.hstack([design, design[:, ::-1]])
+            design = np.hstack([design, design[:, ::-1]])
 
-        ax.imshow(pygranso_design, aspect='auto', cmap=cmap)
+        ax.imshow(design, aspect='auto', cmap=cmap)
         ax.axis('off')
         ax.set_title(title, fontsize=14)
 
