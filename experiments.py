@@ -330,7 +330,11 @@ def build_designs(path: str, problem_name: str, experiment_id: str) -> None:
 
 
 def build_multi_model_size_results(
-    path: str, experiment_config: dict, problem_name: str, title_mapping: dict
+    path: str,
+    experiment_config: dict,
+    problem_name: str,
+    title_mapping: dict,
+    logy: bool = False,
 ):
     """
     Function that computes the results for the multi-trial, multi-model
