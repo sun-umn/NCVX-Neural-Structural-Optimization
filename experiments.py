@@ -803,7 +803,10 @@ def build_multi_material_channels(
     fig, axes = plt.subplots(1, 3, figsize=(12, 2), constrained_layout=True)
     axes = axes.flatten()
     for i in range(len(material_density_weight)):
-        material_channel = design[:, i + 1].reshape(nelx, nely).T[::-1, :]
+        material_channel = design[:, i + 1].reshape(nelx, nely).T
+        if problem_name == 'tip-cantilever-beam':
+            material_channel = material_channel[::-1, :]
+
         pixel_total = design.shape[0]
 
         constraint = material_channel * (1 - material_channel)
