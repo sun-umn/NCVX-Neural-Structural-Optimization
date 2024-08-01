@@ -449,7 +449,7 @@ def build_symmetry_result(path: str, experiment_id: str) -> None:
     symmetry_constraint = pd.Series(trajectory_data['symmetry_constraint'].flatten())
 
     # Build the plot
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 2.5), constrained_layout=True)
+    fig, axes = plt.subplots(1, 3, figsize=(13.5, 2.5), constrained_layout=True)
     ax1, ax2, ax3 = axes.flatten()
 
     # Plot the loss
