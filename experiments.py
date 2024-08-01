@@ -1,7 +1,7 @@
 # stdlib
 import os
 import pickle
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 # first party
 import matplotlib
@@ -491,3 +491,74 @@ def build_symmetry_result(path: str, experiment_id: str) -> None:
         os.path.join(path, experiment_id, 'symmetry_results.png'),
         bbox_inches='tight',
     )
+
+
+def build_mesh_size_results(path, experiments: List[Tuple[str, str, str]]) -> None:
+    """
+    Function that plot the results of large mesh sizes for
+    a list of experiment ids.
+    """
+    # Set up the plot
+    fig, axes = plt.subplots(1, 3, figsize=(14, 2.5), constrained_layout=True)
+    axes = axes.flatten()
+
+    for experiment, ax in zip(experiments, axes):
+        experiment_id = experiment[1]
+        problem_name = experiment[0]
+        title = experiment[2]
+
+        pygranso_data_path = os.path.join(
+            path, f'{experiment_id}/{problem_name}-pygranso-cnn.pickle'
+        )
+        with open(pygranso_data_path, 'rb') as f:
+            model_data = pickle.load(f)
+
+        # Display designs in black and white
+        cmap = 'Greys'
+
+        # NTO-PCO
+        # Get the design and the final performance metrics
+        design = model_data[0]
+        loss = model_data[1]
+        binary_constraint = model_data[2]
+        volume_constraint = model_data[3]
+
+        if 'bridge' in problem_name:
+            pygranso_design = np.hstack([design, design[:, ::-1]])
+
+        ax.imshow(pygranso_design, aspect='auto', cmap=cmap)
+        ax.axis('off')
+        ax.set_title(title, fontsize=14)
+
+        # These methods are to nicely add the text and we can also
+        # color code the face with the legend colors
+        # Add the colors box for the scoring
+        divider = make_axes_locatable(ax)
+
+        cax = divider.append_axes("bottom", size="25%", pad=0.01)
+        cax.get_xaxis().set_visible(False)
+        cax.get_yaxis().set_visible(False)
+
+        facecolor = 'blue'
+        fontcolor = 'white'
+
+        # Set the face color of the box
+        cax.set_facecolor(facecolor)
+        cax.spines["bottom"].set_color(facecolor)
+        cax.spines["top"].set_color(facecolor)
+        cax.spines["right"].set_color(facecolor)
+        cax.spines["left"].set_color(facecolor)
+
+        text = f"{loss} / {binary_constraint} / {volume_constraint}"
+        cax.text(
+            0.5,
+            0.5,
+            text,
+            ha='center',
+            va='center',
+            fontsize=14,
+            color=fontcolor,
+        )
+
+    img_filepath = os.path.join(path, 'large-designs.png')
+    fig.savefig(img_filepath, bbox_inches='tight')
