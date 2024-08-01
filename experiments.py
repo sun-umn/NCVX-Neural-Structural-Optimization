@@ -444,9 +444,15 @@ def build_symmetry_result(path: str, experiment_id: str) -> None:
     # Optimization trajectory data
     trajectory_data = model_data[-1]
     loss = pd.Series(trajectory_data['loss'].flatten())
-    binary_constraint = pd.Series(trajectory_data['binary_constraint'].flatten())
-    volume_constraint = pd.Series(trajectory_data['volume_constraint'].flatten())
-    symmetry_constraint = pd.Series(trajectory_data['symmetry_constraint'].flatten())
+    binary_constraint = pd.Series(
+        np.abs(trajectory_data['binary_constraint'].flatten())
+    )
+    volume_constraint = pd.Series(
+        np.abs(trajectory_data['volume_constraint'].flatten())
+    )
+    symmetry_constraint = pd.Series(
+        np.abs(trajectory_data['symmetry_constraint'].flatten())
+    )
 
     # Build the plot
     fig, axes = plt.subplots(1, 3, figsize=(13.5, 2.5), constrained_layout=True)
