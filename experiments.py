@@ -9,6 +9,8 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import torch
+from matplotlib import colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
@@ -562,3 +564,218 @@ def build_mesh_size_results(path, experiments: List[Tuple[str, str, str]]) -> No
 
     img_filepath = os.path.join(path, 'large-designs.png')
     fig.savefig(img_filepath, bbox_inches='tight')
+
+
+def build_multi_material_designs(
+    path: str, experiment_id: str, problem_name: str, seed: int
+) -> None:
+    """
+    Function that plots the final design of the multi-material
+    experiment. In this work we only explore two different structures,
+    the tip-cantilever beam and the bridge
+    """
+    # Create the figure
+    fig, axes = plt.subplots(1, 3, figsize=(15, 3), constrained_layout=True)
+    axes = axes.flatten()
+
+    # Fill colors
+    fillColors = ['white', 'black', 'red', 'blue']
+
+    with open(os.path.join(path, experiment_id, f'ntopco-{seed}.pickle'), 'rb') as f:
+        data = pickle.load(f)
+
+    # Extract the configuration of the problem
+    nelx = data['nelx']
+    nely = data['nely']
+    loss = data['compliance']
+    material_density_weight = data['material_density_weight']
+    mass_constraint = np.round(data['mass_constraint'], 2)
+    design = data['final_design']
+
+    # Quick check for torch tensor
+    if isinstance(loss, torch.Tensor):
+        loss = loss.detach().numpy()
+
+    loss = np.round(loss, 2)
+    final_design = np.argmax(design, axis=1).reshape(nelx, nely).T
+
+    # Some of the configurations were flipped upside down
+    # Flip the result of the tip-cantilever beam
+    if problem_name == 'tip-cantilever-beam':
+        final_design = final_design[::-1, :]
+
+    ax = axes[0]
+    ax.imshow(final_design, cmap=colors.ListedColormap(fillColors), aspect='auto')
+    ax.axis('off')
+    ax.set_title('NTO-PCO')
+
+    divider = make_axes_locatable(ax)
+
+    cax = divider.append_axes("bottom", size="20%", pad=0.01)
+    cax.get_xaxis().set_visible(False)
+    cax.get_yaxis().set_visible(False)
+
+    facecolor = 'silver'
+    fontcolor = 'black'
+
+    # Set the face color of the box
+    cax.set_facecolor(facecolor)
+    cax.spines["bottom"].set_color(facecolor)
+    cax.spines["top"].set_color(facecolor)
+    cax.spines["right"].set_color(facecolor)
+    cax.spines["left"].set_color(facecolor)
+
+    text = f"{loss} / {mass_constraint}"
+    cax.text(
+        0.5,
+        0.5,
+        text,
+        ha='center',
+        va='center',
+        fontsize=14,
+        color=fontcolor,
+    )
+
+    # Load in the MM-TOuNN Data
+    with open(os.path.join(path, experiment_id, f'mmtounn-{seed}.pickle'), 'rb') as f:
+        data = pickle.load(f)
+
+    # Extract the configuration of the problem
+    nelx = data['nelx']
+    nely = data['nely']
+    loss = data['compliance']
+    material_density_weight = data['material_density_weight']
+    mass_constraint = np.round(data['mass_constraint'], 2)
+    design = data['final_design']
+
+    # Quick check for torch tensor
+    if isinstance(loss, torch.Tensor):
+        loss = loss.detach().numpy()
+
+    loss = np.round(loss, 2)
+    final_design = np.argmax(design, axis=1).reshape(nelx, nely).T
+
+    # Some of the configurations were flipped upside down
+    # Flip the result of the tip-cantilever beam
+    if problem_name == 'tip-cantilever-beam':
+        final_design = final_design[::-1, :]
+
+    ax = axes[1]
+    ax.imshow(final_design, cmap=colors.ListedColormap(fillColors), aspect='auto')
+    ax.axis('off')
+    ax.set_title('MM-TOuNN')
+
+    divider = make_axes_locatable(ax)
+
+    cax = divider.append_axes("bottom", size="20%", pad=0.01)
+    cax.get_xaxis().set_visible(False)
+    cax.get_yaxis().set_visible(False)
+
+    facecolor = 'silver'
+    fontcolor = 'black'
+
+    # Set the face color of the box
+    cax.set_facecolor(facecolor)
+    cax.spines["bottom"].set_color(facecolor)
+    cax.spines["top"].set_color(facecolor)
+    cax.spines["right"].set_color(facecolor)
+    cax.spines["left"].set_color(facecolor)
+
+    text = f"{loss} / {mass_constraint}"
+    cax.text(
+        0.5,
+        0.5,
+        text,
+        ha='center',
+        va='center',
+        fontsize=14,
+        color=fontcolor,
+    )
+
+    # Classical MMTO
+    with open(os.path.join(path, experiment_id, 'cmmto.pickle'), 'rb') as f:
+        data = pickle.load(f)
+
+    # We need the configuration of the problem
+    nelx = data['nelx']
+    nely = data['nely']
+    material_density_weight = data['material_density_weight']
+    loss = np.round(data['compliance'], 2)
+    volume_constraint = np.round(data['mass_constraint'], 2)
+
+    median_density_weight = material_density_weight.numpy()
+    design = data['final_design']
+
+    for i in range(len(median_density_weight) - 1):
+        median_density_weight[i] = 0.5 * (
+            material_density_weight[i] + material_density_weight[i + 1]
+        )
+
+    image = np.zeros((nely, nelx))
+
+    for i in range(nely):
+        for j in range(nelx):
+            image[i, j] = np.sum(
+                1 - (design[i, j] <= median_density_weight).astype(int)
+            )
+
+    if problem_name == 'tip-cantilever-beam':
+        image = image[::-1, :]
+
+    ax = axes[2]
+    ax.imshow(image, cmap=colors.ListedColormap(fillColors), aspect='auto')
+    ax.axis('off')
+    ax.set_title('MMTO + Mass Constraint + OC', fontsize=14)
+
+    divider = make_axes_locatable(ax)
+
+    cax = divider.append_axes("bottom", size="20%", pad=0.01)
+    cax.get_xaxis().set_visible(False)
+    cax.get_yaxis().set_visible(False)
+
+    facecolor = 'silver'
+    fontcolor = 'black'
+
+    # Set the face color of the box
+    cax.set_facecolor(facecolor)
+    cax.spines["bottom"].set_color(facecolor)
+    cax.spines["top"].set_color(facecolor)
+    cax.spines["right"].set_color(facecolor)
+    cax.spines["left"].set_color(facecolor)
+
+    text = f"{loss} / {volume_constraint}"
+    cax.text(
+        0.5,
+        0.5,
+        text,
+        ha='center',
+        va='center',
+        fontsize=14,
+        color=fontcolor,
+    )
+
+    # Set up the suptitle
+    if problem_name == 'bridge':
+        fig.suptitle('Multi-Material Bridge - 128 x 64 - $v_f$ = 0.4', fontsize=14)
+
+    elif problem_name == 'tip-cantilever-beam':
+        fig.suptitle(
+            'Multi-Material Tip Cantilever Beam - 64 x 32 - $v_f$ = 0.6', fontsize=14
+        )
+
+    # Create the legend
+    white_patch = mpatches.Patch(color='white', label='Void')
+    black_patch = mpatches.Patch(color='black', label='Material-1')
+    red_patch = mpatches.Patch(color='red', label='Material-2')
+    blue_patch = mpatches.Patch(color='blue', label='Material-3')
+    fig.legend(
+        handles=[white_patch, black_patch, red_patch, blue_patch],
+        loc='lower center',
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=4,
+    )
+
+    save_image_path = os.path.join(
+        path, experiment_id, f'mmto-{problem_name}-{seed}-results.png'
+    )
+    fig.savefig(save_image_path, bbox_inches='tight')
