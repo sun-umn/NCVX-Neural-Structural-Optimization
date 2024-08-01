@@ -369,7 +369,9 @@ def build_multi_model_size_results(
     num_trials = 20
     for idx, (model, results) in enumerate(data.items()):
         # Print statistic
-        trial_min_values = np.nanmin(results['loss'], axis=0)
+        trial_min_values = (pd.DataFrame(results['loss']).ffill().values[-1, :],)
+        print(f'Trial min values {trial_min_values}')
+
         median_value = np.median(trial_min_values)
         min_value = np.min(trial_min_values)
         max_value = np.max(trial_min_values)
@@ -385,7 +387,11 @@ def build_multi_model_size_results(
 
             for trial in range(num_trials):
                 values_as_series = pd.Series(np.abs(values[:, trial]))
-                values_as_series.plot(color=color, logx=True, ax=ax)
+
+                if result_idx == 0:
+                    values_as_series.plot(color=color, logx=True, logy=True, ax=ax)
+                else:
+                    values_as_series.plot(color=color, logx=True, ax=ax)
 
             # Set titles along the x-axis
             if idx == 0 and result_idx == 0:
