@@ -520,8 +520,8 @@ def build_mesh_size_results(path, experiments: List[Tuple[str, str, str]]) -> No
         # Get the design and the final performance metrics
         design = model_data[0]
         loss = model_data[1]
-        binary_constraint = model_data[2]
-        volume_constraint = model_data[3]
+        binary_constraint = np.abs(model_data[2])
+        volume_constraint = np.abs(model_data[3])
 
         if 'bridge' in problem_name:
             design = np.hstack([design, design[:, ::-1]])
