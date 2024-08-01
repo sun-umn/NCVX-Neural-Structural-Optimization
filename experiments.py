@@ -779,3 +779,86 @@ def build_multi_material_designs(
         path, experiment_id, f'mmto-{problem_name}-{seed}-results.png'
     )
     fig.savefig(save_image_path, bbox_inches='tight')
+
+
+def build_multi_material_channels(
+    path: str, experiment_id: str, problem_name: str, seed: int
+) -> None:
+    """
+    Function that plots a single material channel for the multi-material
+    topology optimization experiment.
+    """
+    with open(os.path.join(path, experiment_id, f'ntopco-{seed}.pickle'), 'rb') as f:
+        data = pickle.load(f)
+
+    # We need the configuration of the problem
+    nelx = data['nelx']
+    nely = data['nely']
+    material_density_weight = data['material_density_weight']
+
+    design = data['final_design']
+    color_list = [['gray', '1.0'], ['1.0', 'black'], ['1.0', 'red'], ['1.0', 'blue']]
+    titles = ['Void', 'Material-1', 'Material-2', 'Material-3']
+
+    fig, axes = plt.subplots(1, 3, figsize=(12, 2), constrained_layout=True)
+    axes = axes.flatten()
+    for i in range(len(material_density_weight)):
+        material_channel = design[:, i + 1].reshape(nelx, nely).T[::-1, :]
+        pixel_total = design.shape[0]
+
+        constraint = material_channel * (1 - material_channel)
+        constraint = np.round(np.linalg.norm(constraint, ord=1) / pixel_total, 5)
+
+        ax = axes[i]
+        ax.imshow(
+            material_channel,
+            aspect='auto',
+            cmap=colors.ListedColormap(color_list[i + 1]),
+        )
+
+        divider = make_axes_locatable(ax)
+
+        cax = divider.append_axes("bottom", size="20%", pad=0.01)
+        cax.get_xaxis().set_visible(False)
+        cax.get_yaxis().set_visible(False)
+
+        facecolor = 'silver'
+        fontcolor = 'black'
+
+        # Set the face color of the box
+        cax.set_facecolor(facecolor)
+        cax.spines["bottom"].set_color(facecolor)
+        cax.spines["top"].set_color(facecolor)
+        cax.spines["right"].set_color(facecolor)
+        cax.spines["left"].set_color(facecolor)
+
+        text = f"Binary Constraint = {constraint}"
+        cax.text(
+            0.5,
+            0.5,
+            text,
+            ha='center',
+            va='center',
+            fontsize=14,
+            color=fontcolor,
+        )
+
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_title(titles[i + 1])
+
+    white_patch = mpatches.Patch(color='white', label='Void')
+    black_patch = mpatches.Patch(color='black', label='Material-1')
+    red_patch = mpatches.Patch(color='red', label='Material-2')
+    blue_patch = mpatches.Patch(color='blue', label='Material-3')
+    fig.legend(
+        handles=[white_patch, black_patch, red_patch, blue_patch],
+        loc='lower center',
+        bbox_to_anchor=(0.5, -0.20),
+        ncol=4,
+    )
+
+    save_image_path = os.path.join(
+        path, experiment_id, f'mmto-{problem_name}-{seed}-channel-results.png'
+    )
+    fig.savefig(save_image_path, bbox_inches='tight')
