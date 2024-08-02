@@ -881,21 +881,6 @@ def run_multi_material_pipeline(problem_name):
             model=model, comb_fn=comb_fn, maxit=first_stage_maxit, device=device
         )
 
-        # # Train PyGranso MMTO - Second Stage
-        # comb_fn = lambda model: train.multi_material_constraint_function(  # noqa
-        #     model,
-        #     initial_compliance,
-        #     ke,
-        #     args,
-        #     add_constraints=True,
-        #     device=device,
-        #     dtype=torch.double,
-        # )
-        #
-        # train.train_pygranso_mmto(
-        #     model=model, comb_fn=comb_fn, maxit=second_stage_maxit, device=device
-        # )
-
         # Get the final design
         compliance, final_design, _ = topo_physics.calculate_multi_material_compliance(
             model, ke, args, device, torch.double
