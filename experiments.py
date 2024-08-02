@@ -369,7 +369,7 @@ def build_multi_model_size_results(
     )
 
     # Colors
-    colors = ['orange', 'blue', 'limegreen']
+    colors = ['red', 'blue', 'limegreen']
 
     # TODO: Currently hard-coded for our 20 trial experiments
     num_trials = 20
@@ -417,7 +417,7 @@ def build_multi_model_size_results(
 
     fig.suptitle(title_mapping[problem_name], fontsize=14)
 
-    orange_patch = mpatches.Patch(color='orange', label='Small Model')
+    orange_patch = mpatches.Patch(color='red', label='Small Model')
     blue_patch = mpatches.Patch(color='blue', label='Medium Model')
     green_patch = mpatches.Patch(color='limegreen', label='Large Model')
 
