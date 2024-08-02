@@ -261,8 +261,8 @@ def build_designs(path: str, problem_name: str, experiment_id: str) -> None:
     # Google-DIP
     design = google_data['google-cnn'][0]
     loss = google_data['google-cnn'][1]
-    binary_constraint = google_data['google-cnn'][2]
-    volume_constraint = google_data['google-cnn'][3]
+    binary_constraint = np.abs(google_data['google-cnn'][2])
+    volume_constraint = np.abs(google_data['google-cnn'][3])
 
     # Plot Configs
     google_plot_configs = {
@@ -284,8 +284,8 @@ def build_designs(path: str, problem_name: str, experiment_id: str) -> None:
     # TOuNN
     design = tounn_data[0]
     loss = tounn_data[1]
-    binary_constraint = tounn_data[2]
-    volume_constraint = tounn_data[3]
+    binary_constraint = np.abs(tounn_data[2])
+    volume_constraint = np.abs(tounn_data[3])
 
     tounn_plot_configs = {
         'facecolor': 'limegreen',
@@ -306,8 +306,8 @@ def build_designs(path: str, problem_name: str, experiment_id: str) -> None:
     # Classical Method MMA
     design = google_data['mma'][0]
     loss = google_data['mma'][1]
-    binary_constraint = google_data['mma'][2]
-    volume_constraint = google_data['mma'][3]
+    binary_constraint = np.abs(google_data['mma'][2])
+    volume_constraint = np.abs(google_data['mma'][3])
 
     mma_plot_configs = {
         'facecolor': 'gold',
