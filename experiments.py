@@ -234,8 +234,8 @@ def build_designs(path: str, problem_name: str, experiment_id: str) -> None:
     # NTO-PCO
     design = pygranso_data[0]
     loss = pygranso_data[1]
-    binary_constraint = pygranso_data[2]
-    volume_constraint = pygranso_data[3]
+    binary_constraint = np.abs(pygranso_data[2])
+    volume_constraint = np.abs(pygranso_data[3])
 
     requires_flip = False
     if 'bridge' in problem_name:
