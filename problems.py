@@ -17,7 +17,7 @@
 """A suite of topology optimization problems."""
 # third party
 import dataclasses
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import skimage
@@ -52,7 +52,8 @@ class Problem:
     normals: torch.Tensor  # noqa
     forces: torch.Tensor  # noqa
     density: float  # noqa
-    epsilon: float  # noqa
+    x_symmetry: bool = False  # noqa
+    y_symmetry: bool = False  # noqa
     mask: Union[torch.Tensor, float] = 1  # noqa
     tounn_mask: Union[None, Dict[str, int]] = None
     name: Optional[str] = None  # noqa
@@ -83,13 +84,13 @@ class Problem:
         )
 
 
+# Single-material Structures
 def mbb_beam(
-    width=60,
-    height=20,
-    density=0.5,
-    epsilon=1e-3,
-    device=DEFAULT_DEVICE,
-    dtype=DEFAULT_DTYPE,
+    width: int = 60,
+    height: int = 20,
+    density: float = 0.5,
+    device: torch.device = DEFAULT_DEVICE,
+    dtype: torch.dtype = DEFAULT_DTYPE,
 ):
     """Textbook beam example."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -99,16 +100,15 @@ def mbb_beam(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, 0, Y] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def mbb_beam_with_circular_non_design_region(
-    width=60,
-    height=20,
-    density=0.5,
-    epsilon=1e-3,
-    device=DEFAULT_DEVICE,
-    dtype=DEFAULT_DTYPE,
+    width: int = 60,
+    height: int = 20,
+    density: float = 0.5,
+    device: torch.device = DEFAULT_DEVICE,
+    dtype: torch.dtype = DEFAULT_DTYPE,
 ):
     """Textbook beam example."""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -135,20 +135,19 @@ def mbb_beam_with_circular_non_design_region(
             if distance <= radius:
                 mask[y, x] = 0
 
-    mask = torch.tensor(mask)
-    mask = mask.to(device=device, dtype=dtype)
+    mask = torch.tensor(mask)  # type: ignore
+    mask = mask.to(device=device, dtype=dtype)  # type: ignore
 
-    return Problem(normals, forces, density, epsilon, mask)
+    return Problem(normals, forces, density, mask=mask)  # type: ignore
 
 
 def cantilever_beam_full(
-    width=60,
-    height=60,
-    density=0.5,
-    force_position=0,
-    epsilon=1e-3,
-    device=DEFAULT_DEVICE,
-    dtype=DEFAULT_DTYPE,
+    width: int = 60,
+    height: int = 60,
+    density: float = 0.5,
+    force_position: int = 0,
+    device: torch.device = DEFAULT_DEVICE,
+    dtype: torch.dtype = DEFAULT_DTYPE,
 ):
     """Cantilever supported everywhere on the left"""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -157,18 +156,17 @@ def cantilever_beam_full(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, round((1 - force_position) * height), Y] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def cantilever_beam_two_point(
-    width=60,
-    height=60,
-    density=0.5,
-    support_position=0.25,
-    force_position=0.5,
-    epsilon=1e-3,
-    device=DEFAULT_DEVICE,
-    dtype=DEFAULT_DTYPE,
+    width: int = 60,
+    height: int = 60,
+    density: float = 0.5,
+    support_position: float = 0.25,
+    force_position: float = 0.5,
+    device: torch.device = DEFAULT_DEVICE,
+    dtype: torch.dtype = DEFAULT_DTYPE,
 ):
     """Cantilever supported by two points"""
     normals = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
@@ -178,17 +176,19 @@ def cantilever_beam_two_point(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, round((1 - force_position) * height), Y] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    # Symmetry requirements
+    y_symmetry = True
+
+    return Problem(normals, forces, density, y_symmetry=y_symmetry)
 
 
 def pure_bending_moment(
-    width=60,
-    height=60,
-    density=0.5,
-    epsilon=1e-3,
-    support_position=0.45,
-    device=DEFAULT_DEVICE,
-    dtype=DEFAULT_DTYPE,
+    width: int = 60,
+    height: int = 60,
+    density: float = 0.5,
+    support_position: float = 0.45,
+    device: torch.device = DEFAULT_DEVICE,
+    dtype: torch.dtype = DEFAULT_DTYPE,
 ):
     """Pure bending forces on a beam."""
     # Figure 28 from
@@ -204,7 +204,7 @@ def pure_bending_moment(
     forces[0, round(height * (1 - support_position)), X] = 1
     forces[0, round(height * support_position), X] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def michell_centered_both(
@@ -212,7 +212,6 @@ def michell_centered_both(
     height=32,
     density=0.5,
     position=0.05,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -225,7 +224,7 @@ def michell_centered_both(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, round(height / 2), Y] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def michell_centered_below(
@@ -233,7 +232,6 @@ def michell_centered_below(
     height=32,
     density=0.5,
     position=0.25,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -246,15 +244,13 @@ def michell_centered_below(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[-1, 0, Y] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def michell_centered_top(
     width=32,
     height=32,
     density=0.5,
-    position=0.25,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -269,7 +265,7 @@ def michell_centered_top(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[round(width // 2), 0, Y] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def ground_structure(
@@ -277,7 +273,6 @@ def ground_structure(
     height=32,
     density=0.5,
     force_position=0.5,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -290,7 +285,7 @@ def ground_structure(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[round(force_position * height), -1, Y] = -1
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def l_shape(
@@ -299,7 +294,6 @@ def l_shape(
     density=0.5,
     aspect=0.4,
     force_position=0.5,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -314,6 +308,9 @@ def l_shape(
     mask = torch.ones((width, height)).to(device=device, dtype=dtype)
     mask[round(height * aspect) :, : round(width * (1 - aspect))] = 0  # noqa
 
+    # Mask needs to be transposed
+    mask = mask.t()
+
     # For TOuNN
     min_x = round(height * aspect)
     max_x = height
@@ -322,7 +319,7 @@ def l_shape(
 
     tounn_mask = {'x>': min_x, 'x<': max_x, 'y>': min_y, 'y<': max_y}
 
-    return Problem(normals, forces, density, epsilon, mask.T, tounn_mask)
+    return Problem(normals, forces, density, mask=mask, tounn_mask=tounn_mask)
 
 
 def crane(
@@ -331,7 +328,6 @@ def crane(
     density=0.3,
     aspect=0.5,
     force_position=0.9,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -346,15 +342,15 @@ def crane(
     # the extra +2 ensures that entire region in the vicinity of the force can be
     # be designed; otherwise we get outrageously high values for the compliance.
     mask[round(aspect * width) :, round(height * aspect) + 2 :] = 0  # noqa
+    mask = mask.t()
 
-    return Problem(normals, forces, density, epsilon, mask.T)
+    return Problem(normals, forces, density)
 
 
 def tower(
     width=32,
     height=32,
     density=0.5,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -365,14 +361,14 @@ def tower(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, 0, Y] = -1
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def center_support(
     width=32,
     height=32,
     density=0.3,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -383,14 +379,14 @@ def center_support(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def column(
     width=32,
     height=32,
     density=0.3,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -401,14 +397,14 @@ def column(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def roof(
     width=32,
     height=32,
     density=0.5,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -420,7 +416,8 @@ def roof(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, 0, Y] = -1 / width
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def causeway_bridge(
@@ -428,7 +425,6 @@ def causeway_bridge(
     height=20,
     density=0.3,
     deck_level=1,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -440,7 +436,8 @@ def causeway_bridge(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, round(height * (1 - deck_level)), Y] = -1 / width
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def two_level_bridge(
@@ -448,7 +445,6 @@ def two_level_bridge(
     height=32,
     density=0.3,
     deck_height=0.2,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -461,7 +457,8 @@ def two_level_bridge(
     forces = torch.zeros((width + 1, width + 1, 2)).to(device=device, dtype=dtype)
     forces[:, round(height * (1 - deck_height) / 2), :] = -1 / (2 * width)
     forces[:, round(height * (1 + deck_height) / 2), :] = -1 / (2 * width)
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def suspended_bridge(
@@ -470,7 +467,6 @@ def suspended_bridge(
     density=0.3,
     span_position=0.2,
     anchored=False,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -483,7 +479,8 @@ def suspended_bridge(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, -1, Y] = -1 / width
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def canyon_bridge(
@@ -491,7 +488,6 @@ def canyon_bridge(
     height=20,
     density=0.3,
     deck_level=1,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -504,7 +500,8 @@ def canyon_bridge(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, deck_height, Y] = -1 / width
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def multistory_building(
@@ -512,7 +509,6 @@ def multistory_building(
     height=32,
     density=0.3,
     interval=16,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -523,7 +519,8 @@ def multistory_building(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, ::interval, Y] = -1 / width
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
 
 
 def thin_support_bridge(
@@ -531,7 +528,6 @@ def thin_support_bridge(
     height=32,
     density=0.25,
     design_width=0.25,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -552,14 +548,13 @@ def thin_support_bridge(
         : round(height * (1 - design_width)),  # noqa
     ] = 0  # noqa
 
-    return Problem(normals, forces, density, epsilon, mask)
+    return Problem(normals, forces, density, mask=mask)
 
 
 def drawbridge(
     width=32,
     height=32,
     density=0.25,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -570,14 +565,13 @@ def drawbridge(
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[:, -1, Y] = -1 / width
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def hoop(
     width=32,
     height=32,
     density=0.25,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -596,7 +590,7 @@ def hoop(
     value = torch.tensor(value).to(device=device, dtype=dtype)
     forces[i, j, Y] = -value / (2 * np.pi * width)
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def multipoint_circle(
@@ -606,7 +600,6 @@ def multipoint_circle(
     radius=6 / 7,
     weights=(1, 0, 0, 0, 0, 0),
     num_points=12,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -632,14 +625,13 @@ def multipoint_circle(
         forces[i, j, X] = +c1 * y + c2 * x + c3 * y + c4 * x + c_x0
         forces[i, j, Y] = -c1 * x + c2 * y + c3 * x - c4 * y + c_y0
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def dam(
     width=32,
     height=32,
     density=0.5,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -650,21 +642,19 @@ def dam(
 
     forces = torch.zeros((width + 1, height + 1, 2)).to(device=device, dtype=dtype)
     forces[0, :, X] = 2 * torch.arange(1, height + 2) / height**2
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def ramp(
     width=32,
     height=32,
     density=0.25,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
     """Support downward forces on a ramp."""
-    return staircase(
-        width=width, height=height, density=density, epsilon=epsilon, num_stories=1
-    )
+
+    return staircase(width=width, height=height, density=density, num_stories=1)
 
 
 def staircase(
@@ -672,7 +662,6 @@ def staircase(
     height=32,
     density=0.25,
     num_stories=2,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -690,7 +679,7 @@ def staircase(
         value = torch.tensor(value).to(device=device, dtype=dtype)
         forces[i, j, Y] = torch.minimum(forces[i, j, Y], -value / (width * num_stories))
 
-    return Problem(normals, forces, density, epsilon)
+    return Problem(normals, forces, density)
 
 
 def staggered_points(
@@ -699,7 +688,6 @@ def staggered_points(
     density=0.3,
     interval=16,
     break_symmetry=False,
-    epsilon=1e-3,
     device=DEFAULT_DEVICE,
     dtype=DEFAULT_DTYPE,
 ):
@@ -714,7 +702,150 @@ def staggered_points(
     # intentionally break horizontal symmetry?
     forces[interval // 2 + int(break_symmetry) :: interval, ::interval, Y] = -f  # noqa
     forces[int(break_symmetry) :: interval, interval // 2 :: interval, Y] = -f  # noqa
-    return Problem(normals, forces, density, epsilon)
+
+    return Problem(normals, forces, density)
+
+
+# Multi-material Structures
+def multi_material_cantilever_beam(
+    width: int = 64,
+    height: int = 32,
+    density: float = 0.6,
+    e_materials: torch.Tensor = torch.tensor([3.0, 2.0, 1.0], dtype=torch.double),
+    material_density_weight: torch.Tensor = torch.tensor(
+        [1.0, 0.7, 0.4], dtype=torch.double
+    ),
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+) -> Dict[str, Any]:
+    """
+    Problem that defined configuration for multi-material
+    cantilever beam
+
+    NOTE: Structure performs well with smaller kernel sizes
+    in terms of compliance.
+    """
+    ndof = 2 * (width + 1) * (height + 1)
+
+    # Forces on the system
+    forces = torch.zeros((ndof, 1))
+    forces[2 * (width + 1) * (height + 1) - 2 * height + 1, 0] = -1
+
+    # Degrees of freedom
+    alldofs_array = np.arange(ndof)
+
+    # Fixed dofs
+    fixdofs_array = alldofs_array[0 : 2 * (height + 1) : 1]
+
+    # Free dofs
+    freedofs_array = np.sort(list(set(alldofs_array) - set(fixdofs_array)))
+
+    # Convert to torch tensorse)
+    mask = torch.tensor(torch.tensor(1.0)).to(device=device, dtype=dtype)
+    freedofs = torch.tensor(freedofs_array).to(device=device, dtype=torch.long)
+    fixdofs = torch.tensor(fixdofs_array).to(device=device, dtype=torch.long)
+
+    params = {
+        # material properties
+        "young": 1.0,
+        "young_min": 1e-9,
+        "poisson": 0.3,
+        "g": 0.0,
+        # constraints
+        "combined_frac": density,
+        "volfrac": 0.60,
+        "xmin": 0.001,
+        "xmax": 1.0,
+        # input parameters
+        "nelx": torch.tensor(width),
+        "nely": torch.tensor(height),
+        "mask": mask,
+        "freedofs": freedofs,
+        "fixdofs": fixdofs,
+        "forces": forces.flatten(),
+        "penal": 3.0,
+        "filter_width": 2,
+        "ndof": len(alldofs_array),
+        "e_materials": e_materials,
+        "material_density_weight": material_density_weight,
+        "y_symmetry": False,
+        "x_symmetry": False,
+        "epsilon": 1e-3,
+    }
+
+    return params
+
+
+def multi_material_bridge(
+    width: int = 128,
+    height: int = 64,
+    density: float = 0.4,
+    e_materials: torch.Tensor = torch.tensor([0.2, 0.6, 1.0], dtype=torch.double),
+    material_density_weight: torch.Tensor = torch.tensor(
+        [0.4, 0.7, 1.0], dtype=torch.double
+    ),
+    device=DEFAULT_DEVICE,
+    dtype=DEFAULT_DTYPE,
+) -> Dict[str, Any]:
+    """
+    Problem that defined configuration for multi-material
+    cantilever beam
+    """
+    ndof = 2 * (width + 1) * (height + 1)
+
+    # Forces on the system
+    forces = torch.zeros((ndof, 1))
+
+    forces[2 * (height + 1) * int(width // 4 + 1) - 1, 0] = -1
+    forces[2 * (height + 1) * int(2 * width // 4 + 1) - 1, 0] = -2
+    forces[2 * (height + 1) * int(3 * width // 4 + 1) - 1, 0] = -1
+
+    # Degrees of freedom
+    alldofs_array = np.arange(ndof)
+
+    # Fixed dofs
+    fixdofs_array = np.union1d(
+        np.array([2 * (height + 1) - 1 - 1, 2 * (height + 1) - 1]),
+        np.array([2 * (width + 1) * (height + 1) - 1]),
+    )
+
+    # Free dofs
+    freedofs_array = np.sort(list(set(alldofs_array) - set(fixdofs_array)))
+
+    # Convert to torch tensorse)
+    mask = torch.tensor(torch.tensor(1.0)).to(device=device, dtype=dtype)
+    freedofs = torch.tensor(freedofs_array).to(device=device, dtype=torch.long)
+    fixdofs = torch.tensor(fixdofs_array).to(device=device, dtype=torch.long)
+
+    params = {
+        # material properties
+        "young": 1.0,
+        "young_min": 1e-9,
+        "poisson": 0.3,
+        "g": 0.0,
+        # constraints
+        "combined_frac": density,
+        "volfrac": 0.4,
+        "xmin": 0.001,
+        "xmax": 1.0,
+        # input parameters
+        "nelx": torch.tensor(width),
+        "nely": torch.tensor(height),
+        "mask": mask,
+        "freedofs": freedofs,
+        "fixdofs": fixdofs,
+        "forces": forces.flatten(),
+        "penal": 3.0,
+        "filter_width": 2,
+        "ndof": len(alldofs_array),
+        "e_materials": e_materials,
+        "material_density_weight": material_density_weight,
+        "y_symmetry": False,
+        "x_symmetry": True,
+        "epsilon": 1e-3,
+    }
+
+    return params
 
 
 def build_problems_by_name(device=DEFAULT_DEVICE):
@@ -723,7 +854,7 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
         # idealized beam and cantilevers
         "mbb_beam": [
             mbb_beam(96, 32, density=0.5, device=device),
-            mbb_beam(192, 64, density=0.4, device=device),
+            mbb_beam(192, 64, density=0.5, device=device),
             mbb_beam(384, 128, density=0.3, device=device),
             mbb_beam(384, 128, density=0.5, device=device),
             mbb_beam(192, 32, density=0.5, device=device),
@@ -790,7 +921,7 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             ground_structure(256, 256, density=0.07, device=device),
             ground_structure(256, 256, density=0.05, device=device),
         ],
-        # # simple constrained designs
+        # simple constrained designs
         "l_shape_0.2": [
             l_shape(64, 64, aspect=0.2, density=0.4, device=device),
             l_shape(128, 128, aspect=0.2, density=0.3, device=device),
@@ -801,6 +932,7 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
             l_shape(128, 128, aspect=0.4, density=0.3, device=device),
             l_shape(192, 192, aspect=0.4, density=0.3, device=device),
             l_shape(256, 256, aspect=0.4, density=0.2, device=device),
+            l_shape(256, 256, aspect=0.4, density=0.3, device=device),
         ],
         "crane": [
             crane(64, 64, density=0.3, device=device),
@@ -880,6 +1012,9 @@ def build_problems_by_name(device=DEFAULT_DEVICE):
                 span_position=0.1,
                 anchored=True,
                 device=device,  # noqa
+            ),
+            suspended_bridge(
+                256, 256, density=0.1, span_position=0.1, anchored=True, device=device
             ),
             suspended_bridge(
                 256,

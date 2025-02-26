@@ -1,4 +1,5 @@
 import random
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -240,23 +241,26 @@ class MultiMaterialCNNModel(nn.Module):
 
     def __init__(  # noqa
         self,
-        args,
-        latent_size=128,
-        dense_channels=32,
-        resizes=(1, 2, 2, 2, 1),
-        conv_filters=(128 * 2 // 1, 64 * 2 // 1, 32 * 2 // 1, 16 * 2 // 1),
-        offset_scale=10.0,
-        kernel_size=(5, 5),
-        latent_scale=1.0,
-        dense_init_scale=1.0,
-        random_seed=0,
+        args: dict,
+        latent_size: int = 128,
+        dense_channels: int = 32,
+        average_pool_size: int = 8,
+        resizes: Tuple = (1, 2, 2, 2, 1),
+        conv_filters: Tuple = (128, 64, 32, 16),
+        offset_scale: float = 10.0,
+        kernel_sizes: list[Tuple[int, int]] = [(5, 5), (5, 5), (5, 5), (5, 5), (5, 5)],
+        dense_init_scale: float = 1.0,
+        random_seed: int = 0,
     ):
         super().__init__()
         set_seed(random_seed)
+        self.args = args
+        self.multiplier = average_pool_size
+
         # Update the convolutional filters for the expected
         # number of material channels
         self.num_materials = len(args['e_materials']) + 1
-        conv_filters = conv_filters + (self.num_materials,)
+        conv_filters = conv_filters + (self.num_materials * self.multiplier,)
 
         # Raise an error if the resizes are not equal to the convolutional
         # filteres
@@ -273,7 +277,7 @@ class MultiMaterialCNNModel(nn.Module):
         self.dense_channels = dense_channels
         self.resizes = resizes
         self.conv_filters = conv_filters
-        self.kernel_size = kernel_size
+        self.kernel_sizes = kernel_sizes
         self.latent_size = latent_size
         self.dense_init_scale = dense_init_scale
         self.offset_scale = offset_scale
@@ -289,6 +293,7 @@ class MultiMaterialCNNModel(nn.Module):
 
         # Still the best initialization for the first layer
         nn.init.orthogonal_(self.dense.weight, gain=gain)
+        nn.init.zeros_(self.dense.bias)
 
         # Create the convoluational layers that will be used
         self.conv = nn.ModuleList()
@@ -307,21 +312,33 @@ class MultiMaterialCNNModel(nn.Module):
         offset_filters_tuple = conv_filters[:-1]
         offset_filters = dense_channels_tuple + offset_filters_tuple
 
-        for resize, in_channels, out_channels in zip(
-            self.resizes, offset_filters, conv_filters
+        # Performed very well!
+        # kernel_sizes = [(5, 5), (5, 5), (7, 7), (9, 9), (9, 9)]
+        # kernel_sizes = [(5, 5), (5, 5), (9, 9), (11, 11), (11, 11)]
+        # kernel_sizes = [(5, 5), (5, 5), (9, 9), (9, 9)]
+        # kernel_sizes = [(7, 7), (7, 7), (11, 11), (11, 11)]
+        # kernel_sizes = [(3, 3), (3, 3), (5, 5), (5, 5)]
+
+        for resize, in_channels, out_channels, kernel_size in zip(
+            resizes, offset_filters, conv_filters, kernel_sizes
         ):
             convolution_layer = nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
-                kernel_size=self.kernel_size,
+                kernel_size=kernel_size,
                 padding="same",
             )
+
             # This was the best initialization
             # TODO: Since we are using a sin activation layer I will add
             # the SIREN initialization
             torch.nn.init.kaiming_normal_(
-                convolution_layer.weight, mode="fan_in", nonlinearity="leaky_relu"
+                convolution_layer.weight,
+                mode="fan_in",
+                nonlinearity="leaky_relu",
             )
+            nn.init.zeros_(convolution_layer.bias)  # type: ignore
+
             self.conv.append(convolution_layer)
             self.global_normalization.append(GlobalNormalization())
 
@@ -336,12 +353,16 @@ class MultiMaterialCNNModel(nn.Module):
             )
             self.add_offset.append(offset_layer)
 
+        self.avg_pool = nn.AvgPool2d(kernel_size=5, stride=1, padding=2)
+        self.avg_output = nn.AvgPool2d(
+            kernel_size=(1, self.multiplier), stride=(1, self.multiplier), padding=0
+        )
+        self.softmax = nn.Softmax(dim=0)
+
         # Set up z here otherwise it is not part of the leaf tensors
         self.z = get_seeded_random_variable(latent_size, random_seed)
-        self.z = torch.mean(self.z, axis=0)
-
+        self.z = torch.mean(self.z, axis=0)  # type: ignore
         self.z = nn.Parameter(self.z)
-        self.softplus = nn.Softplus()
 
     def forward(self, x=None):  # noqa
         # Create the model
@@ -349,12 +370,10 @@ class MultiMaterialCNNModel(nn.Module):
         output = output.reshape((1, self.dense_channels, self.h, self.w))
 
         layer_loop = zip(self.resizes, self.conv_filters)
-        for idx, (resize, filters) in enumerate(layer_loop):
+        for idx, (resize, _) in enumerate(layer_loop):
             output = torch.sin(output)
-            # After a lot of investigation the outputs of the upsample need
-            # to be reconfigured to match the same expectation as tensorflow
-            # so we will do that here. Also, interpolate is teh correct
-            # function to use here
+
+            # Upsample interpolation
             output = Fun.interpolate(
                 output,
                 scale_factor=resize,
@@ -372,8 +391,27 @@ class MultiMaterialCNNModel(nn.Module):
                 output = self.add_offset[idx](output)
 
         # The final output will have num_materials + 1 (void)
-        output = self.softplus(output)
+        # output = self.avg_pool(output)
         output = torch.squeeze(output)
+
+        if self.multiplier != 1:
+            output = (
+                output.permute(0, 2, 1)
+                .reshape(self.num_materials * self.multiplier, -1)
+                .t()
+            )
+            output = self.avg_output(output[None, None, ...]).squeeze()
+            output = (
+                output.t()
+                .reshape(self.num_materials, self.args['nelx'], self.args['nely'])
+                .permute(0, 2, 1)
+            )
+
+        output = torch.exp(output)
+        normalization = torch.norm(output, p=1, dim=0)
+        output = output / normalization[None, :]
+
+        # output = self.softmax(output)
 
         return output
 
